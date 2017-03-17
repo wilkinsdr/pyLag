@@ -546,10 +546,11 @@ def ExtractSimLCs(lc1, lc2):
 	print "Simultaneous portion length = %g" % (end - start)
 
 	# extract the portion of eaach light curve from this range of times
-	time = np.array([t for t in lc1.time if t>=start and t<=end])
+	time1 = np.array([t for t in lc1.time if t>=start and t<=end])
 	rate1 = np.array([r for t,r in zip(lc1.time, lc1.rate) if t>=start and t<=end])
 	err1 = np.array([e for t,e in zip(lc1.time, lc1.error) if t>=start and t<=end])
 
+	time2 = np.array([t for t in lc2.time if t>=start and t<=end])
 	rate2 = np.array([r for t,r in zip(lc2.time, lc2.rate) if t>=start and t<=end])
 	err2 = np.array([e for t,e in zip(lc2.time, lc2.error) if t>=start and t<=end])
 
@@ -557,7 +558,7 @@ def ExtractSimLCs(lc1, lc2):
 	if(len(rate1)==0 or len(rate2)==0):
 		raise AssertionError('pylag ExtractSimLCs ERROR: Light curves have no simultaneous part')
 
-	out_lc1 = LightCurve(t=time, r=rate1, e=err1)
-	out_lc2 = LightCurve(t=time, r=rate2, e=err2)
+	out_lc1 = LightCurve(t=time1, r=rate1, e=err1)
+	out_lc2 = LightCurve(t=time2, r=rate2, e=err2)
 
 	return out_lc1, out_lc2
