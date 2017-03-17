@@ -509,3 +509,55 @@ def StackedMeanCountRate(lclist):
 	for lc in lclist:
 		rate_points += lc.rate.tolist()
 	return np.mean(rate_points)
+
+
+def ExtractSimLCs(lc1, lc2):
+	"""
+	out_lc1, out_lc2 = pylag.ExtractSimLCs(lc1, lc2)
+
+	Returns the simultaneous portions of two light curves; i.e. the intersection
+	of the two time series
+
+	Arguments
+	---------
+	lc1 : LightCurve
+		  First input light curve
+	lc2 : LightCurve
+		  Second input light curve
+
+	Return Values
+	-------------
+	out_lc1 : LightCurve
+			  LightCurve object containing the simultaneous portion of the first
+			  light curve
+	out_lc2 : LightCurve
+			  LightCurve object containing the simultaneous portion of the second
+			  light curve
+	"""
+	if(lc1.dt != lc2.dt):
+		raise AssertionError('pylag ExtractSimLCs ERROR: Light curves must have same time spacing')
+
+	# find the latest of the start times between the two light curves and the
+	# earliest end time to get the time series covered by both
+	start = max([lc1.time.min(), lc2.time.min()])
+	end = min([lc1.time.max(), lc2.time.max()])
+
+	print "Extracting simultaneous light curve portion from t=%g to %g" % (start, end)
+	print "Simultaneous portion length = %g" % (end - start)
+
+	# extract the portion of eaach light curve from this range of times
+	time = np.array([t for t in lc1.time if t>=start and t<=end])
+	rate1 = np.array([r for t,r in zip(lc1.time, lc1.rate) if t>=start and t<=end])
+	err1 = np.array([e for t,e in zip(lc1.time, lc1.error) if t>=start and t<=end])
+
+	rate2 = np.array([r for t,r in zip(lc2.time, lc2.rate) if t>=start and t<=end])
+	err2 = np.array([e for t,e in zip(lc2.time, lc2.error) if t>=start and t<=end])
+
+	# check that we actually have an overlapping section!
+	if(len(rate1)==0 or len(rate2)==0):
+		raise AssertionError('pylag ExtractSimLCs ERROR: Light curves have no simultaneous part')
+
+	out_lc1 = LightCurve(t=time, r=rate1, e=err1)
+	out_lc2 = LightCurve(t=time, r=rate2, e=err2)
+
+	return out_lc1, out_lc2
