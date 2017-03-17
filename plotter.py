@@ -141,7 +141,7 @@ class Plot(object):
 					by calling the Show method()
 	"""
 	def __init__(self, data_object=None, xdata=None, xerr=None, ydata=None, yerr=None, xscale='', yscale='', xlabel='', ylabel='', title='', series_labels=[], preset=None, show_plot=True):
-		fig = None
+		self.fig = None
 		self.ax = None
 
 		self.xdata = []
@@ -313,7 +313,10 @@ class Plot(object):
 
 		# plot the data series in turn
 		for xd, yd, yerr, xerr, marker, colour, label in zip(self.xdata, self.ydata, self.yerror, self.xerror, markers, colours, self.series_labels):
-
+			if not isinstance(xerr, (np.ndarray, list)):
+				xerr = np.zeros(len(xd))
+			if not isinstance(yerr, (np.ndarray, list)):
+				yerr = np.zeros(len(yd))
 			self.ax.errorbar(xd[np.isfinite(yd)], yd[np.isfinite(yd)], yerr=yerr[np.isfinite(yd)], xerr=xerr[np.isfinite(yd)], fmt=marker, color=colour, label=label)
 
 	def Show(self, **kwargs):
@@ -347,7 +350,7 @@ class Plot(object):
 		self.fig.savefig(filename, bbox_inches='tight', **kwargs)
 
 
-class ErrorRegionPlot(Plotter):
+class ErrorRegionPlot(Plot):
 	"""
 	pylag.ErrorRegionPlot
 
