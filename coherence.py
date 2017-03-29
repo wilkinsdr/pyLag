@@ -124,16 +124,6 @@ class Coherence(object):
 
 		self.coh = self.Calculate(bins, fmin, fmax, bias)
 
-		# pointers to the energy and lag arrays to specify the axes for Plotter
-		self.xdata = self.freq
-		self.xerror = self.freq_error
-		self.ydata = self.coh
-		self.yerror = None
-		self.xlabel = 'Frequency / Hz'
-		self.ylabel = 'Coherence'
-		self.xscale = 'log'
-		self.yscale = 'linear'
-
 	def Calculate(self, bins=None, fmin=None, fmax=None, bias=True):
 		"""
 		pylag.Coherence.Calculate(bins=None, fmin=None, fmax=None)
@@ -184,3 +174,9 @@ class Coherence(object):
 
 	def LagError(self):
 		return self.PhaseError() / (2*np.pi*self.freq)
+
+	def _getplotdata(self):
+		return self.freq, self.coh, self.freq_error, None
+
+	def _getplotaxes(self):
+		return 'Frequency / Hz', 'log', 'Coherence', 'linear'

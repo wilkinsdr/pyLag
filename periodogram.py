@@ -83,16 +83,6 @@ class Periodogram(object):
 		# else:
 		# 	self.error = np.zeros(len(self.freq))
 
-		# pointers to the energy and lag arrays to specify the axes for Plotter
-		self.xdata = self.freq
-		self.xerror = self.freq_error
-		self.ydata = self.periodogram
-		self.yerror = self.error
-		self.xlabel = 'Frequency / Hz'
-		self.ylabel = 'Periodogram'
-		self.xscale = 'log'
-		self.yscale = 'log'
-
 	def Calculate(self, lc, norm=True):
 		"""
 		pylag.Periodogram.Calculate(lc, norm=True)
@@ -330,3 +320,9 @@ class StackedPeriodogram(Periodogram):
 			per_points += per.FreqRangePoints(fmin, fmax)
 
 		return np.mean(per_points)
+
+	def _getplotdata(self):
+		return self.freq, self.periodogram, self.freq_error, self.error
+
+	def _getplotaxes(self):
+		return 'Frequency / Hz', 'log', 'Periodogram', 'log'

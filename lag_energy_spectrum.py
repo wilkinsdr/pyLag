@@ -104,16 +104,6 @@ class LagEnergySpectrum(object):
 		elif isinstance(lclist[0], list) and isinstance(lclist[0][0], LightCurve):
 			self.lag, self.error = self.CalculateStacked(lclist, fmin, fmax, refband, self.en)
 
-		# pointers to the energy and lag arrays to specify the axes for Plotter
-		self.xdata = self.en
-		self.xerror = self.en_error
-		self.ydata = self.lag
-		self.yerror = self.error
-		self.xlabel = 'Energy / keV'
-		self.ylabel = 'Lag / s'
-		self.xscale = 'log'
-		self.yscale = 'linear'
-
 
 	def Calculate(self, lclist, fmin, fmax, refband=None, energies=None):
 		"""
@@ -338,3 +328,9 @@ class LagEnergySpectrum(object):
 		Plot the spectrum to the screen using matplotlib.
 		"""
 		return Plotter(self)
+
+	def _getplotdata(self):
+		return self.en, self.lag, self.en_error, self.error
+
+	def _getplotaxes(self):
+		return 'Energy / keV', 'log', 'Lag / s', 'linear'

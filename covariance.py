@@ -128,16 +128,6 @@ class Covariance(object):
 
 		self.cov, self.error = self.Calculate(bins, fmin, fmax, bias)
 
-		# pointers to the energy and lag arrays to specify the axes for Plotter
-		self.xdata = self.freq
-		self.xerror = self.freq_error
-		self.ydata = self.cov
-		self.yerror = self.error
-		self.xlabel = 'Frequency / Hz'
-		self.ylabel = 'Covariance'
-		self.xscale = 'log'
-		self.yscale = 'log'
-
 	def Calculate(self, bins=None, fmin=None, fmax=None, bias=True):
 		"""
 		pylag.Coherence.Calculate(bins=None, fmin=None, fmax=None)
@@ -192,6 +182,12 @@ class Covariance(object):
 		err = np.sqrt( ( cov**2*rms_ref_noise + rms_ref*rms_noise + rms_noise*rms_ref_noise ) / (2*self.num_freq*rms_ref))
 
 		return cov, err
+
+	def _getplotdata():
+		return self.freq, self.cov, self.freq_error, self.error
+
+	def _getplotaxes():
+		return 'Frequency / Hz', 'log', 'Covariance', 'log'
 
 
 class CovarianceSpectrum(object):
@@ -258,12 +254,11 @@ class CovarianceSpectrum(object):
 				  If specified, the reference band will be restricted to this
 				  energy range [min, max]. If not specified, the full band will
 				  be used for the reference
-	sed         : boolean, optional (default=True)
-	              Compute the y data points for plotting/writing as E F_E, the
-				  equivalent of eeufspec in XSPEC. This does not change the cov
-				  array elements which remains the raw coherence
+	bias   		: boolean, optional (default=True)
+				  If true, the bias due to Poisson noise will be subtracted from
+				  the magnitude of the cross spectrum and periodograms
 	"""
-	def __init__(self, fmin, fmax, lclist=None, enmin=None, enmax=None, lcfiles='', interp_gaps=False, refband=None, sed=True):
+	def __init__(self, fmin, fmax, lclist=None, enmin=None, enmax=None, lcfiles='', interp_gaps=False, refband=None, bias=True):
 		self.en = np.array([])
 		self.en_error = np.array([])
 		self.cov = np.array([])
@@ -272,38 +267,18 @@ class CovarianceSpectrum(object):
 		if(lcfiles != ''):
 			enmin, enmax, lclist = self.FindLightCurves(lcfiles, interp_gaps=interp_gaps)
 
-		print "Constructing covariance spectrum from ", len(lclist[0]), " light curves in each of ", len(lclist), " energy bins"
-
 		self.en = (0.5*(np.array(enmin) + np.array(enmax)))
 		self.en_error = self.en - np.array(enmin)
 
 		if isinstance(lclist[0], LightCurve):
-			self.cov, self.error = self.Calculate(lclist, fmin, fmax, refband, self.en)
+			self.cov, self.error = self.Calculate(lclist, fmin, fmax, refband, self.en, bias=bias)
 		elif isinstance(lclist[0], list) and isinstance(lclist[0][0], LightCurve):
-			self.cov, self.error = self.CalculateStacked(lclist, fmin, fmax, refband, self.en)
+			print "Constructing covariance spectrum from ", len(lclist[0]), " light curves in each of ", len(lclist), " energy bins"
+			self.cov, self.error = self.CalculateStacked(lclist, fmin, fmax, refband, self.en, bias=bias)
 
-		# pointers to the energy and lag arrays to specify the axes for Plotter
-		self.xdata = self.en
-		self.xerror = self.en_error
-		if sed:
-			# the SED is E F_E, so divide by energy bin width and multiply by
-			# E^2 for consistence with XSPEC eeufspec
-			self.ydata = self.en**2 * self.cov / (2*self.en_error)
-		else:
-			self.ydata = self.cov
-		if sed:
-			# the SED is E F_E, so divide by energy bin width and multiply by
-			# E^2 for consistence with XSPEC eeufspec
-			self.yerror = self.en**2 * self.error / (2*self.en_error)
-		else:
-			self.yerror = self.error
-		self.xlabel = 'Energy / keV'
-		self.ylabel = 'Covariance'
-		self.xscale = 'log'
-		self.yscale = 'log'
+		self.sed, self.sed_error = self.CalculateSED()
 
-
-	def Calculate(self, lclist, fmin, fmax, refband=None, energies=None):
+	def Calculate(self, lclist, fmin, fmax, refband=None, energies=None, bias=True):
 		"""
 		cov, error = pylag.CovarianceSpectrum.Calculate(lclist, fmin, fmax, refband=None, energies=None)
 
@@ -333,6 +308,9 @@ class CovarianceSpectrum(object):
 				 : If a specific range of energies is to be used for the reference
 				   band rather than the full band, this is the list of central
 				   energies of the bands represented by each light curve
+		bias	 : boolean, optional (default=True)
+				   If true, the bias due to Poisson noise will be subtracted from
+				   the magnitude of the cross spectrum and periodograms
 
 		Return Values
 		-------------
@@ -358,13 +336,13 @@ class CovarianceSpectrum(object):
 			if refband != None:
 				if (energies[energy_num] < refband[0] or energies[energy_num] > refband[1]):
 					thisref = reflc
-			cov_obj = Covariance(lc, thisref, fmin=fmin, fmax=fmax)
+			cov_obj = Covariance(lc, thisref, fmin=fmin, fmax=fmax, bias=bias)
 			cov.append(cov_obj.cov)
 			error.append(cov_obj.error)
 
 		return np.array(cov), np.array(error)
 
-	def CalculateStacked(self, lclist, fmin, fmax, refband=None, energies=None):
+	def CalculateStacked(self, lclist, fmin, fmax, refband=None, energies=None, bias=True):
 		"""
 		cov, error = pylag.CovarianceSpectrum.CalculateStacked(lclist, fmin, fmax, refband=None, energies=None)
 
@@ -440,11 +418,29 @@ class CovarianceSpectrum(object):
 						continue
 				ref_lclist.append( reflc[segment_num] - segment_lc )
 			# now get the covariance and error
-			cov_obj = Covariance(energy_lclist, ref_lclist, fmin=fmin, fmax=fmax)
+			cov_obj = Covariance(energy_lclist, ref_lclist, fmin=fmin, fmax=fmax, bias=bias)
 			cov.append(cov_obj.cov)
 			error.append(cov_obj.error)
 
 		return np.array(cov), np.array(error)
+
+	def CalculateSED(self):
+		"""
+		sed, err = pylag.CovarianceSpectrum.CalculateSED()
+
+		Calculatethe covariance in units of E*F_E (the spectral energy distribution),
+		the	equivalent of eeufspec in XSPEC.
+
+		Return Values
+		-------------
+		sed : ndarray
+			  The covariance spectrum in units of E*F_E
+		err : ndarray
+			  The error on the covariance spectrum
+		"""
+		sed = self.en**2 * self.cov / (2*self.en_error)
+		err = self.en**2 * self.error / (2*self.en_error)
+		return sed, err
 
 	@staticmethod
 	def FindLightCurves(searchstr, **kwargs):
@@ -525,3 +521,9 @@ class CovarianceSpectrum(object):
 				lclist.append( LightCurve(energy_lightcurves[0], **kwargs) )
 
 		return np.array(enmin)/1000., np.array(enmax)/1000., lclist
+
+	def _getplotdata(self):
+		return self.en, self.sed, self.en_error, self.error
+
+	def _getplotaxes(self):
+		return 'Energy / keV', 'log', 'Covariance', 'log'

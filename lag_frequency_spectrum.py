@@ -96,16 +96,6 @@ class LagFrequencySpectrum(object):
 		f, self.lag = self.cross_spec.LagSpectrum()
 		self.error = self.coh.LagError()
 
-		# pointers to the energy and lag arrays to specify the axes for Plotter
-		self.xdata = self.freq
-		self.xerror = self.freq_err
-		self.ydata = self.lag
-		self.yerror = self.error
-		self.xlabel = 'Frequency / Hz'
-		self.ylabel = 'Lag / s'
-		self.xscale = 'log'
-		self.yscale = 'linear'
-
 	def Plot(self):
 		"""
 		pylag.LagFrequencySpectrum.Plot()
@@ -113,3 +103,9 @@ class LagFrequencySpectrum(object):
 		Plot the spectrum to the screen using matplotlib.
 		"""
 		return Plotter(self)
+
+	def _getplotdata(self):
+		return self.freq, self.lag, self.freq_error, self.error
+
+	def _getplotaxes(self):
+		return 'Frequency / Hz', 'log', 'Lag / s', 'linear'

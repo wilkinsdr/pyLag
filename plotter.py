@@ -14,9 +14,10 @@ class Plot(object):
 	from x,y series. Plotting is done using matplotlib.
 
 	Each pylag plottable data product class (e.g. LagFrequecySpectrum, LagEnergySpectrum)
-	has a number of variables that specify which arrays should be plotted as the
-	x and y values and corresponding errors as well as the axis labels and scaling
-	to create a plot automatically simply by creating a Plot object.
+	has two methods: _getplotdata() which returns the arrays that should be plotted
+	as the x and y values with their corresponding errors and _getplotaxes() which
+	returns the axis labels and scaling. This enables the plot to be created
+	automatically simply by creating a Plot object.
 
 	e.g.
 	>>> p = pylag.Plot(myLagEnergySpectrum)
@@ -182,20 +183,19 @@ class Plot(object):
 			# data series and their errors
 			for obj in data_object:
 				try:
-					self.xdata.append(obj.xdata)
-					self.ydata.append(obj.ydata)
-					self.xerror.append(obj.xerror)
-					self.yerror.append(obj.yerror)
+					xd, yd, xe, ye = obj._getplotdata()
+					self.xdata.append(xd)
+					self.ydata.append(yd)
+					self.xerror.append(xe)
+					self.yerror.append(ye)
 					# if no labels are passed in for the series, use a blank string
 					if(len(series_labels)==0):
 						self.series_labels.append('')
 				except:
 					raise ValueError('pylag Plotter ERROR: The object I was passed does not seem to be plottable')
 			# read the axis labels from data_object
-			self.xlabel = data_object[0].xlabel
-			self.ylabel = data_object[0].ylabel
-			self.xscale = data_object[0].xscale
-			self.yscale = data_object[0].yscale
+			self.xlabel, self.xscale, self.ylabel, self.yscale = data_object[0]._getplotaxes()
+
 
 		else:
 			# if we're not passed an object, use the data series that are passed in
