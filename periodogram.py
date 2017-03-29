@@ -163,7 +163,6 @@ class Periodogram(object):
 
 		return bins.BinPoints(self.freq, self.periodogram)
 
-
 	def FreqAverage(self, fmin, fmax):
 		"""
 		per_avg = pylag.Periodogram.FreqAverage(fmin, fmax)
@@ -182,10 +181,8 @@ class Periodogram(object):
 		-------------
 		per_avg : float
 		          The average value of the periodogram over the frequency range
-
 		"""
 		return np.mean(  [p for f,p in zip(self.freq,self.periodogram) if f>=fmin and f<fmax] )
-
 
 	def FreqRangePoints(self, fmin, fmax):
 		"""
@@ -208,6 +205,12 @@ class Periodogram(object):
 
 		"""
 		return [p for f,p in zip(self.freq,self.periodogram) if f>=fmin and f<fmax]
+
+	def _getplotdata(self):
+		return self.freq, self.periodogram, self.freq_error, self.error
+
+	def _getplotaxes(self):
+		return 'Frequency / Hz', 'log', 'Periodogram', 'log'
 
 
 ### --- STACKED DATA PRODUCTS --------------------------------------------------
@@ -320,9 +323,3 @@ class StackedPeriodogram(Periodogram):
 			per_points += per.FreqRangePoints(fmin, fmax)
 
 		return np.mean(per_points)
-
-	def _getplotdata(self):
-		return self.freq, self.periodogram, self.freq_error, self.error
-
-	def _getplotaxes(self):
-		return 'Frequency / Hz', 'log', 'Periodogram', 'log'
