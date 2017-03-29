@@ -106,16 +106,6 @@ class LightCurve(object):
 		if trim:
 			self.Trim()
 
-		# pointers to the energy and lag arrays to specify the axes for Plotter
-		self.xdata = self.time
-		self.xerror = None
-		self.ydata = self.rate
-		self.yerror = self.error
-		self.xlabel = 'Time / s'
-		self.ylabel = 'Count Rate / ct s$^{-1}$'
-		self.xscale = 'linear'
-		self.yscale = 'linear'
-
 	def ReadFITS(self, filename, byte_swap=True):
 		"""
 		pylag.LightCurve.ReadFITS(filename)
@@ -306,7 +296,7 @@ class LightCurve(object):
 		numfreq : ndarray
 		          The number of frequencies falling into each bin
 		"""
-		freq = np.fft.fftfreq(self.length, d=self.dt)
+		freq = scipy.fftpack.fftfreq(self.length, d=self.dt)
 
 		return bins.BinNumPoints(freq)
 
@@ -329,7 +319,7 @@ class LightCurve(object):
 		numfreq : ndarray
 		          The number of frequencies falling into each bin
 		"""
-		freq = np.fft.fftfreq(self.length, d=self.dt)
+		freq = scipy.fftpack.fftfreq(self.length, d=self.dt)
 
 		return len( [f for f in freq if f>=fmin and f<fmax] )
 
@@ -458,6 +448,12 @@ class LightCurve(object):
 		"""
 		return LightCurve(t=self.time[start:end], r=self.rate[start:end], e=self.error[start:end])
 
+	def _getplotdata(self):
+		return self.time, self.rate, None, self.error
+
+	def _getplotaxes(self):
+		return 'Time / s', 'linear', 'Count Rate / ct s$^{-1}$', 'linear'
+
 
 def get_lclist(searchstr, **kwargs):
 	"""
@@ -557,6 +553,33 @@ def ExtractSimLCs(lc1, lc2):
 	# check that we actually have an overlapping section!
 	if(len(rate1)==0 or len(rate2)==0):
 		raise AssertionError('pylag ExtractSimLCs ERROR: Light curves have no simultaneous part')
+
+	# sometimes rounding causes there to be one more bin in one light curve than
+	# the other so take off the extra bin, but make sure it's only 1 bin difference!
+	if abs(len(rate1)-len(rate2)) > 1:
+		raise AssertionError('pylag ExtractSimLCs ERROR: Light curves differ in length by more than one bin')
+	if(len(rate1) > len(rate2)):
+		if( abs(time1[0] - time2[0]) < abs(time1[-1] - time2[-1]) ):
+			# if the start times match better than the end times, knock off the last bin
+			time1 = time1[:-1]
+			rate1 = rate1[:-1]
+			err1 = err1[:-1]
+		else:
+			# otherwise knock the first time bin off
+			time1 = time1[1:]
+			rate1 = rate1[1:]
+			err1 = err1[1:]
+	if(len(rate1) < len(rate2)):
+		if( abs(time1[0] - time2[0]) < abs(time1[-1] - time2[-1]) ):
+			# if the start times match better than the end times, knock off the last bin
+			time2 = time2[:-1]
+			rate2 = rate2[:-1]
+			err2 = err2[:-1]
+		else:
+			# otherwise knock the first time bin off
+			time2 = time2[1:]
+			rate2 = rate2[1:]
+			err2 = err2[1:]
 
 	out_lc1 = LightCurve(t=time1, r=rate1, e=err1)
 	out_lc2 = LightCurve(t=time2, r=rate2, e=err2)
