@@ -414,13 +414,18 @@ def WriteData(data_object, filename, fmt='%15.10g', delimiter=' '):
 	delimiter	: string, optional (default=' ')
 				  The delimeter to use between columns
 	"""
-	data = [data_object.xdata]
-	if isinstance(data_object.xerror, (np.ndarray, list)):
-		data.append(data_object.xerror)
-	data.append(data_object.ydata)
-	if isinstance(data_object.yerror, (np.ndarray, list)):
-		data.append(data_object.yerror)
+	try:
+		xd, yd, xe, ye = data_object._getplotdata()
+		data = [xd]
+		if isinstance(xe, (np.ndarray, list)):
+			data.append(xe)
+		data.append(yd)
+		if isinstance(ye, (np.ndarray, list)):
+			data.append(ye)
 
-	data = np.array(data).transpose()
+		data = np.array(data).transpose()
 
-	np.savetxt(filename, data, fmt=fmt, delimiter=delimiter)
+		np.savetxt(filename, data, fmt=fmt, delimiter=delimiter)
+
+	except:
+		raise ValueError('pylag WriteData ERROR: The object I was passed does not seem to be plottable')
