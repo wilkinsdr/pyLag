@@ -74,7 +74,7 @@ class LagFrequencySpectrum(object):
 	"""
 	def __init__(self, bins, lc1=None, lc2=None, lc1files=None, lc2files=None, interp_gaps=False):
 		self.freq = bins.bin_cent
-		self.freq_err = bins.XError()
+		self.freq_error = bins.XError()
 
 		self.lag = np.array([])
 		self.error = np.array([])
@@ -85,11 +85,11 @@ class LagFrequencySpectrum(object):
 			lc2 = get_lclist(lc2files, interp_gaps=interp_gaps)
 
 		if isinstance(lc1, list) and isinstance(lc2, list):
-			print "Constructing lag-frequency spectrum from ", len(lc1), " pairs of light curves"
+			print( "Constructing lag-frequency spectrum from %d pairs of light curves" % len(lc1) )
 			self.cross_spec = StackedCrossSpectrum(lc1, lc2, bins)
 			self.coh = Coherence(lc1, lc2, bins)
 		elif isinstance(lc1, LightCurve) and isinstance(lc2, LightCurve):
-			print "Computing lag-frequency spectrum from pair of light curves"
+			print("Computing lag-frequency spectrum from pair of light curves")
 			self.cross_spec = CrossSpectrum(lc1, lc2).Bin(bins)
 			self.coh = Coherence(lc1, lc2, bins)
 

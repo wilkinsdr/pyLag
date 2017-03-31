@@ -271,9 +271,10 @@ class CovarianceSpectrum(object):
 		self.en_error = self.en - np.array(enmin)
 
 		if isinstance(lclist[0], LightCurve):
+			print( "Constructing covariance spectrum in %d energy bins" % len(lclist) )
 			self.cov, self.error = self.Calculate(lclist, fmin, fmax, refband, self.en, bias=bias)
 		elif isinstance(lclist[0], list) and isinstance(lclist[0][0], LightCurve):
-			print "Constructing covariance spectrum from ", len(lclist[0]), " light curves in each of ", len(lclist), " energy bins"
+			print( "Constructing covariance spectrum from %d light curves in each of %d energy bins" % (len(lclist[0]), len(lclist)) )
 			self.cov, self.error = self.CalculateStacked(lclist, fmin, fmax, refband, self.en, bias=bias)
 
 		self.sed, self.sed_error = self.CalculateSED()

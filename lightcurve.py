@@ -96,7 +96,8 @@ class LightCurve(object):
 			self.filename = filename
 			self.ReadFITS(filename)
 
-		self.dt = self.time[1] - self.time[0]
+		if(len(self.time)>1):
+			self.dt = self.time[1] - self.time[0]
 		self.length = len(self.rate)
 
 		if interp_gaps:
@@ -118,7 +119,7 @@ class LightCurve(object):
 		           The path of the FITS file from which the light curve is loaded
 		"""
 		try:
-			print "Reading light curve from ", filename
+			print("Reading light curve from " + filename)
 			fitsfile = pyfits.open(filename)
 			tabdata = fitsfile['RATE'].data
 
@@ -206,8 +207,8 @@ class LightCurve(object):
 					if(gap_length > max_gap):
 						max_gap = gap_length
 
-		print "Patched ", gap_count, " gaps"
-		print "Longest gap was ", max_gap, " bins"
+		print("Patched %d gaps" % gap_count)
+		print("Longest gap was %d bins" % max_gap)
 
 	def ZeroNaN(self):
 		"""
@@ -243,6 +244,51 @@ class LightCurve(object):
 		this_error = np.array([e for t,e in zip(self.time,self.error) if t>start and t<=end])
 		return LightCurve(t=this_t, r=this_rate, e=this_error)
 
+	def Rebin(self, tbin):
+		"""
+		rebin_lc = pylag.LightCurve.Rebin(tbin)
+
+		Rebin the light curve by summing together counts from the old bins into
+		new larger bins and return the rebinned light curve as a new LightCurve
+		object.
+
+		Note that the new time bin size should be a multiple of the old for the
+		best accuracy
+
+		Arguments
+		---------
+		tbin : float
+			   New time bin size
+
+		Return Values
+		-------------
+		rebin_lc : LightCurve
+				   The rebinned light curve
+		"""
+		if(tbin <= self.dt):
+			raise ValueError("pylag LightCurve Rebin ERROR: Must rebin light curve into larger bins")
+		if(tbin % self.dt != 0):
+			print("pylag LightCurve Rebin WARNING: New time binning is not a multiple of the old")
+
+		time = np.arange(min(self.time), max(self.time), tbin)
+
+		counts = []
+		for bin_t in time:
+			# note we're summing counts, not rate, as if the light curve had been
+			# originally made from the event list with a larger time bin
+			counts.append( np.sum([self.dt*r for t,r in zip(self.time, self.rate) if t>=bin_t and t<(bin_t+tbin)]) )
+			# if we have a partial bin, scale the counts to correct the exposure
+			time_slice = [t for t in self.time if t>=bin_t and t<(bin_t + tbin)]
+			if( (max(time_slice) - min(time_slice)) < tbin ):
+				counts[-1] *= (float(tbin) / float(max(time_slice) - min(time_slice)) )
+
+		counts = np.array(counts)
+		rate = counts / tbin
+		# calculate the sqrt(N) error from the total counts
+		err = rate * np.sqrt(counts) / counts
+
+		return LightCurve(t=time, r=rate, e=err)
+
 	def Mean(self):
 		"""
 		mean = pylag.LightCurve.Mean()
@@ -276,7 +322,7 @@ class LightCurve(object):
 		ft = scipy.fftpack.fft(self.rate)
 		freq = scipy.fftpack.fftfreq(self.length, d=self.dt)
 
-		return freq[:self.length/2], ft[:self.length/2]
+		return freq[:int(self.length/2)], ft[:int(self.length/2)]
 
 	def BinNumFreq(self, bins):
 		"""
@@ -455,6 +501,8 @@ class LightCurve(object):
 		return 'Time / s', 'linear', 'Count Rate / ct s$^{-1}$', 'linear'
 
 
+### --- Utility functions ------------------------------------------------------
+
 def get_lclist(searchstr, **kwargs):
 	"""
 	pylag.get_lclist(searchstr, **kwargs)
@@ -480,6 +528,10 @@ def get_lclist(searchstr, **kwargs):
 	lclist : list of LightCurve objects
 	"""
 	lcfiles = sorted( glob.glob(searchstr) )
+
+	if(len(lcfiles) < 1):
+		raise AssertionError("pylag get_lclist ERROR: Could not find light curve files")
+
 	lclist = []
 	for lc in lcfiles:
 		lclist.append( LightCurve(lc, **kwargs) )
@@ -538,8 +590,8 @@ def ExtractSimLCs(lc1, lc2):
 	start = max([lc1.time.min(), lc2.time.min()])
 	end = min([lc1.time.max(), lc2.time.max()])
 
-	print "Extracting simultaneous light curve portion from t=%g to %g" % (start, end)
-	print "Simultaneous portion length = %g" % (end - start)
+	print("Extracting simultaneous light curve portion from t=%g to %g" % (start, end))
+	print("Simultaneous portion length = %g" % (end - start))
 
 	# extract the portion of eaach light curve from this range of times
 	time1 = np.array([t for t in lc1.time if t>=start and t<=end])
@@ -585,3 +637,31 @@ def ExtractSimLCs(lc1, lc2):
 	out_lc2 = LightCurve(t=time2, r=rate2, e=err2)
 
 	return out_lc1, out_lc2
+
+def ExtractLCListTimeSegment(lclist, tstart, tend):
+	"""
+	new_lclist = pylag.ExtractLCListTimeSegment(lclist, tstart, tend)
+
+	Take a list of LightCurve objects or a list of lists of multiple light curve
+	segments in each energy band (as used for a lag-energy or covariance spectrum)
+	and return only the segment(s) within a	specified time interval
+	"""
+	new_lclist = []
+
+	if isinstance(lclist[0], list):
+		for en_lclist in lclist:
+			new_lclist.append([])
+			for lc in en_lclist:
+				lcseg = lc.TimeSegment(tstart, tend)
+				if(len(lcseg)>0):
+					new_lclist[-1].append(lcseg)
+
+	elif isinstance(lclist[0], LightCurve):
+		for lc in lclist:
+			lcseg = lc.TimeSegment(tstart, tend)
+			if(len(lcseg)>0):
+				new_lclist.append(lcseg)
+			else:
+				print("pylag ExtractLCListTimeSegment WARNING: One of the light curves does not cover this time segment. Check consistency!")
+
+	return new_lclist
