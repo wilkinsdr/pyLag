@@ -451,6 +451,28 @@ class LightCurve(object):
 		else:
 			return NotImplemented
 
+	def __div__(self, other):
+		"""
+		Overloaded / operator to divide this LightCurve object by another and
+		return the result in a new LightCurve object.
+
+		Fractional errors from the two light curves are summed in quadrature.
+		"""
+		if isinstance(other, LightCurve):
+			if(len(self.rate) != len(other.rate)):
+				raise AssertionError("pyLag LightCurve ERROR: Cannot divide light curves of different lengths")
+				return
+			# subtract the count rate
+			newlc = self.rate / other.rate
+			# add the fractional errors in quadrature
+			newerr = newlc * np.sqrt( (self.error/self.rate)**2 + (other.error/other.rate)**2 )
+			# construct a new LightCurve with the result
+			return LightCurve(t=self.time, r=newlc, e=newerr)
+
+		else:
+			return NotImplemented
+
+
 	def __eq__(self, other):
 		"""
 		Overloaded == operator to check light curve lengths and time binning are
