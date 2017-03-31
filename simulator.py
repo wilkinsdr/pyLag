@@ -145,3 +145,62 @@ class SimLightCurve(LightCurve):
 		error = np.sqrt(self.rate)
 
 		return SimLightCurve(t=self.time, r=rate, e=error)
+
+
+def ResampleLightCurves(lclist, resamples=1):
+	"""
+	new_lclist = pylag.ResampleLightCurves(lclist, resamples=1)
+
+	Take a list of LightCurve objects or a list of lists of multiple light curve
+	segments in each energy band (as used for a lag-energy or covariance spectrum)
+	and resample them by replacing each data point with one drawn from a Poisson
+	distribution using the orignal number of counts as the mean value.
+
+	The returned list of light curves retains the original structure of the list
+	passed in.
+
+	Can produce multiple resamplings. If more than one resampling is produced,
+	a list is returned, each of which is a list bearing the original structure.
+
+	Arguments
+	---------
+	lclist    : list or list-of-lists of LightCurves
+				The list of light curves to be resampled
+	resamples : int, optional (default=1)
+				The number of resampled light curve sets to produce
+
+	Return Values
+	-------------
+	new_lclist : list, list-of-lists or list-of-lists-of-lists of LightCurves
+				 If one resampling is selected, this will be the list of
+				 resampled light curves. retaining the structure of the input
+				 list. If multiple resamplings are selected, this will be a list
+				 of the resampled lists (the first index is the resampling)
+	"""
+	if resamples>1:
+		lclist_set = []
+
+	for i in range(resamples):
+		new_lclist = []
+
+		if isinstance(lclist[0], list):
+			for en_lclist in lclist:
+				new_lclist.append([])
+				for lc in en_lclist:
+					temp_lc = SimLightCurve(t=lc.time, r=lc.rate, e=lc.error)
+					temp_lc.rate[temp_lc.rate<0] = 0
+					new_lclist[-1].append( temp_lc.AddNoise() )
+
+		elif isinstance(lclist[0], LightCurve):
+			for lc in lclist:
+				temp_lc = SimLightCurve(t=lc.time, r=lc.rate, e=lc.error)
+				temp_lc.rate[temp_lc.rate<0] = 0
+				new_lclist.append( temp_lc.AddNoise() )
+
+		if(resamples > 1):
+			lclist_set.append(new_lclist)
+
+	if(resamples > 1):
+		return lclist_set
+	else:
+		return new_lclist
