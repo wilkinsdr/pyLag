@@ -206,29 +206,34 @@ class Plot(object):
 			if len(xdata) != len(ydata):
 				raise ValueError('pylag Plotter ERROR: I need the same number of data series for x and y!')
 
-			if(xerr != None):
+			if xerr is not None:
 				if not isinstance(xerr, list):
 					xerr = [xerr]
 				if len(xerr) != len(xdata):
 					raise ValueError('pylag Plotter ERROR: I need the same number of data series for x and xerror!')
+				for xe in xerr:
+					self.xerror.append(xe)
 
-			if(yerr != None):
+			if yerr is not None:
 				if not isinstance(yerr, list):
 					yerr = [yerr]
 				if len(yerr) != len(ydata):
 					raise ValueError('pylag Plotter ERROR: I need the same number of data series for y and yerror!')
+				for ye in yerr:
+					self.yerror.append(ye)
 
 			for xd, yd in zip(xdata,ydata):
 				if len(xd) != len(yd):
 					raise ValueError('pylag Plotter ERROR: I need the same number of data points in x and y!')
 				self.xdata.append(xd)
 				self.ydata.append(yd)
-				if(xerr==None):
+				if xerr is None:
 					self.xerror.append(None)
-				if(yerr==None):
+				if yerr is None:
 					self.yerror.append(None)
 				if(len(series_labels)==0):
 					self.series_labels.append('')
+
 
 		# if we're passed axis labels, these override the labels set in data_object
 		if(xlabel != ''):
