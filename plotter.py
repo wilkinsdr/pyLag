@@ -227,7 +227,7 @@ class Plot(object):
 					self.xerror.append(None)
 				if(yerr==None):
 					self.yerror.append(None)
-				if(len(labels)==0):
+				if(len(series_labels)==0):
 					self.series_labels.append('')
 
 		# if we're passed axis labels, these override the labels set in data_object
@@ -308,8 +308,8 @@ class Plot(object):
 		Add each data series to the plot as points (or lines) with error bars
 		"""
 		# repeat the colour and marker series as many times as necessary to provide for all the data series
-		colours = (self.colour_series * (len(self.xdata)/len(self.colour_series) + 1))[:len(self.xdata)]
-		markers = (self.marker_series * (len(self.xdata)/len(self.colour_series) + 1))[:len(self.xdata)]
+		colours = (self.colour_series * int(len(self.xdata)/len(self.colour_series) + 1))[:len(self.xdata)]
+		markers = (self.marker_series * int(len(self.xdata)/len(self.colour_series) + 1))[:len(self.xdata)]
 
 		# plot the data series in turn
 		for xd, yd, yerr, xerr, marker, colour, label in zip(self.xdata, self.ydata, self.yerror, self.xerror, markers, colours, self.series_labels):
