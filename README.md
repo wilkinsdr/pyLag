@@ -12,7 +12,7 @@ Dependencies
 - scipy (specifically fftpack)
 - matplotlib (for plotting functionality)
 
-pyLag runs in python2 - python3 support coming soon!
+pyLag runs in python 2 or 3.
 
 Getting Started
 ---------------
