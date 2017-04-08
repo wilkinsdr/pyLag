@@ -105,7 +105,7 @@ class LagFrequencySpectrum(object):
 		return Plotter(self)
 
 	def _getplotdata(self):
-		return self.freq, self.lag, self.freq_error, self.error
+		return (self.freq, self.freq_error), (self.lag, self.error)
 
 	def _getplotaxes(self):
 		return 'Frequency / Hz', 'log', 'Lag / s', 'linear'

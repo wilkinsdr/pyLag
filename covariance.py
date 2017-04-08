@@ -184,7 +184,7 @@ class Covariance(object):
 		return cov, err
 
 	def _getplotdata():
-		return self.freq, self.cov, self.freq_error, self.error
+		return (self.freq, self.freq_error), (self.cov, self.error)
 
 	def _getplotaxes():
 		return 'Frequency / Hz', 'log', 'Covariance', 'log'
@@ -524,7 +524,7 @@ class CovarianceSpectrum(object):
 		return np.array(enmin)/1000., np.array(enmax)/1000., lclist
 
 	def _getplotdata(self):
-		return self.en, self.sed, self.en_error, self.error
+		return (self.en, self.en_error), (self.sed, self.error)
 
 	def _getplotaxes(self):
 		return 'Energy / keV', 'log', 'Covariance', 'log'

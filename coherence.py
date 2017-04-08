@@ -96,7 +96,7 @@ class Coherence(object):
 			self.cross_spec = CrossSpectrum(lc1, lc2)
 			self.per1 = Periodogram(lc1)
 			self.per2 = Periodogram(lc2)
-			if(bins != none):
+			if bins is not None:
 				self.num_freq = lc1.BinNumFreq(bins)
 			elif(fmin>0 and fmax>0):
 				self.num_freq = lc1.NumFreqInRange(fmin, fmax)
@@ -176,7 +176,7 @@ class Coherence(object):
 		return self.PhaseError() / (2*np.pi*self.freq)
 
 	def _getplotdata(self):
-		return self.freq, self.coh, self.freq_error, None
+		return (self.freq, self.freq_error), self.coh
 
 	def _getplotaxes(self):
 		return 'Frequency / Hz', 'log', 'Coherence', 'linear'

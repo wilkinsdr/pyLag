@@ -330,7 +330,7 @@ class LagEnergySpectrum(object):
 		return Plotter(self)
 
 	def _getplotdata(self):
-		return self.en, self.lag, self.en_error, self.error
+		return (self.en, self.en_error), (self.lag, self.error)
 
 	def _getplotaxes(self):
 		return 'Energy / keV', 'log', 'Lag / s', 'linear'

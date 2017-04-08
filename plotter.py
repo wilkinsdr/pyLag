@@ -39,8 +39,8 @@ class Plot(object):
 	ax		: matplotlib Axes handle
 
 	Data Series:
-	xdata	      : ndarray or list of ndarrays
-			  		x data points to be plotted (or a list of arrays, each containing
+	xdata	      : tuple of ndarrays or list of tuples of ndarrays
+			  		x data points to be plotted (or a list of multiple data series)
 			  	    the x data points for one of the series to be plotted)
 	xerror  	  : ndarray or list of ndarrays
 			  		Symmetric error on x data points
@@ -53,7 +53,8 @@ class Plot(object):
 					entry should correspond to one of the data objects or one
 					of the manually specified x,y series
 
-	Plot Options:
+	Properties
+	----------
 	title			: string
 					  Title to be displayed at the top of the plot
 
@@ -97,27 +98,25 @@ class Plot(object):
 	font_size		: integer (default=None)
 					  Specify the font size. If None, use the matplotlub default
 
-	Constructor: p = pylag.Plot(, xdata=None, xerr=None, ydata=None, yerr=None, xscale='', yscale='', xlabel='', ylabel='', title='', series_labels=[], preset=None, show_plot=True)
+	Constructor: p = pylag.Plot(data_object=None, xdata=None, ydata=None, xscale='', yscale='', xlabel='', ylabel='', title='', labels=[], preset=None, show_plot=True)
 
 	Constructor Arguments
 	---------------------
 	data_object   : pyLag plottable data product object or list of objects
-				    optional (default) = None
+				    optional (default = None)
 				    If set, the plot is automatically produced from the object.
 				    If a list of objects is passed, each one is plotted as a
 				    separate data series on the plot
-	xdata		  : ndarray or list of ndarray, optional (default=None)
+	xdata		  : ndarray, tuple or list, optional (default=None)
 				    If data_object is not set, the x co-ordinates of the series to
-				    be plotted. If a list of arrays is passed, each is plotted as
-				    a separate data series
-	xerr		  : ndarray or list of ndarray, optional (default=None)
-				    The symmetric error bars on the x values
-	ydata		  : ndarray or list of ndarray, optional (default=None)
+				    be plotted. If x values have symmetric errors, pass a tuple of
+					arrays (value, error). If multiple series are to be plotted,
+					pass a list of arrays or list of tuples
+	ydata		  : ndarray, tuple or list, optional (default=None)
 				    If data_object is not set, the y co-ordinates of the series to
-				    be plotted. If a list of arrays is passed, each is plotted as
-				    a separate data series - should line up with xdata
-	yerr		  : ndarray or list of ndarray, optional (default=None)
-				    The symmetric error bars on the y values
+				    be plotted. If y values have symmetric errors, pass a tuple of
+					arrays (value, error). If multiple series are to be plotted,
+					pass a list of arrays or list of tuples
 	xscale		  : string, 'linear' or 'log', optional (default='')
 				    If set, override the default x axis scaling specified by the
 				    data object to be plotted (or the 'linear' default for manually
@@ -142,38 +141,38 @@ class Plot(object):
 					by calling the Show method()
 	"""
 	def __init__(self, data_object=None, xdata=None, xerr=None, ydata=None, yerr=None, xscale='', yscale='', xlabel='', ylabel='', title='', series_labels=[], preset=None, show_plot=True):
-		self.fig = None
-		self.ax = None
+		self._fig = None
+		self._ax = None
 
 		self.xdata = []
 		self.xerror = []
 		self.ydata = []
 		self.yerror = []
 
-		self.series_labels = list(series_labels)
+		self._labels = list(series_labels)
 
-		self.xlabel = ''
-		self.ylabel = ''
+		self._xlabel = ''
+		self._ylabel = ''
 
-		self.title = title
+		self._title = title
 
-		self.xscale = 'linear'
-		self.yscale = 'linear'
+		self._xscale = 'linear'
+		self._yscale = 'linear'
 
 		# variables to set plot formatting
-		self.colour_series = ['k', 'b', 'g', 'r', 'c', 'm']
-		self.marker_series = ['+', 'x', 'o', 's']
-		self.font_face = None
-		self.font_size = None
-		self.grid = 'minor'
-		self.legend_loc = 'upper right'
-		self.xlim = None
-		self.ylim = None
+		self._colour_series = ['k', 'b', 'g', 'r', 'c', 'm']
+		self._marker_series = ['+', 'x', 'o', 's']
+		self._font_face = None
+		self._font_size = None
+		self._grid = 'minor'
+		self._legend_location = 'upper right'
+		self._xlim = None
+		self._ylim = None
 
 		# do we display the plot on screen automatically when calling Plot()?
 		self.show_plot = show_plot
 
-		self.legend = (len(self.series_labels)>0)
+		self._legend = (len(self._labels)>0)
 
 		if(data_object != None):
 			if not isinstance(data_object, list):
@@ -183,18 +182,26 @@ class Plot(object):
 			# data series and their errors
 			for obj in data_object:
 				try:
-					xd, yd, xe, ye = obj._getplotdata()
-					self.xdata.append(xd)
-					self.ydata.append(yd)
-					self.xerror.append(xe)
-					self.yerror.append(ye)
+					xd, yd = obj._getplotdata()
+					if isinstance(xd, tuple):
+						self.xdata.append(xd[0])
+						self.xerror.append(xd[1])
+					else:
+						self.xdata.append(xd)
+						self.xerror.append(None)
+					if isinstance(yd, tuple):
+						self.ydata.append(yd[0])
+						self.yerror.append(yd[1])
+					else:
+						self.ydata.append(yd)
+						self.yerror.append(None)
 					# if no labels are passed in for the series, use a blank string
 					if(len(series_labels)==0):
-						self.series_labels.append('')
+						self._labels.append('')
 				except:
 					raise ValueError('pylag Plotter ERROR: The object I was passed does not seem to be plottable')
 			# read the axis labels from data_object
-			self.xlabel, self.xscale, self.ylabel, self.yscale = data_object[0]._getplotaxes()
+			self._xlabel, self._xscale, self._ylabel, self._yscale = data_object[0]._getplotaxes()
 
 
 		else:
@@ -206,45 +213,37 @@ class Plot(object):
 			if len(xdata) != len(ydata):
 				raise ValueError('pylag Plotter ERROR: I need the same number of data series for x and y!')
 
-			if xerr is not None:
-				if not isinstance(xerr, list):
-					xerr = [xerr]
-				if len(xerr) != len(xdata):
-					raise ValueError('pylag Plotter ERROR: I need the same number of data series for x and xerror!')
-				for xe in xerr:
-					self.xerror.append(xe)
-
-			if yerr is not None:
-				if not isinstance(yerr, list):
-					yerr = [yerr]
-				if len(yerr) != len(ydata):
-					raise ValueError('pylag Plotter ERROR: I need the same number of data series for y and yerror!')
-				for ye in yerr:
-					self.yerror.append(ye)
-
 			for xd, yd in zip(xdata,ydata):
-				if len(xd) != len(yd):
-					raise ValueError('pylag Plotter ERROR: I need the same number of data points in x and y!')
-				self.xdata.append(xd)
-				self.ydata.append(yd)
-				if xerr is None:
+				if isinstance(xd, tuple):
+					if(len(xd[0]) != len(xd[1])):
+						raise ValueError('pylag Plotter ERROR: I need the same number data points and errors in x!')
+					self.xdata.append(xd[0])
+					self.xerror.append(xd[1])
+				else:
+					self.xdata.append(xd)
 					self.xerror.append(None)
-				if yerr is None:
+				if isinstance(yd, tuple):
+					self.ydata.append(yd[0])
+					self.yerror.append(yd[1])
+				else:
+					self.ydata.append(yd)
 					self.yerror.append(None)
+				if len(self.xdata[-1]) != len(self.ydata[-1]):
+					raise ValueError('pylag Plotter ERROR: I need the same number of data points in x and y!')
+				# if no labels are passed in for the series, use a blank string
 				if(len(series_labels)==0):
-					self.series_labels.append('')
-
+					self._labels.append('')
 
 		# if we're passed axis labels, these override the labels set in data_object
 		if(xlabel != ''):
-			self.xlabel = xlabel
+			self._xlabel = xlabel
 		if(ylabel != ''):
-			self.ylabel = ylabel
+			self._ylabel = ylabel
 		# if we're passed axis log/linear scaling, these override the scaling set in data_object
 		if(xscale != ''):
-			self.xscale = xscale
+			self._xscale = xscale
 		if(ylabel != ''):
-			self.yscale = yscale
+			self._yscale = yscale
 
 		self.Plot()
 
@@ -257,37 +256,37 @@ class Plot(object):
 		This function is called automatically by Plot()
 		"""
 		# close the old figure (if already plotted)
-		if(self.fig != None):
+		if(self._fig != None):
 			self.Close()
 		# create a new figure window and axes
-		self.fig, self.ax = plt.subplots()
+		self._fig, self._ax = plt.subplots()
 
 		# if specified, set the font
-		if(self.font_face != None):
-			plt.rc('font', **{'family' : self.font_face})
-		if(self.font_size != None):
-			plt.rc('font', **{'size' : self.font_size})
+		if(self._font_face != None):
+			plt.rc('font', **{'family' : self._font_face})
+		if(self._font_size != None):
+			plt.rc('font', **{'size' : self._font_size})
 
 		# set log or linear scaling
-		self.ax.set_xscale(self.xscale)
-		self.ax.set_yscale(self.yscale)
+		self._ax.set_xscale(self._xscale)
+		self._ax.set_yscale(self._yscale)
 
 		# set axis labels
-		self.ax.set_xlabel(self.xlabel)
-		self.ax.set_ylabel(self.ylabel)
-		self.ax.set_title(self.title)
+		self._ax.set_xlabel(self._xlabel)
+		self._ax.set_ylabel(self._ylabel)
+		self._ax.set_title(self._title)
 
 		# turn major/minor grid lines on or off
-		if(self.grid == 'major' or self.grid == 'minor'):
-			self.ax.grid(which='major')
-		if(self.grid == 'minor'):
-			self.ax.grid(which='minor')
+		if(self._grid == 'major' or self._grid == 'minor'):
+			self._ax.grid(which='major')
+		if(self._grid == 'minor'):
+			self._ax.grid(which='minor')
 
 		# set the axis ranges if set
-		if(self.xlim != None):
-			self.ax.set_xlim(self.xlim)
-		if(self.ylim != None):
-			self.ax.set_ylim(self.ylim)
+		if(self._xlim != None):
+			self._ax.set_xlim(self._xlim)
+		if(self._ylim != None):
+			self._ax.set_ylim(self._ylim)
 
 	def Plot(self, **kwargs):
 		"""
@@ -302,7 +301,7 @@ class Plot(object):
 		self.SetupAxes()
 		self.PlotData(**kwargs)
 		if self.legend:
-			self.ax.legend(loc=self.legend_loc)
+			self._ax.legend(loc=self._legend_location)
 		if self.show_plot:
 			self.Show()
 
@@ -313,16 +312,16 @@ class Plot(object):
 		Add each data series to the plot as points (or lines) with error bars
 		"""
 		# repeat the colour and marker series as many times as necessary to provide for all the data series
-		colours = (self.colour_series * int(len(self.xdata)/len(self.colour_series) + 1))[:len(self.xdata)]
-		markers = (self.marker_series * int(len(self.xdata)/len(self.colour_series) + 1))[:len(self.xdata)]
+		colours = (self._colour_series * int(len(self.xdata)/len(self._colour_series) + 1))[:len(self.xdata)]
+		markers = (self._marker_series * int(len(self.xdata)/len(self._colour_series) + 1))[:len(self.xdata)]
 
 		# plot the data series in turn
-		for xd, yd, yerr, xerr, marker, colour, label in zip(self.xdata, self.ydata, self.yerror, self.xerror, markers, colours, self.series_labels):
+		for xd, yd, yerr, xerr, marker, colour, label in zip(self.xdata, self.ydata, self.yerror, self.xerror, markers, colours, self._labels):
 			if not isinstance(xerr, (np.ndarray, list)):
 				xerr = np.zeros(len(xd))
 			if not isinstance(yerr, (np.ndarray, list)):
 				yerr = np.zeros(len(yd))
-			self.ax.errorbar(xd[np.isfinite(yd)], yd[np.isfinite(yd)], yerr=yerr[np.isfinite(yd)], xerr=xerr[np.isfinite(yd)], fmt=marker, color=colour, label=label)
+			self._ax.errorbar(xd[np.isfinite(yd)], yd[np.isfinite(yd)], yerr=yerr[np.isfinite(yd)], xerr=xerr[np.isfinite(yd)], fmt=marker, color=colour, label=label)
 
 	def Show(self, **kwargs):
 		"""
@@ -330,7 +329,7 @@ class Plot(object):
 
 		Show the plot window on the screen
 		"""
-		self.fig.show(**kwargs)
+		self._fig.show(**kwargs)
 
 	def Close(self):
 		"""
@@ -338,7 +337,7 @@ class Plot(object):
 
 		Close this plot's window
 		"""
-		plt.close(self.fig)
+		plt.close(self._fig)
 
 	def Save(self, filename, **kwargs):
 		"""
@@ -352,8 +351,70 @@ class Plot(object):
 				   The name of the file to be created
 		**kwargs : passed on to matplotlib savefig() function
 		"""
-		self.fig.savefig(filename, bbox_inches='tight', **kwargs)
+		self._fig.savefig(filename, bbox_inches='tight', **kwargs)
 
+	def _get_setter(attr):
+		"""
+		setter = pylag.Plot._get_setter(attr)
+
+		Returns a setter function for plot attribute attr which updates the
+		member variable and then refreshes the plot.
+
+		A re-usable setter functions for all properties that need the plot to
+		update
+
+		Arguments
+		---------
+		attr : string
+			 : The name of the member variable to be set
+
+		Return Values
+		-------------
+		setter : function
+				 The setter function
+		"""
+		def setter(self, value):
+			setattr(self, attr, value)
+			self.Plot()
+		return setter
+
+	def _get_getter(attr):
+		"""
+		getter = pylag.Plot._get_getter(attr)
+
+		Returns a getter function for plot attribute attr.
+
+		A re-usable getter functions for all properties
+
+		Arguments
+		---------
+		attr : string
+			 : The name of the member variable to get
+
+		Return Values
+		-------------
+		getter : function
+				 The get function
+		"""
+		def getter(self):
+			return getattr(self, attr)
+		return getter
+
+	title = property(_get_getter('_title'), _get_setter('_title'))
+	labels = property(_get_getter('_labels'), _get_setter('_labels'))
+	xlabel = property(_get_getter('_xlabel'), _get_setter('_xlabel'))
+	ylabel = property(_get_getter('_ylabel'), _get_setter('_ylabel'))
+	xscale = property(_get_getter('_xscale'), _get_setter('_xscale'))
+	yscale = property(_get_getter('_yscale'), _get_setter('_yscale'))
+	xlim = property(_get_getter('_xlim'), _get_setter('_xlim'))
+	ylim = property(_get_getter('_ylim'), _get_setter('_ylim'))
+	grid = property(_get_getter('_grid'), _get_setter('_grid'))
+	legend = property(_get_getter('_legend'), _get_setter('_legend'))
+	legend_location = property(_get_getter('_legend_location'), _get_setter('_legend_location'))
+	colour_series = property(_get_getter('_colour_series'), _get_setter('_colour_series'))
+	marker_series = property(_get_getter('_marker_series'), _get_setter('_marker_series'))
+	font_face = property(_get_getter('_font_face'), _get_setter('_font_face'))
+	font_size = property(_get_getter('_font_size'), _get_setter('_font_size'))
 
 class ErrorRegionPlot(Plot):
 	"""
@@ -370,9 +431,9 @@ class ErrorRegionPlot(Plot):
 		Add each data series to the plot as a shaded error region
 		"""
 		# repeat the colour series as many times as necessary to provide for all the data series
-		colours = (self.colour_series * (len(self.xdata)/len(self.colour_series) + 1))[:len(self.xdata)]
+		colours = (self._colour_series * (len(self.xdata)/len(self._colour_series) + 1))[:len(self.xdata)]
 		# plot each data series in turn
-		for xd, yd, yerr, xerr, colour, label in zip(self.xdata, self.ydata, self.yerror, self.xerror, colours, self.series_labels):
+		for xd, yd, yerr, xerr, colour, label in zip(self.xdata, self.ydata, self.yerror, self.xerror, colours, self._labels):
 			if use_xerror:
 				# if we're including the x error points, we need to put in the co-ordinates for the left
 				# and right hand sides of each error box
@@ -386,13 +447,13 @@ class ErrorRegionPlot(Plot):
 					low_bound.append(y - ye)
 					xpoints.append(x - xe)
 					xpoints.append(x + xe)
-				self.ax.plot(xd, yd, '-', color=colour, label=label)
-				self.ax.fill_between(xpoints, low_bound, high_bound, facecolor=colour, alpha=alpha)
+				self._ax.plot(xd, yd, '-', color=colour, label=label)
+				self._ax.fill_between(xpoints, low_bound, high_bound, facecolor=colour, alpha=alpha)
 			else:
 				high_bound = np.array(yd) + np.array(yerr)
 				low_bound = np.array(yd) - np.array(yerr)
-				self.ax.plot(xd, yd, '-', color=colour, label=label)
-				self.ax.fill_between(xd, low_bound, high_bound, facecolor=colour, alpha=alpha)
+				self._ax.plot(xd, yd, '-', color=colour, label=label)
+				self._ax.fill_between(xd, low_bound, high_bound, facecolor=colour, alpha=alpha)
 
 
 def WriteData(data_object, filename, fmt='%15.10g', delimiter=' '):
@@ -420,13 +481,20 @@ def WriteData(data_object, filename, fmt='%15.10g', delimiter=' '):
 				  The delimeter to use between columns
 	"""
 	try:
-		xd, yd, xe, ye = data_object._getplotdata()
-		data = [xd]
-		if isinstance(xe, (np.ndarray, list)):
-			data.append(xe)
-		data.append(yd)
-		if isinstance(ye, (np.ndarray, list)):
-			data.append(ye)
+		xd, yd = data_object._getplotdata()
+		if isinstance(xd, tuple):
+			data = [xd[0]]
+			if isinstance(xd[1], (np.ndarray, list)):
+				data.append(xd[1])
+		else:
+			data = [xd]
+
+		if isinstance(yd, tuple):
+			data.append(yd[0])
+			if isinstance(yd[1], (np.ndarray, list)):
+				data.append(yd[1])
+		else:
+			data.append(yd)
 
 		data = np.array(data).transpose()
 

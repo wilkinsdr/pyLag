@@ -207,7 +207,7 @@ class Periodogram(object):
 		return [p for f,p in zip(self.freq,self.periodogram) if f>=fmin and f<fmax]
 
 	def _getplotdata(self):
-		return self.freq, self.periodogram, self.freq_error, self.error
+		return (self.freq, self.freq_error), (self.periodogram, self.error)
 
 	def _getplotaxes(self):
 		return 'Frequency / Hz', 'log', 'Periodogram', 'log'

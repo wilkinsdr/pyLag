@@ -517,7 +517,7 @@ class LightCurve(object):
 		return LightCurve(t=self.time[start:end], r=self.rate[start:end], e=self.error[start:end])
 
 	def _getplotdata(self):
-		return self.time, self.rate, None, self.error
+		return self.time, (self.rate, self.error)
 
 	def _getplotaxes(self):
 		return 'Time / s', 'linear', 'Count Rate / ct s$^{-1}$', 'linear'
