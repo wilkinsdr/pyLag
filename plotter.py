@@ -313,7 +313,7 @@ class Plot(object):
 		"""
 		# repeat the colour and marker series as many times as necessary to provide for all the data series
 		colours = (self._colour_series * int(len(self.xdata)/len(self._colour_series) + 1))[:len(self.xdata)]
-		markers = (self._marker_series * int(len(self.xdata)/len(self._colour_series) + 1))[:len(self.xdata)]
+		markers = (self._marker_series * int(len(self.xdata)/len(self._marker_series) + 1))[:len(self.xdata)]
 
 		# plot the data series in turn
 		for xd, yd, yerr, xerr, marker, colour, label in zip(self.xdata, self.ydata, self.yerror, self.xerror, markers, colours, self._labels):
