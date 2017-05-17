@@ -10,5 +10,6 @@ from .cross_spectrum import *
 from .covariance import *
 from .lag_energy_spectrum import *
 from .lag_frequency_spectrum import *
+from .fvar import *
 from .plotter import *
 from .simulator import *
