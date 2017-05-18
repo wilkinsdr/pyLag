@@ -21,7 +21,7 @@ class Plot(object):
     automatically simply by creating a Plot object.
 
     e.g.
-    >>> p = pylag.plot(myLagEnergySpectrum)
+    >>> p = pylag.Plot(myLagEnergySpectrum)
 
     The plot is created by the constructor function which accepts a number of
     options to customise the plot.
@@ -371,8 +371,8 @@ class Plot(object):
         attr : string
              : The name of the member variable to be set
 
-        Return Values
-        -------------
+        Returns
+        -------
         setter : function
                  The setter function
         """
@@ -396,8 +396,8 @@ class Plot(object):
         attr : string
              : The name of the member variable to get
 
-        Return Values
-        -------------
+        Returns
+        -------
         getter : function
                  The get function
         """
