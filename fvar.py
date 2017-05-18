@@ -18,29 +18,29 @@ import glob
 import re
 
 
-def Fvar(lclist, tbin):
+def fvar(lclist, tbin):
     """
-    fvar, error = pylag.Fvar(lclist, bin)
+    fvar, error = pylag.fvar(lclist, bin)
 
     Returns the fractional variability (the sqrt of the excess variance) in a
     light curve or list of light curves. If a list of light curves is passed,
-    the time bins from each light curve are concatenated to calculate the Fvar
+    the time bins from each light curve are concatenated to calculate the fvar
     across the whole set of light curves.
 
     Arguments
     ---------
     lclist : LightCurve or list of LightCurves
              The LightCurve object (or list of multiple LightCurve objects) from
-             which the Fvar is to be calculated
+             which the fvar is to be calculated
     tbin   : float
              Time bin size to be used for the excess variance
 
-    Return Values
-    -------------
+    Returns
+    -------
     fvar  : float
             The fractional variability in the light curve
     error : float
-            The error in the Fvar measurement
+            The error in the fvar measurement
     """
     if isinstance(lclist, LightCurve):
         lclist = [lclist]
@@ -53,25 +53,26 @@ def Fvar(lclist, tbin):
             tmax = tmin + tbin
             binlc = lc.time_segment(tmin, tmax)
             bin_count = len(binlc)
-            if(bin_count == 0):
+            if bin_count == 0:
                 continue
             bins += 1
             bin_mean.append(binlc.mean())
-            bin_stderr.append((1./(bin_count*(bin_count-1))) * sum((np.array(binlc.rate) - binlc.mean()) ** 2.))
+            bin_stderr.append((1. / (bin_count * (bin_count - 1))) * sum((np.array(binlc.rate) - binlc.mean()) ** 2.))
 
     bin_mean = np.array(bin_mean)
     bin_stderr = np.array(bin_stderr)
 
     binned_mean = np.mean(bin_mean)
-    binned_variance = (1./(bins-1)) * sum( (bin_mean - binned_mean)**2. );
+    binned_variance = (1. / (bins - 1)) * sum((bin_mean - binned_mean) ** 2.)
     mean_err = np.mean(bin_stderr)
 
-    excess_variance = (binned_variance - mean_err) / binned_mean**2.;
+    excess_variance = (binned_variance - mean_err) / binned_mean ** 2.
     f = np.sqrt(excess_variance)
 
-    err = (1./f)*np.sqrt(1./(2*bins))*binned_variance / binned_mean**2.;
+    err = (1. / f) * np.sqrt(1. / (2 * bins)) * binned_variance / binned_mean ** 2.
 
     return f, err
+
 
 class FvarSpectrum(object):
     """
@@ -94,7 +95,7 @@ class FvarSpectrum(object):
                numpy array containing the fractional variability in each energy
                band
     error    : ndarray
-               numpy array containing the error in the Fvar measurement in each
+               numpy array containing the error in the fvar measurement in each
                band
 
     Constructor: pylag.FvarSpectrum(tbin, lclist, enmin, enmax, lcfiles, interp_gaps=False)
@@ -102,7 +103,7 @@ class FvarSpectrum(object):
     Constructor Arguments
     ---------------------
     tbin        : float
-                  Time bin size to be used for Fvar/excess variance calculation
+                  Time bin size to be used for fvar/excess variance calculation
     lclist      : list of LightCurve objects or list of lists of LightCurve objects
                   optional (default=None)
                   This is either a 1-dimensional list containing the pylag
@@ -124,31 +125,33 @@ class FvarSpectrum(object):
                   If not empty, the filesystem will be searched using this glob to
                   automatically build the list of light curves and energies
     """
-    def __init__(self, tbin, lclist=None, enmin=None, enmax=None, lcfiles='', interp_gaps=False, refband=None, bias=True):
+
+    def __init__(self, tbin, lclist=None, enmin=None, enmax=None, lcfiles='', interp_gaps=False):
         self.en = np.array([])
         self.en_error = np.array([])
         self.fvar = np.array([])
         self.error = np.array([])
 
-        if(lcfiles != ''):
+        if lcfiles != '':
             enmin, enmax, lclist = self.find_lightcurves(lcfiles, interp_gaps=interp_gaps)
 
-        self.en = (0.5*(np.array(enmin) + np.array(enmax)))
+        self.en = (0.5 * (np.array(enmin) + np.array(enmax)))
         self.en_error = self.en - np.array(enmin)
 
         if isinstance(lclist[0], LightCurve):
-            print( "Constructing Fvar spectrum in %d energy bins" % len(lclist) )
+            print("Constructing fvar spectrum in %d energy bins" % len(lclist))
         elif isinstance(lclist[0], list) and isinstance(lclist[0][0], LightCurve):
-            print( "Constructing Fvar spectrum from %d light curves in each of %d energy bins" % (len(lclist[0]), len(lclist)) )
+            print(
+                "Constructing fvar spectrum from %d light curves in each of %d energy bins" % (
+                    len(lclist[0]), len(lclist)))
 
         self.fvar, self.error = self.calculate(lclist, tbin)
 
-
     def calculate(self, lclist, tbin):
         """
-        pylag.Fvar.calculate(lclist, tbin)
+        pylag.fvar.calculate(lclist, tbin)
 
-        Perform Fvar spectrum calculation.
+        Perform fvar spectrum calculation.
 
         Arguments
         ---------
@@ -159,17 +162,17 @@ class FvarSpectrum(object):
                  list of LightCurve objects that represent the light curves in that
                  energy band from each observation segment.
         tbin   : float
-                 Time bin size to be used for Fvar calculation
+                 Time bin size to be used for fvar calculation
         """
-        fvar = []
+        en_fvar = []
         error = []
 
         for enlc in lclist:
-            f,e = Fvar(enlc, tbin)
-            fvar.append(f)
+            f, e = fvar(enlc, tbin)
+            en_fvar.append(f)
             error.append(e)
 
-        return np.array(fvar), np.array(error)
+        return np.array(en_fvar), np.array(error)
 
     @staticmethod
     def find_lightcurves(searchstr, **kwargs):
@@ -205,8 +208,8 @@ class FvarSpectrum(object):
                   : Wildcard for searching the filesystem to find the light curve
                     filesystem
 
-        Return Values
-        -------------
+        Returns
+        -------
         enmin :  ndarray
                  numpy array countaining the lower energy bound of each band
         enmax :  ndarray
@@ -234,18 +237,18 @@ class FvarSpectrum(object):
             energy_lightcurves = sorted([lc for lc in lcfiles if estr in lc])
             # see how many light curves match this energy - if there's only one, we
             # don't want nested lists so stacking isn't run
-            if(len(energy_lightcurves) > 1):
+            if len(energy_lightcurves) > 1:
                 energy_lclist = []
                 for lc in energy_lightcurves:
-                    energy_lclist.append( LightCurve(lc, **kwargs) )
+                    energy_lclist.append(LightCurve(lc, **kwargs))
                 lclist.append(energy_lclist)
             else:
-                lclist.append( LightCurve(energy_lightcurves[0], **kwargs) )
+                lclist.append(LightCurve(energy_lightcurves[0], **kwargs))
 
-        return np.array(enmin)/1000., np.array(enmax)/1000., lclist
+        return np.array(enmin) / 1000., np.array(enmax) / 1000., lclist
 
     def _getplotdata(self):
         return (self.en, self.en_error), (self.fvar, self.error)
 
     def _getplotaxes(self):
-        return 'Energy / keV', 'log', 'Fvar', 'log'
+        return 'Energy / keV', 'log', 'fvar', 'log'

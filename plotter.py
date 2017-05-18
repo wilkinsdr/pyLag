@@ -141,7 +141,9 @@ class Plot(object):
                     is created or updated. If False, the plot can be displayed
                     by calling the show method()
     """
-    def __init__(self, data_object=None, xdata=None, xerr=None, ydata=None, yerr=None, xscale='', yscale='', xlabel='', ylabel='', title='', series_labels=[], preset=None, show_plot=True):
+
+    def __init__(self, data_object=None, xdata=None, ydata=None, xscale='', yscale='', xlabel='',
+                 ylabel='', title='', series_labels=[], preset=None, show_plot=True):
         self._fig = None
         self._ax = None
 
@@ -173,9 +175,9 @@ class Plot(object):
         # do we display the plot on screen automatically when calling plot()?
         self.show_plot = show_plot
 
-        self._legend = (len(self._labels)>0)
+        self._legend = (len(self._labels) > 0)
 
-        if(data_object != None):
+        if data_object is not None:
             if not isinstance(data_object, list):
                 # if we're only given one object, put it in a list
                 data_object = [data_object]
@@ -197,26 +199,25 @@ class Plot(object):
                         self.ydata.append(yd)
                         self.yerror.append(None)
                     # if no labels are passed in for the series, use a blank string
-                    if(len(series_labels)==0):
+                    if len(series_labels) == 0:
                         self._labels.append('')
                 except:
                     raise ValueError('pylag Plotter ERROR: The object I was passed does not seem to be plottable')
             # read the axis labels from data_object
             self._xlabel, self._xscale, self._ylabel, self._yscale = data_object[0]._getplotaxes()
 
-
         else:
             # if we're not passed an object, use the data series that are passed in
             if not isinstance(xdata, list):
                 xdata = [xdata]
-            if not isinstance(ydata, list) :
+            if not isinstance(ydata, list):
                 ydata = [ydata]
             if len(xdata) != len(ydata):
                 raise ValueError('pylag Plotter ERROR: I need the same number of data series for x and y!')
 
-            for xd, yd in zip(xdata,ydata):
+            for xd, yd in zip(xdata, ydata):
                 if isinstance(xd, tuple):
-                    if(len(xd[0]) != len(xd[1])):
+                    if len(xd[0]) != len(xd[1]):
                         raise ValueError('pylag Plotter ERROR: I need the same number data points and errors in x!')
                     self.xdata.append(xd[0])
                     self.xerror.append(xd[1])
@@ -232,18 +233,18 @@ class Plot(object):
                 if len(self.xdata[-1]) != len(self.ydata[-1]):
                     raise ValueError('pylag Plotter ERROR: I need the same number of data points in x and y!')
                 # if no labels are passed in for the series, use a blank string
-                if(len(series_labels)==0):
+                if len(series_labels) == 0:
                     self._labels.append('')
 
         # if we're passed axis labels, these override the labels set in data_object
-        if(xlabel != ''):
+        if xlabel != '':
             self._xlabel = xlabel
-        if(ylabel != ''):
+        if ylabel != '':
             self._ylabel = ylabel
         # if we're passed axis log/linear scaling, these override the scaling set in data_object
-        if(xscale != ''):
+        if xscale != '':
             self._xscale = xscale
-        if(ylabel != ''):
+        if ylabel != '':
             self._yscale = yscale
 
         self.plot()
@@ -256,16 +257,16 @@ class Plot(object):
         This function is called automatically by plot()
         """
         # close the old figure (if already plotted)
-        if(self._fig != None):
+        if self._fig is not None:
             self.close()
         # create a new figure window and axes
         self._fig, self._ax = plt.subplots()
 
         # if specified, set the font
-        if(self._font_face != None):
-            plt.rc('font', **{'family' : self._font_face})
-        if(self._font_size != None):
-            plt.rc('font', **{'size' : self._font_size})
+        if self._font_face is not None:
+            plt.rc('font', **{'family': self._font_face})
+        if self._font_size is not None:
+            plt.rc('font', **{'size': self._font_size})
 
         # set log or linear scaling
         self._ax.set_xscale(self._xscale)
@@ -277,15 +278,15 @@ class Plot(object):
         self._ax.set_title(self._title)
 
         # turn major/minor grid lines on or off
-        if(self._grid == 'major' or self._grid == 'minor'):
+        if self._grid == 'major' or self._grid == 'minor':
             self._ax.grid(which='major')
-        if(self._grid == 'minor'):
+        if self._grid == 'minor':
             self._ax.grid(which='minor')
 
         # set the axis ranges if set
-        if(self._xlim != None):
+        if self._xlim is not None:
             self._ax.set_xlim(self._xlim)
-        if(self._ylim != None):
+        if self._ylim is not None:
             self._ax.set_ylim(self._ylim)
 
     def _plot_data(self):
@@ -295,16 +296,18 @@ class Plot(object):
         Add each data series to the plot as points (or lines) with error bars
         """
         # repeat the colour and marker series as many times as necessary to provide for all the data series
-        colours = (self._colour_series * int(len(self.xdata)/len(self._colour_series) + 1))[:len(self.xdata)]
-        markers = (self._marker_series * int(len(self.xdata)/len(self._marker_series) + 1))[:len(self.xdata)]
+        colours = (self._colour_series * int(len(self.xdata) / len(self._colour_series) + 1))[:len(self.xdata)]
+        markers = (self._marker_series * int(len(self.xdata) / len(self._marker_series) + 1))[:len(self.xdata)]
 
         # plot the data series in turn
-        for xd, yd, yerr, xerr, marker, colour, label in zip(self.xdata, self.ydata, self.yerror, self.xerror, markers, colours, self._labels):
+        for xd, yd, yerr, xerr, marker, colour, label in zip(self.xdata, self.ydata, self.yerror, self.xerror, markers,
+                                                             colours, self._labels):
             if not isinstance(xerr, (np.ndarray, list)):
                 xerr = np.zeros(len(xd))
             if not isinstance(yerr, (np.ndarray, list)):
                 yerr = np.zeros(len(yd))
-            self._ax.errorbar(xd[np.isfinite(yd)], yd[np.isfinite(yd)], yerr=yerr[np.isfinite(yd)], xerr=xerr[np.isfinite(yd)], fmt=marker, color=colour, label=label)
+            self._ax.errorbar(xd[np.isfinite(yd)], yd[np.isfinite(yd)], yerr=yerr[np.isfinite(yd)],
+                              xerr=xerr[np.isfinite(yd)], fmt=marker, color=colour, label=label)
 
     def show(self, **kwargs):
         """
@@ -373,9 +376,11 @@ class Plot(object):
         setter : function
                  The setter function
         """
+
         def setter(self, value):
             setattr(self, attr, value)
             self.plot()
+
         return setter
 
     def _get_getter(attr):
@@ -396,8 +401,10 @@ class Plot(object):
         getter : function
                  The get function
         """
+
         def getter(self):
             return getattr(self, attr)
+
         return getter
 
     title = property(_get_getter('_title'), _get_setter('_title'))
@@ -416,6 +423,7 @@ class Plot(object):
     font_face = property(_get_getter('_font_face'), _get_setter('_font_face'))
     font_size = property(_get_getter('_font_size'), _get_setter('_font_size'))
 
+
 class ErrorRegionPlot(Plot):
     """
     pylag.ErrorRegionPlot
@@ -424,6 +432,7 @@ class ErrorRegionPlot(Plot):
 
     See plot class for details
     """
+
     def _plot_data(self, use_xerror=False, alpha=0.5):
         """
         pylag.ErrorRegionPlot._plot_data()
@@ -431,9 +440,10 @@ class ErrorRegionPlot(Plot):
         Add each data series to the plot as a shaded error region
         """
         # repeat the colour series as many times as necessary to provide for all the data series
-        colours = (self._colour_series * (len(self.xdata)/len(self._colour_series) + 1))[:len(self.xdata)]
+        colours = (self._colour_series * (len(self.xdata) / len(self._colour_series) + 1))[:len(self.xdata)]
         # plot each data series in turn
-        for xd, yd, yerr, xerr, colour, label in zip(self.xdata, self.ydata, self.yerror, self.xerror, colours, self._labels):
+        for xd, yd, yerr, xerr, colour, label in zip(self.xdata, self.ydata, self.yerror, self.xerror, colours,
+                                                     self._labels):
             if use_xerror:
                 # if we're including the x error points, we need to put in the co-ordinates for the left
                 # and right hand sides of each error box

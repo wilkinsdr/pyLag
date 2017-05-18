@@ -75,13 +75,16 @@ class CrossSpectrum(object):
            with the PSD normalisation (this only takes effect if the cross
            spectrum is calculated from input light curves)
     """
-    def __init__(self, lc1=None, lc2=None, f=[], cs=[], norm=True):
-        if(lc1 != None and lc2 != None):
-            if not (isinstance(lc1, LightCurve) and isinstance(lc2, LightCurve)):
-                raise ValueError("pyLag CrossSpectrum ERROR: Can only compute cross spectrum between two LightCurve objects")
 
-            if(lc1 != lc2):
-                raise AssertionError("pyLag CrossSpectrum ERROR: Light curves must be the same length and have same time binning to compute cross spectrum")
+    def __init__(self, lc1=None, lc2=None, f=[], cs=[], norm=True):
+        if lc1 is not None and lc2 is not None:
+            if not (isinstance(lc1, LightCurve) and isinstance(lc2, LightCurve)):
+                raise ValueError(
+                    "pyLag CrossSpectrum ERROR: Can only compute cross spectrum between two LightCurve objects")
+
+            if lc1 != lc2:
+                raise AssertionError(
+                    "pyLag CrossSpectrum ERROR: Light curves must be the same length and have same time binning to compute cross spectrum")
 
             self.freq, self.crossft = self.calculate(lc1, lc2, norm)
 
@@ -114,8 +117,8 @@ class CrossSpectrum(object):
                If True, the calculated cross spectrum is normalised to be consistent
                with the PSD normalisation
 
-        Return Values
-        -------------
+        Returns
+        -------
         f       : ndarray
                   numpy array containing the sample frequencies at which the
                   cross spectrum is evaluated
@@ -124,7 +127,7 @@ class CrossSpectrum(object):
                   frequency
         """
         if norm:
-            crossnorm = 2*lc1.dt / (lc1.mean() * lc2.mean() * lc1.length)
+            crossnorm = 2 * lc1.dt / (lc1.mean() * lc2.mean() * lc1.length)
         else:
             crossnorm = 1
 
@@ -146,8 +149,8 @@ class CrossSpectrum(object):
         bins : Binning
                pyLag Binning object to perform the Binning
 
-        Return Values
-        -------------
+        Returns
+        -------
         csbin : CrossSpectrum
                 pyLag CrossSpectrum object storing the newly binned spectrum
 
@@ -169,8 +172,8 @@ class CrossSpectrum(object):
         bins : Binning
                pyLag Binning object to perform the Binning
 
-        Return Values
-        -------------
+        Returns
+        -------
         points_in_bins : list
                      List of data point values (complex) that fall into each
                      frequency bin
@@ -192,16 +195,16 @@ class CrossSpectrum(object):
         ---------
         fmin : float
                Lower bound of frequency range
-        fmin : float
+        fmax : float
                Upper bound of frequency range
 
-        Return Values
-        -------------
+        Returns
+        -------
         csavg : complex
                 The average value of the cross spectrum over the frequency range
 
         """
-        return np.mean(  [c for f,c in zip(self.freq,self.crossft) if f>=fmin and f<fmax] )
+        return np.mean([c for f, c in zip(self.freq, self.crossft) if fmin <= f < fmax])
 
     def points_in_freqrange(self, fmin, fmax):
         """
@@ -214,17 +217,17 @@ class CrossSpectrum(object):
         ---------
         fmin : float
                Lower bound of frequency range
-        fmin : float
+        fmax : float
                Upper bound of frequency range
 
-        Return Values
-        -------------
+        Returns
+        -------
         range_points : list
                        List of cross spectrum points (complex) in the frequency
                        range
 
         """
-        return [c for f,c in zip(self.freq,self.crossft) if f>=fmin and f<fmax]
+        return [c for f, c in zip(self.freq, self.crossft) if fmin <= f < fmax]
 
     def lag_spectrum(self):
         """
@@ -233,8 +236,8 @@ class CrossSpectrum(object):
         Return the lag/frequency spectrum: The time lag between correlated
         variability in the two light curves as a function of Fourier frequency
 
-        Return Values
-        -------------
+        Returns
+        -------
         freq : ndarray
                numpy array containing the sample frequencies
         lag  : ndarray
@@ -242,7 +245,7 @@ class CrossSpectrum(object):
                frequency
 
         """
-        lag = np.angle(self.crossft) / (2*np.pi*self.freq)
+        lag = np.angle(self.crossft) / (2 * np.pi * self.freq)
         return self.freq, lag
 
     def lag_average(self, fmin, fmax):
@@ -256,22 +259,22 @@ class CrossSpectrum(object):
         ---------
         fmin : float
                Lower bound of frequency range
-        fmin : float
+        fmax : float
                Upper bound of frequency range
 
-        Return Values
-        -------------
+        Return
+        ------
         lagavg : float
                  The average value of the time lag over the frequency range
                  (in seconds)
 
         """
         avgcross = self.freq_average(fmin, fmax)
-        lag = np.angle(avgcross) / (2*np.pi*np.mean([fmin, fmax]))
+        lag = np.angle(avgcross) / (2 * np.pi * np.mean([fmin, fmax]))
         return lag
 
 
-### --- STACKED DATA PRODUCTS --------------------------------------------------
+# --- STACKED DATA PRODUCTS ----------------------------------------------------
 
 class StackedCrossSpectrum(CrossSpectrum):
     """
@@ -309,17 +312,18 @@ class StackedCrossSpectrum(CrossSpectrum):
                frequency will not be accessible, but the cross spectrum can be
                averaged over specified frequency ranges
     """
+
     def __init__(self, lc1_list, lc2_list, bins=None, norm=True):
         self.cross_spectra = []
         for lc1, lc2 in zip(lc1_list, lc2_list):
-            self.cross_spectra.append( CrossSpectrum(lc1, lc2, norm=norm) )
+            self.cross_spectra.append(CrossSpectrum(lc1, lc2, norm=norm))
 
         self.bins = bins
 
         freq = []
         crossft = []
 
-        if(bins != None):
+        if bins is not None:
             freq = bins.bin_cent
             crossft = self.calculate()
 
@@ -333,8 +337,8 @@ class StackedCrossSpectrum(CrossSpectrum):
         cross spectrum in each bin is the average over all of the individual
         frequency points from all of the light curves that fall into that bin.
 
-        Return Values
-        -------------
+        Returns
+        -------
         cross_spec : ndarray
                      The average cross spectrum (complex) in each frequency bin
         """
@@ -353,7 +357,7 @@ class StackedCrossSpectrum(CrossSpectrum):
         # now take the mean of all the points that landed in each bin
         cross_spec = []
         for freq_points in cross_spec_points:
-            cross_spec.append( np.mean(freq_points) )
+            cross_spec.append(np.mean(freq_points))
 
         return np.array(cross_spec)
 
@@ -370,11 +374,11 @@ class StackedCrossSpectrum(CrossSpectrum):
         ---------
         fmin : float
                Lower bound of frequency range
-        fmin : float
+        fmax : float
                Upper bound of frequency range
 
-        Return Values
-        -------------
+        Returns
+        -------
         csavg : complex
                 The average value of the cross spectrum over the frequency range
 

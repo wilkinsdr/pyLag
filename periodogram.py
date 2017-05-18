@@ -66,10 +66,12 @@ class Periodogram(object):
            with the PSD (this only takes effect if the periodogram is calculated
            from an input light curve)
     """
+
     def __init__(self, lc=None, f=[], per=[], err=None, ferr=None, norm=True):
         if lc is not None:
             if not isinstance(lc, LightCurve):
-                raise ValueError("pyLag CrossSpectrum ERROR: Can only compute cross spectrum between two LightCurve objects")
+                raise ValueError(
+                    "pyLag CrossSpectrum ERROR: Can only compute cross spectrum between two LightCurve objects")
 
             self.freq, self.periodogram = self.calculate(lc, norm)
 
@@ -77,12 +79,9 @@ class Periodogram(object):
             self.freq = np.array(f)
             self.periodogram = np.array(per)
 
+        # these will only be set once the periodogram is binned
         self.freq_error = ferr
         self.error = err
-        # if(len(err)>0):
-        # 	self.error = np.array(err)
-        # else:
-        # 	self.error = np.zeros(len(self.freq))
 
     def calculate(self, lc, norm=True):
         """
@@ -101,8 +100,8 @@ class Periodogram(object):
                If True, the calculated periodogram is normalised to be consistent
                with the PSD
 
-        Return Values
-        -------------
+        Returns
+        -------
         f   : ndarray
               numpy array containing the sample frequencies at which the
               periodogram is evaluated
@@ -110,12 +109,12 @@ class Periodogram(object):
               numpy array containing the periodogram at each frequency
         """
         if norm:
-            psdnorm = 2*lc.dt / (lc.mean() ** 2 * lc.length)
+            psdnorm = 2 * lc.dt / (lc.mean() ** 2 * lc.length)
         else:
             psdnorm = 1
 
         f, ft = lc.ft()
-        per = psdnorm * np.abs(ft)**2
+        per = psdnorm * np.abs(ft) ** 2
         return f, per
 
     def bin(self, bins):
@@ -130,8 +129,8 @@ class Periodogram(object):
         bins : Binning
                pyLag Binning object to perform the Binning
 
-        Return Values
-        -------------
+        Returns
+        -------
         perbin : Periodogram
                  pyLag Periodogram object storing the newly binned periodogram
 
@@ -139,7 +138,8 @@ class Periodogram(object):
         if not isinstance(bins, Binning):
             raise ValueError("pyLag CrossSpectrum bin ERROR: Expected a Binning object")
 
-        return Periodogram(f=bins.bin_cent, per=bins.bin(self.freq, self.periodogram), err=bins.std_error(self.freq, self.periodogram), ferr=bins.x_error())
+        return Periodogram(f=bins.bin_cent, per=bins.bin(self.freq, self.periodogram),
+                           err=bins.std_error(self.freq, self.periodogram), ferr=bins.x_error())
 
     def points_in_bins(self, bins):
         """
@@ -153,8 +153,8 @@ class Periodogram(object):
         bins : Binning
                pyLag Binning object to perform the Binning
 
-        Return Values
-        -------------
+        Returns
+        -------
         points_in_bins : list
                      List of data point values that fall into each frequency bin
 
@@ -175,15 +175,15 @@ class Periodogram(object):
         ---------
         fmin : float
                Lower bound of frequency range
-        fmin : float
+        fmax : float
                Upper bound of frequency range
 
-        Return Values
-        -------------
+        Returns
+        -------
         per_avg : float
                   The average value of the periodogram over the frequency range
         """
-        return np.mean(  [p for f,p in zip(self.freq,self.periodogram) if f>=fmin and f<fmax] )
+        return np.mean([p for f, p in zip(self.freq, self.periodogram) if fmin <= f < fmax])
 
     def points_in_freqrange(self, fmin, fmax):
         """
@@ -196,16 +196,16 @@ class Periodogram(object):
         ---------
         fmin : float
                Lower bound of frequency range
-        fmin : float
+        fmax : float
                Upper bound of frequency range
 
-        Return Values
-        -------------
+        Returns
+        -------
         range_points : list
                        List of periodogram points (complex) in the frequency range
 
         """
-        return [p for f,p in zip(self.freq,self.periodogram) if f>=fmin and f<fmax]
+        return [p for f, p in zip(self.freq, self.periodogram) if fmin <= f < fmax]
 
     def _getplotdata(self):
         return (self.freq, self.freq_error), (self.periodogram, self.error)
@@ -214,7 +214,7 @@ class Periodogram(object):
         return 'Frequency / Hz', 'log', 'Periodogram', 'log'
 
 
-### --- STACKED DATA PRODUCTS --------------------------------------------------
+# --- STACKED DATA PRODUCTS ----------------------------------------------------
 
 class StackedPeriodogram(Periodogram):
     """
@@ -243,10 +243,11 @@ class StackedPeriodogram(Periodogram):
               frequency will not be accessible, but the cross spectrum can be
               averaged over specified frequency ranges
     """
+
     def __init__(self, lc_list, bins=None):
         self.periodograms = []
         for lc in lc_list:
-            self.periodograms.append( Periodogram(lc) )
+            self.periodograms.append(Periodogram(lc))
 
         self.bins = bins
         freq = []
@@ -254,7 +255,7 @@ class StackedPeriodogram(Periodogram):
         err = []
         ferr = []
 
-        if(bins != None):
+        if bins is not None:
             freq = bins.bin_cent
             ferr = bins.x_error()
             per, err = self.calculate()
@@ -269,8 +270,8 @@ class StackedPeriodogram(Periodogram):
         periodogram in each bin is the average over all of the individual
         frequency points from all of the light curves that fall into that bin.
 
-        Return Values
-        -------------
+        Returns
+        -------
         per : ndarray
               The average periodogram in each frequency bin
         err : ndarray
@@ -292,8 +293,8 @@ class StackedPeriodogram(Periodogram):
         per = []
         err = []
         for freq_points in per_points:
-            per.append( np.mean(freq_points) )
-            err.append( np.std(freq_points) / np.sqrt(len(freq_points)) )
+            per.append(np.mean(freq_points))
+            err.append(np.std(freq_points) / np.sqrt(len(freq_points)))
 
         return np.array(per), np.array(err)
 
@@ -310,11 +311,11 @@ class StackedPeriodogram(Periodogram):
         ---------
         fmin : float
                Lower bound of frequency range
-        fmin : float
+        fmax : float
                Upper bound of frequency range
 
-        Return Values
-        -------------
+        Returns
+        -------
         per_avg : complex
                   The average value of the cross spectrum over the frequency range
 

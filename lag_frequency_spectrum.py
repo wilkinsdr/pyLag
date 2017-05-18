@@ -73,6 +73,7 @@ class LagFrequencySpectrum(object):
     lc2  : LightCurve or list of LightCurve objects
            pyLag LightCurve object for the reference or soft band
     """
+
     def __init__(self, bins, lc1=None, lc2=None, lc1files=None, lc2files=None, interp_gaps=False):
         self.freq = bins.bin_cent
         self.freq_error = bins.x_error()
@@ -80,13 +81,13 @@ class LagFrequencySpectrum(object):
         self.lag = np.array([])
         self.error = np.array([])
 
-        if(lc1files != None):
+        if lc1files is not None:
             lc1 = get_lclist(lc1files, interp_gaps=interp_gaps)
-        if(lc2files != None):
+        if lc2files is not None:
             lc2 = get_lclist(lc2files, interp_gaps=interp_gaps)
 
         if isinstance(lc1, list) and isinstance(lc2, list):
-            print( "Constructing lag-frequency spectrum from %d pairs of light curves" % len(lc1) )
+            print("Constructing lag-frequency spectrum from %d pairs of light curves" % len(lc1))
             self.cross_spec = StackedCrossSpectrum(lc1, lc2, bins)
             self.coh = Coherence(lc1, lc2, bins)
         elif isinstance(lc1, LightCurve) and isinstance(lc2, LightCurve):

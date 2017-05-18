@@ -89,26 +89,28 @@ class LagEnergySpectrum(object):
                   energy range [min, max]. If not specified, the full band will
                   be used for the reference
     """
-    def __init__(self, fmin, fmax, lclist=None, enmin=None, enmax=None, lcfiles='', interp_gaps=False, refband=None, bias=True):
+
+    def __init__(self, fmin, fmax, lclist=None, enmin=None, enmax=None, lcfiles='', interp_gaps=False, refband=None,
+                 bias=True):
         self.en = np.array([])
         self.en_error = np.array([])
         self.lag = np.array([])
         self.error = np.array([])
         self.coh = np.array([])
 
-        if(lcfiles != ''):
+        if lcfiles != '':
             enmin, enmax, lclist = self.find_lightcurves(lcfiles, interp_gaps=interp_gaps)
 
-        self.en = (0.5*(np.array(enmin) + np.array(enmax)))
+        self.en = (0.5 * (np.array(enmin) + np.array(enmax)))
         self.en_error = self.en - np.array(enmin)
 
         if isinstance(lclist[0], LightCurve):
-            print( "Constructing lag energy spectrum in %d energy bins" % len(lclist) )
+            print("Constructing lag energy spectrum in %d energy bins" % len(lclist))
             self.lag, self.error, self.coh = self.calculate(lclist, fmin, fmax, refband, self.en, bias)
         elif isinstance(lclist[0], list) and isinstance(lclist[0][0], LightCurve):
-            print( "Constructing lag energy spectrum from %d light curves in each of %d energy bins" % (len(lclist[0]), len(lclist)) )
+            print("Constructing lag energy spectrum from %d light curves in each of %d energy bins" % (
+                len(lclist[0]), len(lclist)))
             self.lag, self.error, self.coh = self.calculate_stacked(lclist, fmin, fmax, refband, self.en, bias)
-
 
     def calculate(self, lclist, fmin, fmax, refband=None, energies=None, bias=True):
         """
@@ -130,7 +132,7 @@ class LagEnergySpectrum(object):
                    bands, i.e. [en1_lc, en2_lc, ...]
         fmin     : float
                    Lower bound of frequency range
-        fmin     : float
+        fmax     : float
                    Upper bound of frequency range
         refband  : list of floats
                  : If specified, the reference band will be restricted to this
@@ -140,9 +142,12 @@ class LagEnergySpectrum(object):
                  : If a specific range of energies is to be used for the reference
                    band rather than the full band, this is the list of central
                    energies of the bands represented by each light curve
+        bias     : boolean, optional (default=True)
+                   If true, the bias due to Poisson noise will be subtracted when
+                   calculating coherence
 
-        Return Values
-        -------------
+        Returns
+        -------
         lag   : ndarray
                 numpy array containing the lag of each energy band with respect
                 to the reference band
@@ -151,10 +156,10 @@ class LagEnergySpectrum(object):
         coh   : ndarray
                 numpy array containing the coherence in each energy band
         """
-        reflc = LightCurve(t = lclist[0].time)
+        reflc = LightCurve(t=lclist[0].time)
         for energy_num, lc in enumerate(lclist):
-            if refband != None:
-                if (energies[energy_num] < refband[0] or energies[energy_num] > refband[1]):
+            if refband is not None:
+                if energies[energy_num] < refband[0] or energies[energy_num] > refband[1]:
                     continue
             reflc = reflc + lc
 
@@ -165,13 +170,13 @@ class LagEnergySpectrum(object):
             thisref = reflc - lc
             # if we're only using a specific reference band, we did not need to
             # subtract the current band if it's outside the range
-            if refband != None:
-                if (energies[energy_num] < refband[0] or energies[energy_num] > refband[1]):
+            if refband is not None:
+                if energies[energy_num] < refband[0] or energies[energy_num] > refband[1]:
                     thisref = reflc
             lag.append(CrossSpectrum(lc, thisref).lag_average(fmin, fmax))
             coherence_obj = Coherence(lc, reflc, fmin=fmin, fmax=fmax, bias=bias)
             error.append(coherence_obj.lag_error())
-            coh.append( coherence_obj.coh )
+            coh.append(coherence_obj.coh)
 
         return np.array(lag), np.array(error), np.array(coh)
 
@@ -199,7 +204,7 @@ class LagEnergySpectrum(object):
                    i.e. [[en1_obs1, en1_obs2, ...], [en2_obs1, en2_obs2, ...], ...]
         fmin     : float
                    Lower bound of frequency range
-        fmin     : float
+        fmax     : float
                    Upper bound of frequency range
         refband  : list of floats
                  : If specified, the reference band will be restricted to this
@@ -209,9 +214,12 @@ class LagEnergySpectrum(object):
                  : If a specific range of energies is to be used for the reference
                    band rather than the full band, this is the list of central
                    energies of the bands represented by each light curve
+        bias     : boolean, optional (default=True)
+                   If true, the bias due to Poisson noise will be subtracted when
+                   calculating coherence
 
-        Return Values
-        -------------
+        Returns
+        -------
         lag   : ndarray
                 numpy array containing the lag of each energy band with respect
                 to the reference band
@@ -224,14 +232,14 @@ class LagEnergySpectrum(object):
         # initialise a reference light curve for each of the observations/light
         # curve segments
         for lc in lclist[0]:
-            reflc.append( LightCurve(t = lc.time) )
+            reflc.append(LightCurve(t=lc.time))
         # sum all of the energies (outer index) together to produce a reference
         # light curve for each segment (inner index)
         for energy_num, energy_lcs in enumerate(lclist):
             # if a reference band is specifed, skip any energies that do not fall
             # in that range
-            if refband != None:
-                if (energies[energy_num] < refband[0] or energies[energy_num] > refband[1]):
+            if refband is not None:
+                if energies[energy_num] < refband[0] or energies[energy_num] > refband[1]:
                     continue
             for segment_num, segment_lc in enumerate(energy_lcs):
                 reflc[segment_num] = reflc[segment_num] + segment_lc
@@ -248,18 +256,18 @@ class LagEnergySpectrum(object):
             for segment_num, segment_lc in enumerate(energy_lclist):
                 # if a reference band is specifed and this energy falls outside that
                 # band, no need to subtract the current band
-                if refband != None:
-                    if (energies[energy_num] < refband[0] or energies[energy_num] > refband[1]):
-                        ref_lclist.append( reflc[segment_num] )
+                if refband is not None:
+                    if energies[energy_num] < refband[0] or energies[energy_num] > refband[1]:
+                        ref_lclist.append(reflc[segment_num])
                         continue
-                ref_lclist.append( reflc[segment_num] - segment_lc )
+                ref_lclist.append(reflc[segment_num] - segment_lc)
             # now get the lag and error from the stacked cross spectrum and
             # coherence between the sets of lightcurves for this energy band and
             # for the reference
             lag.append(StackedCrossSpectrum(energy_lclist, ref_lclist).lag_average(fmin, fmax))
             coherence_obj = Coherence(energy_lclist, ref_lclist, fmin=fmin, fmax=fmax, bias=bias)
             error.append(coherence_obj.lag_error())
-            coh.append( coherence_obj.coh )
+            coh.append(coherence_obj.coh)
 
         return np.array(lag), np.array(error), np.array(coh)
 
@@ -297,8 +305,8 @@ class LagEnergySpectrum(object):
                   : Wildcard for searching the filesystem to find the light curve
                     filesystem
 
-        Return Values
-        -------------
+        Returns
+        -------
         enmin :  ndarray
                  numpy array countaining the lower energy bound of each band
         enmax :  ndarray
@@ -326,15 +334,15 @@ class LagEnergySpectrum(object):
             energy_lightcurves = sorted([lc for lc in lcfiles if estr in lc])
             # see how many light curves match this energy - if there's only one, we
             # don't want nested lists so stacking isn't run
-            if(len(energy_lightcurves) > 1):
+            if len(energy_lightcurves) > 1:
                 energy_lclist = []
                 for lc in energy_lightcurves:
-                    energy_lclist.append( LightCurve(lc, **kwargs) )
+                    energy_lclist.append(LightCurve(lc, **kwargs))
                 lclist.append(energy_lclist)
             else:
-                lclist.append( LightCurve(energy_lightcurves[0], **kwargs) )
+                lclist.append(LightCurve(energy_lightcurves[0], **kwargs))
 
-        return np.array(enmin)/1000., np.array(enmax)/1000., lclist
+        return np.array(enmin) / 1000., np.array(enmax) / 1000., lclist
 
     def _getplotdata(self):
         return (self.en, self.en_error), (self.lag, self.error)

@@ -82,22 +82,23 @@ class LightCurve(object):
                               binning.
 
     """
+
     def __init__(self, filename=None, t=[], r=[], e=[], interp_gaps=False, zero_nan=True, trim=False):
         self.time = np.array(t)
-        if(len(r)>0):
+        if len(r) > 0:
             self.rate = np.array(r)
         else:
             self.rate = np.zeros(len(t))
-        if(len(e)>0):
+        if len(e) > 0:
             self.error = np.array(e)
         else:
             self.error = np.zeros(len(t))
 
-        if(filename != None):
+        if filename is not None:
             self.filename = filename
             self.read_fits(filename)
 
-        if(len(self.time)>1):
+        if len(self.time) > 1:
             self.dt = self.time[1] - self.time[0]
         self.length = len(self.rate)
 
@@ -162,9 +163,9 @@ class LightCurve(object):
         nonzero = self.rate.nonzero()
         first_index = nonzero[0][0]
         last_index = nonzero[0][-1]
-        self.time = self.time[first_index:last_index+1]
-        self.rate = self.rate[first_index:last_index+1]
-        self.error = self.error[first_index:last_index+1]
+        self.time = self.time[first_index:last_index + 1]
+        self.rate = self.rate[first_index:last_index + 1]
+        self.error = self.error[first_index:last_index + 1]
 
     def zero_time(self):
         """
@@ -194,7 +195,7 @@ class LightCurve(object):
             if not in_gap:
                 if np.isnan(self.rate[i]):
                     in_gap = True
-                    gap_start = i-1
+                    gap_start = i - 1
                     gap_count += 1
 
             elif in_gap:
@@ -202,10 +203,12 @@ class LightCurve(object):
                     gap_end = i
                     in_gap = False
 
-                    self.rate[gap_start:gap_end] = np.interp(self.time[gap_start:gap_end], [self.time[gap_start], self.time[gap_end]], [self.rate[gap_start], self.rate[gap_end]])
+                    self.rate[gap_start:gap_end] = np.interp(self.time[gap_start:gap_end],
+                                                             [self.time[gap_start], self.time[gap_end]],
+                                                             [self.rate[gap_start], self.rate[gap_end]])
 
                     gap_length = gap_end - gap_start
-                    if(gap_length > max_gap):
+                    if gap_length > max_gap:
                         max_gap = gap_length
 
         print("Patched %d gaps" % gap_count)
@@ -235,14 +238,14 @@ class LightCurve(object):
         end   : float
                 The end time to which the extracted light curve runs
 
-        Return Values
-        -------------
+        Returns
+        -------
         lc : LightCurve
              The extracted light curve segment as a new LightCurve object
         """
-        this_t = np.array([t for t in self.time if t>start and t<=end])
-        this_rate = np.array([r for t,r in zip(self.time,self.rate) if t>start and t<=end])
-        this_error = np.array([e for t,e in zip(self.time,self.error) if t>start and t<=end])
+        this_t = np.array([t for t in self.time if start < t <= end])
+        this_rate = np.array([r for t, r in zip(self.time, self.rate) if start < t <= end])
+        this_error = np.array([e for t, e in zip(self.time, self.error) if start < t <= end])
         return LightCurve(t=this_t, r=this_rate, e=this_error)
 
     def split_segments(self, num_segments=1, segment_length=None, use_end=False):
@@ -267,8 +270,8 @@ class LightCurve(object):
                          the list of segments will also include the partial
                          segment from the end of the light curve
 
-        Return Values
-        -------------
+        Returns
+        -------
         segments : list of LightCurves
         """
         if segment_length is None:
@@ -297,14 +300,14 @@ class LightCurve(object):
         tbin : float
                New time bin size
 
-        Return Values
-        -------------
+        Returns
+        -------
         rebin_lc : LightCurve
                    The rebinned light curve
         """
-        if(tbin <= self.dt):
+        if tbin <= self.dt:
             raise ValueError("pylag LightCurve Rebin ERROR: Must rebin light curve into larger bins")
-        if(tbin % self.dt != 0):
+        if tbin % self.dt != 0:
             print("pylag LightCurve Rebin WARNING: New time binning is not a multiple of the old")
 
         time = np.arange(min(self.time), max(self.time), tbin)
@@ -313,11 +316,12 @@ class LightCurve(object):
         for bin_t in time:
             # note we're summing counts, not rate, as if the light curve had been
             # originally made from the event list with a larger time bin
-            counts.append( np.sum([self.dt*r for t,r in zip(self.time, self.rate) if t>=bin_t and t<(bin_t+tbin)]) )
+            counts.append(
+                np.sum([self.dt * r for t, r in zip(self.time, self.rate) if bin_t <= t < (bin_t + tbin)]))
             # if we have a partial bin, scale the counts to correct the exposure
-            time_slice = [t for t in self.time if t>=bin_t and t<(bin_t + tbin)]
-            if( (max(time_slice) - min(time_slice)) < tbin ):
-                counts[-1] *= (float(tbin) / float(max(time_slice) - min(time_slice)) )
+            time_slice = [t for t in self.time if bin_t <= t < (bin_t + tbin)]
+            if (max(time_slice) - min(time_slice)) < tbin:
+                counts[-1] *= (float(tbin) / float(max(time_slice) - min(time_slice)))
 
         counts = np.array(counts)
         rate = counts / tbin
@@ -359,7 +363,7 @@ class LightCurve(object):
         ft = scipy.fftpack.fft(self.rate)
         freq = scipy.fftpack.fftfreq(self.length, d=self.dt)
 
-        return freq[:int(self.length/2)], ft[:int(self.length/2)]
+        return freq[:int(self.length / 2)], ft[:int(self.length / 2)]
 
     def bin_num_freq(self, bins):
         """
@@ -374,8 +378,8 @@ class LightCurve(object):
                pyLag Binning object defining the bins into which sample frequencies
                are to be counted
 
-        Return Values
-        -------------
+        Returns
+        -------
         numfreq : ndarray
                   The number of frequencies falling into each bin
         """
@@ -394,17 +398,17 @@ class LightCurve(object):
         ---------
         fmin : float
                Lower bound of frequency range
-        fmin : float
+        fmax : float
                Upper bound of frequency range
 
-        Return Values
-        -------------
+        Returns
+        -------
         numfreq : ndarray
                   The number of frequencies falling into each bin
         """
         freq = scipy.fftpack.fftfreq(self.length, d=self.dt)
 
-        return len( [f for f in freq if f>=fmin and f<fmax] )
+        return len([f for f in freq if fmin <= f < fmax])
 
     def concatenate(self, other):
         """
@@ -431,13 +435,12 @@ class LightCurve(object):
         ERROR columns from the two light curves are summed in quadrature.
         """
         if isinstance(other, LightCurve):
-            if(len(self.rate) != len(other.rate)):
+            if len(self.rate) != len(other.rate):
                 raise AssertionError("pyLag LightCurve ERROR: Cannot add light curves of different lengths")
-                return
             # sum the count rate
             newlc = self.rate + other.rate
             # sum the errors in quadrature
-            newerr = np.sqrt( self.error**2 + other.error**2 )
+            newerr = np.sqrt(self.error ** 2 + other.error ** 2)
             # construct a new LightCurve with the result
             return LightCurve(t=self.time, r=newlc, e=newerr)
 
@@ -452,13 +455,12 @@ class LightCurve(object):
         ERROR columns from the two light curves are summed in quadrature.
         """
         if isinstance(other, LightCurve):
-            if(len(self.rate) != len(other.rate)):
+            if len(self.rate) != len(other.rate):
                 raise AssertionError("pyLag LightCurve ERROR: Cannot add light curves of different lengths")
-                return
             # sum the count rate
             self.rate = self.rate + other.rate
             # sum the errors in quadrature
-            self.err = np.sqrt( self.error**2 + other.error**2 )
+            self.err = np.sqrt(self.error ** 2 + other.error ** 2)
 
         else:
             return NotImplemented
@@ -472,13 +474,12 @@ class LightCurve(object):
         ERROR columns from the two light curves are summed in quadrature.
         """
         if isinstance(other, LightCurve):
-            if(len(self.rate) != len(other.rate)):
+            if len(self.rate) != len(other.rate):
                 raise AssertionError("pyLag LightCurve ERROR: Cannot subtract light curves of different lengths")
-                return
             # subtract the count rate
             newlc = self.rate - other.rate
             # sum the errors in quadrature
-            newerr = np.sqrt( self.error**2 + other.error**2 )
+            newerr = np.sqrt(self.error ** 2 + other.error ** 2)
             # construct a new LightCurve with the result
             return LightCurve(t=self.time, r=newlc, e=newerr)
 
@@ -493,13 +494,12 @@ class LightCurve(object):
         ERROR columns from the two light curves are summed in quadrature.
         """
         if isinstance(other, LightCurve):
-            if(len(self.rate) != len(other.rate)):
+            if len(self.rate) != len(other.rate):
                 raise AssertionError("pyLag LightCurve ERROR: Cannot subtract light curves of different lengths")
-                return
             # subtract the count rate
             self.rate = self.rate - other.rate
             # sum the errors in quadrature
-            self.error = np.sqrt( self.error**2 + other.error**2 )
+            self.error = np.sqrt(self.error ** 2 + other.error ** 2)
 
         else:
             return NotImplemented
@@ -512,19 +512,17 @@ class LightCurve(object):
         Fractional errors from the two light curves are summed in quadrature.
         """
         if isinstance(other, LightCurve):
-            if(len(self.rate) != len(other.rate)):
+            if len(self.rate) != len(other.rate):
                 raise AssertionError("pyLag LightCurve ERROR: Cannot divide light curves of different lengths")
-                return
             # subtract the count rate
             newlc = self.rate / other.rate
             # add the fractional errors in quadrature
-            newerr = newlc * np.sqrt( (self.error/self.rate)**2 + (other.error/other.rate)**2 )
+            newerr = newlc * np.sqrt((self.error / self.rate) ** 2 + (other.error / other.rate) ** 2)
             # construct a new LightCurve with the result
             return LightCurve(t=self.time, r=newlc, e=newerr)
 
         else:
             return NotImplemented
-
 
     def __eq__(self, other):
         """
@@ -532,7 +530,7 @@ class LightCurve(object):
         consistent to see if they can be added/subtracted/combined.
         """
         if isinstance(other, LightCurve):
-            return (self.length == other.length and self.dt == other.dt)
+            return self.length == other.length and self.dt == other.dt
         else:
             return NotImplemented
 
@@ -543,7 +541,7 @@ class LightCurve(object):
         """
         if isinstance(other, LightCurve):
             return not (self.length == other.length and self.dt == other.dt)
-        elif other==None:
+        elif other is None:
             # need to provide this so that constructors can be passed None in place
             # of a light curve for dummy initialisation
             return True
@@ -576,7 +574,7 @@ class LightCurve(object):
         return 'Time / s', 'linear', 'Count Rate / ct s$^{-1}$', 'linear'
 
 
-### --- Utility functions ------------------------------------------------------
+# --- Utility functions --------------------------------------------------------
 
 def get_lclist(searchstr, **kwargs):
     """
@@ -598,18 +596,18 @@ def get_lclist(searchstr, **kwargs):
     **kwargs  : Keyword arguments to be passed on to the constructor for each
                 LightCurve object
 
-    Return Values
-    -------------
+    Returns
+    -------
     lclist : list of LightCurve objects
     """
-    lcfiles = sorted( glob.glob(searchstr) )
+    lcfiles = sorted(glob.glob(searchstr))
 
-    if(len(lcfiles) < 1):
+    if len(lcfiles) < 1:
         raise AssertionError("pylag get_lclist ERROR: Could not find light curve files")
 
     lclist = []
     for lc in lcfiles:
-        lclist.append( LightCurve(lc, **kwargs) )
+        lclist.append(LightCurve(lc, **kwargs))
     return lclist
 
 
@@ -623,8 +621,8 @@ def stacked_mean_count_rate(lclist):
     ---------
     lclist : list of LightCurve objects
 
-    Return Values
-    -------------
+    Returns
+    -------
     mean_rate : float
                 The mean count rate
     """
@@ -648,8 +646,8 @@ def extract_sim_lightcurves(lc1, lc2):
     lc2 : LightCurve
           Second input light curve
 
-    Return Values
-    -------------
+    Returns
+    -------
     out_lc1 : LightCurve
               LightCurve object containing the simultaneous portion of the first
               light curve
@@ -657,7 +655,7 @@ def extract_sim_lightcurves(lc1, lc2):
               LightCurve object containing the simultaneous portion of the second
               light curve
     """
-    if(lc1.dt != lc2.dt):
+    if lc1.dt != lc2.dt:
         raise AssertionError('pylag extract_sim_lightcurves ERROR: Light curves must have same time spacing')
 
     # find the latest of the start times between the two light curves and the
@@ -669,24 +667,24 @@ def extract_sim_lightcurves(lc1, lc2):
     print("Simultaneous portion length = %g" % (end - start))
 
     # extract the portion of eaach light curve from this range of times
-    time1 = np.array([t for t in lc1.time if t>=start and t<=end])
-    rate1 = np.array([r for t,r in zip(lc1.time, lc1.rate) if t>=start and t<=end])
-    err1 = np.array([e for t,e in zip(lc1.time, lc1.error) if t>=start and t<=end])
+    time1 = np.array([t for t in lc1.time if start <= t <= end])
+    rate1 = np.array([r for t, r in zip(lc1.time, lc1.rate) if start <= t <= end])
+    err1 = np.array([e for t, e in zip(lc1.time, lc1.error) if start <= t <= end])
 
-    time2 = np.array([t for t in lc2.time if t>=start and t<=end])
-    rate2 = np.array([r for t,r in zip(lc2.time, lc2.rate) if t>=start and t<=end])
-    err2 = np.array([e for t,e in zip(lc2.time, lc2.error) if t>=start and t<=end])
+    time2 = np.array([t for t in lc2.time if start <= t <= end])
+    rate2 = np.array([r for t, r in zip(lc2.time, lc2.rate) if start <= t <= end])
+    err2 = np.array([e for t, e in zip(lc2.time, lc2.error) if start <= t <= end])
 
     # check that we actually have an overlapping section!
-    if(len(rate1)==0 or len(rate2)==0):
+    if len(rate1) == 0 or len(rate2) == 0:
         raise AssertionError('pylag extract_sim_lightcurves ERROR: Light curves have no simultaneous part')
 
     # sometimes rounding causes there to be one more bin in one light curve than
     # the other so take off the extra bin, but make sure it's only 1 bin difference!
-    if abs(len(rate1)-len(rate2)) > 1:
+    if abs(len(rate1) - len(rate2)) > 1:
         raise AssertionError('pylag extract_sim_lightcurves ERROR: Light curves differ in length by more than one bin')
-    if(len(rate1) > len(rate2)):
-        if( abs(time1[0] - time2[0]) < abs(time1[-1] - time2[-1]) ):
+    if len(rate1) > len(rate2):
+        if abs(time1[0] - time2[0]) < abs(time1[-1] - time2[-1]):
             # if the start times match better than the end times, knock off the last bin
             time1 = time1[:-1]
             rate1 = rate1[:-1]
@@ -696,8 +694,8 @@ def extract_sim_lightcurves(lc1, lc2):
             time1 = time1[1:]
             rate1 = rate1[1:]
             err1 = err1[1:]
-    if(len(rate1) < len(rate2)):
-        if( abs(time1[0] - time2[0]) < abs(time1[-1] - time2[-1]) ):
+    if len(rate1) < len(rate2):
+        if abs(time1[0] - time2[0]) < abs(time1[-1] - time2[-1]):
             # if the start times match better than the end times, knock off the last bin
             time2 = time2[:-1]
             rate2 = rate2[:-1]
@@ -712,6 +710,7 @@ def extract_sim_lightcurves(lc1, lc2):
     out_lc2 = LightCurve(t=time2, r=rate2, e=err2)
 
     return out_lc1, out_lc2
+
 
 def extract_lclist_time_segment(lclist, tstart, tend):
     """
@@ -728,18 +727,20 @@ def extract_lclist_time_segment(lclist, tstart, tend):
             new_lclist.append([])
             for lc in en_lclist:
                 lcseg = lc.time_segment(tstart, tend)
-                if(len(lcseg)>0):
+                if len(lcseg) > 0:
                     new_lclist[-1].append(lcseg)
 
     elif isinstance(lclist[0], LightCurve):
         for lc in lclist:
             lcseg = lc.time_segment(tstart, tend)
-            if(len(lcseg)>0):
+            if len(lcseg) > 0:
                 new_lclist.append(lcseg)
             else:
-                print("pylag extract_lclist_time_segment WARNING: One of the light curves does not cover this time segment. Check consistency!")
+                print(
+                    "pylag extract_lclist_time_segment WARNING: One of the light curves does not cover this time segment. Check consistency!")
 
     return new_lclist
+
 
 def split_lclist_segments(lclist, num_segments=1, segment_length=None):
     """
@@ -757,16 +758,17 @@ def split_lclist_segments(lclist, num_segments=1, segment_length=None):
             new_lclist.append([])
             for lc in en_lclist:
                 lcseg = lc.split_segments(num_segments, segment_length)
-                if(len(lcseg)>0):
+                if len(lcseg) > 0:
                     new_lclist[-1].append(lcseg)
 
     elif isinstance(lclist[0], LightCurve):
         for lc in lclist:
             lcseg = lc.split_segments(num_segments, segment_length)
-            if(len(lcseg)>0):
+            if len(lcseg) > 0:
                 new_lclist.append(lcseg)
 
     return new_lclist
+
 
 def lclist_separate_segments(lclist):
     """

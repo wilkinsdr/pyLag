@@ -74,6 +74,7 @@ class Coherence(object):
            If true, the bias due to Poisson noise will be subtracted from the
            magnitude of the cross spectrum and periodograms
     """
+
     def __init__(self, lc1=None, lc2=None, bins=None, fmin=None, fmax=None, bkg1=0., bkg2=0., bias=True):
         self.bkg1 = bkg1
         self.bkg2 = bkg2
@@ -83,23 +84,23 @@ class Coherence(object):
 
         self.bins = bins
 
-        if(bins != None):
+        if bins is not None:
             self.freq = bins.bin_cent
             self.freq_error = bins.x_error()
-        elif(fmin>0 and fmax>0):
+        elif fmin > 0 and fmax > 0:
             self.freq = np.mean([fmin, fmax])
             self.freq_error = None
 
         # if we're passed a single pair of light curves, get the cross spectrum
         # and periodograms and count the number of sample frequencies in either
         # the bins or specified range
-        if(isinstance(lc1, LightCurve) and isinstance(lc2, LightCurve)):
+        if isinstance(lc1, LightCurve) and isinstance(lc2, LightCurve):
             self.cross_spec = CrossSpectrum(lc1, lc2)
             self.per1 = Periodogram(lc1)
             self.per2 = Periodogram(lc2)
             if bins is not None:
                 self.num_freq = lc1.bin_num_freq(bins)
-            elif(fmin>0 and fmax>0):
+            elif fmin > 0 and fmax > 0:
                 self.num_freq = lc1.num_freq_in_range(fmin, fmax)
             self.lc1mean = lc1.mean()
             self.lc2mean = lc2.mean()
@@ -107,16 +108,16 @@ class Coherence(object):
         # if we're passed lists of light curves, get the stacked cross spectrum
         # and periodograms and count the number of sample frequencies across all
         # the light curves
-        elif(isinstance(lc1, list) and isinstance(lc2, list)):
+        elif isinstance(lc1, list) and isinstance(lc2, list):
             self.cross_spec = StackedCrossSpectrum(lc1, lc2, bins)
             self.per1 = StackedPeriodogram(lc1, bins)
             self.per2 = StackedPeriodogram(lc2, bins)
-            if(bins != None):
+            if bins is not None:
                 self.num_freq = np.zeros(bins.num)
 
                 for lc in lc1:
                     self.num_freq += lc.bin_num_freq(bins)
-            elif(fmin>0 and fmax>0):
+            elif fmin > 0 and fmax > 0:
                 self.num_freq = 0
                 for lc in lc1:
                     self.num_freq += lc.num_freq_in_range(fmin, fmax)
@@ -141,37 +142,40 @@ class Coherence(object):
                be calculated
         fmin : float
                Lower bound of frequency range
-        fmin : float
+        fmax : float
                Upper bound of frequency range
+        bias : boolean, optional (default=True)
+               If true, the bias due to Poisson noise will be subtracted from the
+               magnitude of the cross spectrum and periodograms
 
-        Return Values
-        -------------
+        Returns
+        -------
         coh : ndarray or float
               The calculated coherence either as a numpy array containing the
               value for each frequency bin or a single float if the coherence is
               calculated over a single frequency range
         """
-        if(bins != None):
+        if bins is not None:
             cross_spec = self.cross_spec.bin(self.bins).crossft
             per1 = self.per1.bin(self.bins).periodogram
             per2 = self.per2.bin(self.bins).periodogram
-        elif(fmin>0 and fmax>0):
+        elif fmin > 0 and fmax > 0:
             cross_spec = self.cross_spec.freq_average(fmin, fmax)
             per1 = self.per1.freq_average(fmin, fmax)
             per2 = self.per2.freq_average(fmin, fmax)
 
         if bias:
-            pnoise1 = 2*(self.lc1mean + self.bkg1) / self.lc1mean**2
-            pnoise2 = 2*(self.lc2mean + self.bkg2) / self.lc2mean**2
-            nbias = (pnoise2*(per1 - pnoise1) + pnoise1*(per2 - pnoise2) + pnoise1*pnoise2) / self.num_freq
+            pnoise1 = 2 * (self.lc1mean + self.bkg1) / self.lc1mean ** 2
+            pnoise2 = 2 * (self.lc2mean + self.bkg2) / self.lc2mean ** 2
+            nbias = (pnoise2 * (per1 - pnoise1) + pnoise1 * (per2 - pnoise2) + pnoise1 * pnoise2) / self.num_freq
         else:
             nbias = 0
 
-        coh = (np.abs(cross_spec)**2 - nbias) / (per1 * per2)
+        coh = (np.abs(cross_spec) ** 2 - nbias) / (per1 * per2)
         return coh
 
     def phase_error(self):
-        return np.sqrt( (1 - self.coh) / (2 * self.coh * self.num_freq) )
+        return np.sqrt((1 - self.coh) / (2 * self.coh * self.num_freq))
 
     def lag_error(self):
         return self.phase_error() / (2 * np.pi * self.freq)

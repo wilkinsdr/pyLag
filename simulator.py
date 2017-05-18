@@ -26,7 +26,8 @@ class SimLightCurve(LightCurve):
     drawing the measured photon count in each time bin from a Poisson distribution
     using the add_noise() method.
 
-    Constructor: pylag.SimLightCurve(dt=10., tmax=1000., plslope=2.0, std=0.5, lcmean=1.0, t=None, r=None, e=None, gtzero=True)
+    Constructor: pylag.SimLightCurve(dt=10., tmax=1000., plslope=2.0, std=0.5, 
+                                     lcmean=1.0, t=None, r=None, e=None, gtzero=True)
 
     Constructor Arguments
     ---------------------
@@ -57,12 +58,13 @@ class SimLightCurve(LightCurve):
               Force all points in the light curve to have count rate greater
               than zero. Set all points below zero to zero
     """
+
     def __init__(self, dt=10., tmax=1000., plslope=2.0, std=0.5, lcmean=1.0, t=None, r=None, e=None, gtzero=True):
         if t is None and r is None:
             t = np.arange(0, tmax, dt)
             r = self.calculate(t, plslope, std, lcmean, gtzero=gtzero)
         if e is None:
-            e = np.sqrt(r/dt)
+            e = np.sqrt(r / dt)
         LightCurve.__init__(self, t=t, r=r, e=e)
 
     def calculate(self, t, plslope, std, lcmean, plnorm=1., gtzero=True):
@@ -98,27 +100,27 @@ class SimLightCurve(LightCurve):
                   than zero. Set all points below zero to zero
         """
         # sample frequencies
-        freq = scipy.fftpack.fftfreq(len(t), d=t[1]-t[0])
+        freq = scipy.fftpack.fftfreq(len(t), d=t[1] - t[0])
         # normalise the power law PSD
-        plnorm = plnorm / ( (2*np.pi*freq[1])**(-plslope) )
+        plnorm = plnorm / ((2 * np.pi * freq[1]) ** (-plslope))
         # build the Fourier transform of the light curve
         # amplitude at each frequency is according to a power law, phase is random
         # note we use abs(freq) to populate the negative and positive frequencies
         # since a real light curve has a symmetric FFT. Also skip f=0
-        ampl = np.sqrt( 0.5 * plnorm * (2*np.pi*np.abs(freq[1:]))**(-plslope) )
-        ampl = np.insert(ampl, 0, plnorm) # add the zero frequency element
+        ampl = np.sqrt(0.5 * plnorm * (2 * np.pi * np.abs(freq[1:])) ** (-plslope))
+        ampl = np.insert(ampl, 0, plnorm)  # add the zero frequency element
         phase = 2 * np.pi * np.random.rand(len(freq))
 
         # put the Fourier transform together then invert it to get the light curbe
-        ft = ampl * np.exp(1j*phase)
-        r = np.real( scipy.fftpack.ifft(ft) )
+        ft = ampl * np.exp(1j * phase)
+        r = np.real(scipy.fftpack.ifft(ft))
 
         # normalise and shift the light curve to get the desired mean and stdev
-        r = std * r/np.std(r)
+        r = std * r / np.std(r)
         r = r - np.mean(r) + lcmean
         # don't let any points drop below zero (the detector will see nothing here)
         if gtzero:
-            r[r<0] = 0
+            r[r < 0] = 0
 
         return r
 
@@ -170,15 +172,15 @@ def resample_light_curves(lclist, resamples=1):
     resamples : int, optional (default=1)
                 The number of resampled light curve sets to produce
 
-    Return Values
-    -------------
+    Returns
+    -------
     new_lclist : list, list-of-lists or list-of-lists-of-lists of LightCurves
                  If one resampling is selected, this will be the list of
                  resampled light curves. retaining the structure of the input
                  list. If multiple resamplings are selected, this will be a list
                  of the resampled lists (the first index is the resampling)
     """
-    if resamples>1:
+    if resamples > 1:
         lclist_set = []
 
     for i in range(resamples):
@@ -189,19 +191,19 @@ def resample_light_curves(lclist, resamples=1):
                 new_lclist.append([])
                 for lc in en_lclist:
                     temp_lc = SimLightCurve(t=lc.time, r=lc.rate, e=lc.error)
-                    temp_lc.rate[temp_lc.rate<0] = 0
+                    temp_lc.rate[temp_lc.rate < 0] = 0
                     new_lclist[-1].append(temp_lc.add_noise())
 
         elif isinstance(lclist[0], LightCurve):
             for lc in lclist:
                 temp_lc = SimLightCurve(t=lc.time, r=lc.rate, e=lc.error)
-                temp_lc.rate[temp_lc.rate<0] = 0
+                temp_lc.rate[temp_lc.rate < 0] = 0
                 new_lclist.append(temp_lc.add_noise())
 
-        if(resamples > 1):
+        if resamples > 1:
             lclist_set.append(new_lclist)
 
-    if(resamples > 1):
+    if resamples > 1:
         return lclist_set
     else:
         return new_lclist

@@ -76,6 +76,7 @@ class Covariance(object):
              If true, the bias due to Poisson noise will be subtracted from the
              magnitude of the cross spectrum and periodograms
     """
+
     def __init__(self, lc=None, reflc=None, bins=None, fmin=None, fmax=None, bkg1=0., bkg2=0., bias=True):
         self.bkg1 = bkg1
         self.bkg2 = bkg2
@@ -85,11 +86,11 @@ class Covariance(object):
 
         self.bins = bins
 
-        if(bins != None):
+        if bins is not None:
             self.freq = bins.bin_cent
             self.freq_error = bins.x_error()
             self.delta_f = bins.delta_x()
-        elif(fmin>0 and fmax>0):
+        elif fmin > 0 and fmax > 0:
             self.freq = np.mean([fmin, fmax])
             self.freq_error = None
             self.delta_f = fmax - fmin
@@ -97,13 +98,13 @@ class Covariance(object):
         # if we're passed a single pair of light curves, get the cross spectrum
         # and periodograms and count the number of sample frequencies in either
         # the bins or specified range
-        if(isinstance(lc, LightCurve) and isinstance(reflc, LightCurve)):
+        if isinstance(lc, LightCurve) and isinstance(reflc, LightCurve):
             self.cross_spec = CrossSpectrum(lc, reflc)
             self.per = Periodogram(reflc)
             self.per_ref = Periodogram(reflc)
-            if(bins != None):
+            if bins is not None:
                 self.num_freq = reflc.bin_num_freq(bins)
-            elif(fmin>0 and fmax>0):
+            elif fmin > 0 and fmax > 0:
                 self.num_freq = reflc.num_freq_in_range(fmin, fmax)
             self.reflcmean = reflc.mean()
             self.lcmean = lc.mean()
@@ -111,16 +112,16 @@ class Covariance(object):
         # if we're passed lists of light curves, get the stacked cross spectrum
         # and periodograms and count the number of sample frequencies across all
         # the light curves
-        elif(isinstance(lc, list) and isinstance(reflc, list)):
+        elif isinstance(lc, list) and isinstance(reflc, list):
             self.cross_spec = StackedCrossSpectrum(lc, reflc, bins)
             self.per = StackedPeriodogram(lc, bins)
             self.per_ref = StackedPeriodogram(reflc, bins)
-            if(bins != None):
+            if bins is not None:
                 self.num_freq = np.zeros(bins.num)
 
                 for l in reflc:
                     self.num_freq += l.bin_num_freq(bins)
-            elif(fmin>0 and fmax>0):
+            elif fmin > 0 and fmax > 0:
                 self.num_freq = 0
                 for l in reflc:
                     self.num_freq += l.num_freq_in_range(fmin, fmax)
@@ -145,49 +146,54 @@ class Covariance(object):
                be calculated
         fmin : float
                Lower bound of frequency range
-        fmin : float
+        fmax : float
                Upper bound of frequency range
+        bias : boolean, optional (default=True)
+               If true, the bias due to Poisson noise will be subtracted from the
+               magnitude of the cross spectrum and periodograms
 
-        Return Values
-        -------------
+        Returns
+        -------
         coh : ndarray or float
               The calculated coherence either as a numpy array containing the
               value for each frequency bin or a single float if the coherence is
               calculated over a single frequency range
         """
-        if(bins != None):
+        if bins is not None:
             cross_spec = self.cross_spec.bin(self.bins).crossft
             per = self.per.bin(self.bins).periodogram
             per_ref = self.per_ref.bin(self.bins).periodogram
-        elif(fmin>0 and fmax>0):
+        elif fmin > 0 and fmax > 0:
             cross_spec = self.cross_spec.freq_average(fmin, fmax)
             per = self.per.freq_average(fmin, fmax)
             per_ref = self.per_ref.freq_average(fmin, fmax)
 
         if bias:
-            pnoise = 2*(self.lcmean + self.bkg1) / self.lcmean**2
-            pnoise_ref = 2*(self.reflcmean + self.bkg2) / self.reflcmean**2
-            nbias = (pnoise_ref*(per - pnoise) + pnoise*(per_ref - pnoise_ref) + pnoise*pnoise_ref) / self.num_freq
+            pnoise = 2 * (self.lcmean + self.bkg1) / self.lcmean ** 2
+            pnoise_ref = 2 * (self.reflcmean + self.bkg2) / self.reflcmean ** 2
+            nbias = (
+                    pnoise_ref * (per - pnoise) + pnoise * (per_ref - pnoise_ref) + pnoise * pnoise_ref) / self.num_freq
         else:
             pnoise = 0
             pnoise_ref = 0
             nbias = 0
 
-        cov = self.lcmean * np.sqrt( self.delta_f * (np.abs(cross_spec)**2 - nbias) / (per_ref - pnoise_ref) )
+        cov = self.lcmean * np.sqrt(self.delta_f * (np.abs(cross_spec) ** 2 - nbias) / (per_ref - pnoise_ref))
 
-        rms = (per - pnoise) * self.lcmean**2 * self.delta_f
-        rms_noise = pnoise * self.lcmean**2 * self.delta_f
-        rms_ref = (per_ref - pnoise_ref) * self.reflcmean**2 * self.delta_f
-        rms_ref_noise = pnoise_ref * self.reflcmean**2 * self.delta_f
+        # rms = (per - pnoise) * self.lcmean ** 2 * self.delta_f
+        rms_noise = pnoise * self.lcmean ** 2 * self.delta_f
+        rms_ref = (per_ref - pnoise_ref) * self.reflcmean ** 2 * self.delta_f
+        rms_ref_noise = pnoise_ref * self.reflcmean ** 2 * self.delta_f
 
-        err = np.sqrt( ( cov**2*rms_ref_noise + rms_ref*rms_noise + rms_noise*rms_ref_noise ) / (2*self.num_freq*rms_ref))
+        err = np.sqrt((cov ** 2 * rms_ref_noise + rms_ref * rms_noise + rms_noise * rms_ref_noise) / (
+            2 * self.num_freq * rms_ref))
 
         return cov, err
 
-    def _getplotdata():
+    def _getplotdata(self):
         return (self.freq, self.freq_error), (self.cov, self.error)
 
-    def _getplotaxes():
+    def _getplotaxes(self):
         return 'Frequency / Hz', 'log', 'Covariance', 'log'
 
 
@@ -259,23 +265,26 @@ class CovarianceSpectrum(object):
                   If true, the bias due to Poisson noise will be subtracted from
                   the magnitude of the cross spectrum and periodograms
     """
-    def __init__(self, fmin, fmax, lclist=None, enmin=None, enmax=None, lcfiles='', interp_gaps=False, refband=None, bias=True):
+
+    def __init__(self, fmin, fmax, lclist=None, enmin=None, enmax=None, lcfiles='', interp_gaps=False, refband=None,
+                 bias=True):
         self.en = np.array([])
         self.en_error = np.array([])
         self.cov = np.array([])
         self.error = np.array([])
 
-        if(lcfiles != ''):
+        if lcfiles != '':
             enmin, enmax, lclist = self.find_lightcurves(lcfiles, interp_gaps=interp_gaps)
 
-        self.en = (0.5*(np.array(enmin) + np.array(enmax)))
+        self.en = (0.5 * (np.array(enmin) + np.array(enmax)))
         self.en_error = self.en - np.array(enmin)
 
         if isinstance(lclist[0], LightCurve):
-            print( "Constructing covariance spectrum in %d energy bins" % len(lclist) )
+            print("Constructing covariance spectrum in %d energy bins" % len(lclist))
             self.cov, self.error = self.calculate(lclist, fmin, fmax, refband, self.en, bias=bias)
         elif isinstance(lclist[0], list) and isinstance(lclist[0][0], LightCurve):
-            print( "Constructing covariance spectrum from %d light curves in each of %d energy bins" % (len(lclist[0]), len(lclist)) )
+            print("Constructing covariance spectrum from %d light curves in each of %d energy bins" % (
+                len(lclist[0]), len(lclist)))
             self.cov, self.error = self.calculate_stacked(lclist, fmin, fmax, refband, self.en, bias=bias)
 
         self.sed, self.sed_error = self.calculate_sed()
@@ -300,7 +309,7 @@ class CovarianceSpectrum(object):
                    bands, i.e. [en1_lc, en2_lc, ...]
         fmin     : float
                    Lower bound of frequency range
-        fmin     : float
+        fmax     : float
                    Upper bound of frequency range
         refband  : list of floats
                  : If specified, the reference band will be restricted to this
@@ -314,18 +323,18 @@ class CovarianceSpectrum(object):
                    If true, the bias due to Poisson noise will be subtracted from
                    the magnitude of the cross spectrum and periodograms
 
-        Return Values
-        -------------
+        Returns
+        -------
         cov   : ndarray
                 numpy array containing the lag of each energy band with respect
                 to the reference band
         error : ndarray
                 numpy array containing the error in each lag measurement
         """
-        reflc = LightCurve(t = lclist[0].time)
+        reflc = LightCurve(t=lclist[0].time)
         for energy_num, lc in enumerate(lclist):
-            if refband != None:
-                if (energies[energy_num] < refband[0] or energies[energy_num] > refband[1]):
+            if refband is not None:
+                if energies[energy_num] < refband[0] or energies[energy_num] > refband[1]:
                     continue
             reflc = reflc + lc
 
@@ -335,8 +344,8 @@ class CovarianceSpectrum(object):
             thisref = reflc - lc
             # if we're only using a specific reference band, we did not need to
             # subtract the current band if it's outside the range
-            if refband != None:
-                if (energies[energy_num] < refband[0] or energies[energy_num] > refband[1]):
+            if refband is not None:
+                if energies[energy_num] < refband[0] or energies[energy_num] > refband[1]:
                     thisref = reflc
             cov_obj = Covariance(lc, thisref, fmin=fmin, fmax=fmax, bias=bias)
             cov.append(cov_obj.cov)
@@ -368,7 +377,7 @@ class CovarianceSpectrum(object):
                    i.e. [[en1_obs1, en1_obs2, ...], [en2_obs1, en2_obs2, ...], ...]
         fmin     : float
                    Lower bound of frequency range
-        fmin     : float
+        fmax     : float
                    Upper bound of frequency range
         refband  : list of floats
                  : If specified, the reference band will be restricted to this
@@ -378,9 +387,12 @@ class CovarianceSpectrum(object):
                  : If a specific range of energies is to be used for the reference
                    band rather than the full band, this is the list of central
                    energies of the bands represented by each light curve
+        bias	 : boolean, optional (default=True)
+                   If true, the bias due to Poisson noise will be subtracted from
+                   the magnitude of the cross spectrum and periodograms
 
-        Return Values
-        -------------
+        Returns
+        -------
         cov   : ndarray
                 numpy array containing the covariance of each energy band with respect
                 to the reference band
@@ -391,14 +403,14 @@ class CovarianceSpectrum(object):
         # initialise a reference light curve for each of the observations/light
         # curve segments
         for lc in lclist[0]:
-            reflc.append( LightCurve(t = lc.time) )
+            reflc.append(LightCurve(t=lc.time))
         # sum all of the energies (outer index) together to produce a reference
         # light curve for each segment (inner index)
         for energy_num, energy_lcs in enumerate(lclist):
             # if a reference band is specifed, skip any energies that do not fall
             # in that range
             if refband is not None:
-                if (energies[energy_num] < refband[0] or energies[energy_num] > refband[1]):
+                if energies[energy_num] < refband[0] or energies[energy_num] > refband[1]:
                     continue
             for segment_num, segment_lc in enumerate(energy_lcs):
                 reflc[segment_num] = reflc[segment_num] + segment_lc
@@ -414,11 +426,11 @@ class CovarianceSpectrum(object):
             for segment_num, segment_lc in enumerate(energy_lclist):
                 # if a reference band is specifed and this energy falls outside that
                 # band, no need to subtract the current band
-                if refband != None:
-                    if (energies[energy_num] < refband[0] or energies[energy_num] > refband[1]):
-                        ref_lclist.append( reflc[segment_num] )
+                if refband is not None:
+                    if energies[energy_num] < refband[0] or energies[energy_num] > refband[1]:
+                        ref_lclist.append(reflc[segment_num])
                         continue
-                ref_lclist.append( reflc[segment_num] - segment_lc )
+                ref_lclist.append(reflc[segment_num] - segment_lc)
             # now get the covariance and error
             cov_obj = Covariance(energy_lclist, ref_lclist, fmin=fmin, fmax=fmax, bias=bias)
             cov.append(cov_obj.cov)
@@ -440,8 +452,8 @@ class CovarianceSpectrum(object):
         err : ndarray
               The error on the covariance spectrum
         """
-        sed = self.en**2 * self.cov / (2*self.en_error)
-        err = self.en**2 * self.error / (2*self.en_error)
+        sed = self.en ** 2 * self.cov / (2 * self.en_error)
+        err = self.en ** 2 * self.error / (2 * self.en_error)
         return sed, err
 
     @staticmethod
@@ -479,8 +491,8 @@ class CovarianceSpectrum(object):
                     filesystem. If a list is passed, the results of searches with
                     all of them will be included
 
-        Return Values
-        -------------
+        Returns
+        -------
         enmin  : ndarray
                  numpy array countaining the lower energy bound of each band
         enmax  : ndarray
@@ -514,15 +526,15 @@ class CovarianceSpectrum(object):
             energy_lightcurves = sorted([lc for lc in lcfiles if estr in lc])
             # see how many light curves match this energy - if there's only one, we
             # don't want nested lists so stacking isn't run
-            if(len(energy_lightcurves) > 1):
+            if len(energy_lightcurves) > 1:
                 energy_lclist = []
                 for lc in energy_lightcurves:
-                    energy_lclist.append( LightCurve(lc, **kwargs) )
+                    energy_lclist.append(LightCurve(lc, **kwargs))
                 lclist.append(energy_lclist)
             else:
-                lclist.append( LightCurve(energy_lightcurves[0], **kwargs) )
+                lclist.append(LightCurve(energy_lightcurves[0], **kwargs))
 
-        return np.array(enmin)/1000., np.array(enmax)/1000., lclist
+        return np.array(enmin) / 1000., np.array(enmax) / 1000., lclist
 
     def _getplotdata(self):
         return (self.en, self.en_error), (self.sed, self.error)
