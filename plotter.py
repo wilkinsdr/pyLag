@@ -244,7 +244,7 @@ class Plot(object):
         # if we're passed axis log/linear scaling, these override the scaling set in data_object
         if xscale != '':
             self._xscale = xscale
-        if ylabel != '':
+        if yscale != '':
             self._yscale = yscale
 
         self.plot()
@@ -466,7 +466,7 @@ class ErrorRegionPlot(Plot):
                 self._ax.fill_between(xd, low_bound, high_bound, facecolor=colour, alpha=alpha)
 
 
-def write_data(data_object, filename, fmt='%15.10g', delimiter=' '):
+def write_data(data_object, filename, xdata=None, ydata=None, fmt='%15.10g', delimiter=' '):
     """
     pylag.write_data
 
@@ -491,7 +491,11 @@ def write_data(data_object, filename, fmt='%15.10g', delimiter=' '):
                   The delimeter to use between columns
     """
     try:
-        xd, yd = data_object._getplotdata()
+        if data_object is not None:
+            xd, yd = data_object._getplotdata()
+        else:
+            xd, yd = xdata, ydata
+
         if isinstance(xd, tuple):
             data = [xd[0]]
             if isinstance(xd[1], (np.ndarray, list)):
