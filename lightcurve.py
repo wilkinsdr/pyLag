@@ -13,6 +13,7 @@ import numpy as np
 import scipy.fftpack
 import glob
 import pyfits
+from scipy.stats import binned_statistic
 
 
 class LightCurve(object):
@@ -246,7 +247,9 @@ class LightCurve(object):
         this_t = np.array([t for t in self.time if start < t <= end])
         this_rate = np.array([r for t, r in zip(self.time, self.rate) if start < t <= end])
         this_error = np.array([e for t, e in zip(self.time, self.error) if start < t <= end])
-        return LightCurve(t=this_t, r=this_rate, e=this_error)
+        segment = LightCurve(t=this_t, r=this_rate, e=this_error)
+        segment.__class__ = self.__class__
+        return segment
 
     def split_segments(self, num_segments=1, segment_length=None, use_end=False):
         """
@@ -328,7 +331,91 @@ class LightCurve(object):
         # calculate the sqrt(N) error from the total counts
         err = rate * np.sqrt(counts) / counts
 
-        return LightCurve(t=time, r=rate, e=err)
+        binlc = LightCurve(t=time[:-1], r=rate, e=err)
+        # make sure the returned object has the right class (if this is called from a derived class)
+        binlc.__class__ = self.__class__
+        return binlc
+
+    def rebin2(self, tbin):
+        """
+        rebin_lc = pylag.LightCurve.rebin2(tbin)
+
+        Rebin the light curve by summing together counts from the old bins into
+        new larger bins and return the rebinned light curve as a new LightCurve
+        object.
+
+        This function should be faster than rebin. It uses the numpy digitize
+        function.
+
+        Note that the new time bin size should be a multiple of the old for the
+        best accuracy
+
+        Arguments
+        ---------
+        tbin : float
+               New time bin size
+
+        Returns
+        -------
+        rebin_lc : LightCurve
+                   The rebinned light curve
+        """
+        if tbin <= self.dt:
+            raise ValueError("pylag LightCurve Rebin ERROR: Must rebin light curve into larger bins")
+        if tbin % self.dt != 0:
+            print("pylag LightCurve Rebin WARNING: New time binning is not a multiple of the old")
+
+        time = np.arange(min(self.time), max(self.time), tbin)
+
+        # digitize returns an array stating which bin each element falls into
+        digitized = np.digitize(self.time, time)
+        counts = np.array([ np.sum(self.dt*self.rate[digitized==i]) for i in range(1,len(time))])
+        rate = counts / tbin
+        err = rate * np.sqrt(counts) / counts
+
+        binlc = LightCurve(t=time[:-1], r=rate, e=err)
+        # make sure the returned object has the right class (if this is called from a derived class)
+        binlc.__class__ = self.__class__
+        return binlc
+
+    def rebin3(self, tbin):
+        """
+        rebin_lc = pylag.LightCurve.rebin3(tbin)
+
+        Rebin the light curve by summing together counts from the old bins into
+        new larger bins and return the rebinned light curve as a new LightCurve
+        object.
+
+        This function should be faster than rebin. It uses the scipy binned_statistic
+        function.
+
+        Note that the new time bin size should be a multiple of the old for the
+        best accuracy.
+
+        Arguments
+        ---------
+        tbin : float
+               New time bin size
+
+        Returns
+        -------
+        rebin_lc : LightCurve
+                   The rebinned light curve
+        """
+        if tbin <= self.dt:
+            raise ValueError("pylag LightCurve Rebin ERROR: Must rebin light curve into larger bins")
+        if tbin % self.dt != 0:
+            print("pylag LightCurve Rebin WARNING: New time binning is not a multiple of the old")
+
+        time = np.arange(min(self.time), max(self.time)+tbin, tbin)
+        counts = binned_statistic(self.time, self.dt*self.rate, statistic='sum', bins=time)[0]
+        rate = counts / tbin
+        err = rate * np.sqrt(counts) / counts
+
+        binlc = LightCurve(t=time[:-1], r=rate, e=err)
+        # make sure the returned object has the right class (if this is called from a derived class)
+        binlc.__class__ = self.__class__
+        return binlc
 
     def mean(self):
         """
@@ -421,10 +508,12 @@ class LightCurve(object):
             raise ValueError("pylag LightCurve Concatenate ERROR: Expected a list of LightCurves to append")
 
         newtime = np.concatenate([self.time] + [lc.time for lc in other])
-        newlc = np.concatenate([self.rate] + [lc.rate for lc in other])
+        newrate = np.concatenate([self.rate] + [lc.rate for lc in other])
         newerr = np.concatenate([self.error] + [lc.error for lc in other])
 
-        return LightCurve(t=newtime, r=newlc, e=newerr)
+        newlc = LightCurve(t=newtime, r=newrate, e=newerr)
+        newlc.__class__ = self.__class__
+        return newlc
 
     def __add__(self, other):
         """
@@ -438,11 +527,14 @@ class LightCurve(object):
             if len(self.rate) != len(other.rate):
                 raise AssertionError("pyLag LightCurve ERROR: Cannot add light curves of different lengths")
             # sum the count rate
-            newlc = self.rate + other.rate
+            newrate = self.rate + other.rate
             # sum the errors in quadrature
             newerr = np.sqrt(self.error ** 2 + other.error ** 2)
-            # construct a new LightCurve with the result
-            return LightCurve(t=self.time, r=newlc, e=newerr)
+            # construct a new LightCurve with the result and make sure it has the right class
+            # (if calling from a derived class)
+            newlc = LightCurve(t=self.time, r=newrate, e=newerr)
+            newlc.__class__ = self.__class__
+            return newlc
 
         else:
             return NotImplemented
@@ -477,11 +569,14 @@ class LightCurve(object):
             if len(self.rate) != len(other.rate):
                 raise AssertionError("pyLag LightCurve ERROR: Cannot subtract light curves of different lengths")
             # subtract the count rate
-            newlc = self.rate - other.rate
+            newrate = self.rate - other.rate
             # sum the errors in quadrature
             newerr = np.sqrt(self.error ** 2 + other.error ** 2)
-            # construct a new LightCurve with the result
-            return LightCurve(t=self.time, r=newlc, e=newerr)
+            # construct a new LightCurve with the result and make sure it has the right class
+            # (if calling from a derived class)
+            newlc = LightCurve(t=self.time, r=newrate, e=newerr)
+            newlc.__class__ = self.__class__
+            return newlc
 
         else:
             return NotImplemented
@@ -515,11 +610,14 @@ class LightCurve(object):
             if len(self.rate) != len(other.rate):
                 raise AssertionError("pyLag LightCurve ERROR: Cannot divide light curves of different lengths")
             # subtract the count rate
-            newlc = self.rate / other.rate
+            newrate = self.rate / other.rate
             # add the fractional errors in quadrature
             newerr = newlc * np.sqrt((self.error / self.rate) ** 2 + (other.error / other.rate) ** 2)
-            # construct a new LightCurve with the result
-            return LightCurve(t=self.time, r=newlc, e=newerr)
+            # construct a new LightCurve with the result and make sure it has the right class
+            # (if calling from a derived class)
+            newlc = LightCurve(t=self.time, r=newrate, e=newerr)
+            newlc.__class__ = self.__class__
+            return newlc
 
         else:
             return NotImplemented
@@ -565,7 +663,9 @@ class LightCurve(object):
         Overloaded operator to extract a portion of the light curve using
         [start:end] operator and return as a new LightCurve object
         """
-        return LightCurve(t=self.time[start:end], r=self.rate[start:end], e=self.error[start:end])
+        slice = LightCurve(t=self.time[start:end], r=self.rate[start:end], e=self.error[start:end])
+        slice.__class__ = self.__class__
+        return slice
 
     def _getplotdata(self):
         return self.time, (self.rate, self.error)
@@ -655,7 +755,7 @@ def extract_sim_lightcurves(lc1, lc2):
               LightCurve object containing the simultaneous portion of the second
               light curve
     """
-    if lc1.dt != lc2.dt:
+    if abs(lc1.dt - lc2.dt) > 1.e-10:
         raise AssertionError('pylag extract_sim_lightcurves ERROR: Light curves must have same time spacing')
 
     # find the latest of the start times between the two light curves and the
