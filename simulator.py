@@ -282,7 +282,7 @@ class ImpulseResponse(LightCurve):
               SimLightCurve object that contains the new light curve, convolved
               with the response
         """
-        t = np.arange(lc.time.min() + len(self)*self.dt, lc.time.max()+self.dt, self.dt)
+        #t = np.arange(lc.time.min() + len(self)*self.dt, lc.time.max()+self.dt, self.dt)
         t = lc.time[len(self)-1:]
         r = scipy.signal.convolve(lc.rate, self.rate, mode='valid')
         return SimLightCurve(t=t, r=r)

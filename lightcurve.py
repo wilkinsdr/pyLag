@@ -656,9 +656,11 @@ class LightCurve(object):
         """
         Overloaded == operator to check light curve lengths and time binning are
         consistent to see if they can be added/subtracted/combined.
+
+        Allow a small fractional error in dt to allow for accuracy issues
         """
         if isinstance(other, LightCurve):
-            return self.length == other.length and self.dt == other.dt
+            return self.length == other.length and abs(self.dt - other.dt) < 0.001*self.dt
         else:
             return NotImplemented
 
@@ -668,7 +670,7 @@ class LightCurve(object):
         inconsistent to see if they can't be added/subtracted/combined.
         """
         if isinstance(other, LightCurve):
-            return not (self.length == other.length and self.dt == other.dt)
+            return not (self.length == other.length and abs(self.dt - other.dt) < 0.001*self.dt)
         elif other is None:
             # need to provide this so that constructors can be passed None in place
             # of a light curve for dummy initialisation
