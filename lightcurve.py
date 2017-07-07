@@ -599,6 +599,26 @@ class LightCurve(object):
         else:
             return NotImplemented
 
+    def __mul__(self, other):
+        """
+        Overloaded / operator to divide this LightCurve object by another and
+        return the result in a new LightCurve object.
+
+        Fractional errors from the two light curves are summed in quadrature.
+        """
+        if isinstance(other, (float, int)):
+            newrate = self.rate * other
+            # add the fractional errors in quadrature
+            newerr = newrate * (self.error / self.rate)
+            # construct a new LightCurve with the result and make sure it has the right class
+            # (if calling from a derived class)
+            newlc = LightCurve(t=self.time, r=newrate, e=newerr)
+            newlc.__class__ = self.__class__
+            return newlc
+
+        else:
+            return NotImplemented
+
     def __div__(self, other):
         """
         Overloaded / operator to divide this LightCurve object by another and
@@ -612,7 +632,17 @@ class LightCurve(object):
             # subtract the count rate
             newrate = self.rate / other.rate
             # add the fractional errors in quadrature
-            newerr = newlc * np.sqrt((self.error / self.rate) ** 2 + (other.error / other.rate) ** 2)
+            newerr = newrate * np.sqrt((self.error / self.rate) ** 2 + (other.error / other.rate) ** 2)
+            # construct a new LightCurve with the result and make sure it has the right class
+            # (if calling from a derived class)
+            newlc = LightCurve(t=self.time, r=newrate, e=newerr)
+            newlc.__class__ = self.__class__
+            return newlc
+
+        elif isinstance(other, (float, int)):
+            newrate = self.rate / other
+            # add the fractional errors in quadrature
+            newerr = newrate * (self.error / self.rate)
             # construct a new LightCurve with the result and make sure it has the right class
             # (if calling from a derived class)
             newlc = LightCurve(t=self.time, r=newrate, e=newerr)
