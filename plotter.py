@@ -6,6 +6,8 @@ Plotting and data output classes/functions for pylag data products
 import matplotlib.pyplot as plt
 import numpy as np
 
+# all_plots is a list of all plot objects that have been created
+all_plots = []
 
 class Plot(object):
     """
@@ -34,18 +36,21 @@ class Plot(object):
     created or updated and then saved using save() without it being displayed
     on screen.
 
+    When a new plot is created, it is added to the pylab.all_plots list so that
+    it can be referenced later.
+
     Member Variables
     ----------------
-    fig		: matplotlib Figure instance
-    ax		: matplotlib Axes handle
+    fig            : matplotlib Figure instance
+    ax             : matplotlib Axes handle
 
     Data Series:
-    xdata	      : tuple of ndarrays or list of tuples of ndarrays
+    xdata          : tuple of ndarrays or list of tuples of ndarrays
                     x data points to be plotted (or a list of multiple data series)
                     the x data points for one of the series to be plotted)
-    xerror  	  : ndarray or list of ndarrays
+    xerror        : ndarray or list of ndarrays
                     Symmetric error on x data points
-    ydata		  : ndarray or list of ndarrays
+    ydata          : ndarray or list of ndarrays
                     y data points
     yerror        : ndarray or list of ndarrays
                     Symmetric error on y data points
@@ -56,48 +61,48 @@ class Plot(object):
 
     Properties
     ----------
-    title			: string
-                      Title to be displayed at the top of the plot
+    title         : string
+                    Title to be displayed at the top of the plot
 
     Axes:
-    xlabel 			: string
-                      x axis label
-    ylabel			: string
-                      y axis label
-    xscale 			: string
-                      'linear' or 'log' to set scaling of x axis
-    yscale 			: string
-                      'linear' or 'log' to set scaling of x axis
-    xlim			: list of floats [min, max] (default=None)
-                      If set, manually specify the limits of the x axis. If None,
-                      the axis will be scaled automatically
-    ylim			: list of floats [min, max] (default=None)
-                      If set, manually specify the limits of the y axis. If None,
-                      the axis will be scaled automatically
+    xlabel        : string
+                    x axis label
+    ylabel        : string
+                    y axis label
+    xscale        : string
+                    'linear' or 'log' to set scaling of x axis
+    yscale        : string
+                    'linear' or 'log' to set scaling of x axis
+    xlim          : list of floats [min, max] (default=None)
+                    If set, manually specify the limits of the x axis. If None,
+                    the axis will be scaled automatically
+    ylim          : list of floats [min, max] (default=None)
+                    If set, manually specify the limits of the y axis. If None,
+                    the axis will be scaled automatically
 
     Formatting:
-    grid 			: string (default='minor')
-                      Specify which grid lines are shown: 'major', 'minor' or 'none'
-    legend			: boolean
-                      If True, a legend is shown on the plot. By default, set
-                      to True if series labels are provided
-    legend_loc 		: string (default='upper right')
-                      The matplotlib string specifying the location the legend
-                      should be placed ('best', 'upper right', 'center right',
-                      'lower left' etc.)
-    colour_series   : list of strings (default=['k', 'b', 'g', 'r', 'c', 'm'])
-                      The repeating sequence of matplotlib colour specifiers
-                      setting the order in which colours are assigned to plot
-                      series. The sequence is repeated as many times as necessary
-                      to cover all the series
-    marker_series 	: list of strings (default=['+', 'x', 'o', 's'])
-                      The repeating sequence of matplotlib plot marker specifiers
-                      setting the order in which they are applied to data series.
-                      To plot all series as lines, use a single entry ['-']
-    font_face		: string (default=None)
-                      Specify the font face. If None, use the matplotlub default
-    font_size		: integer (default=None)
-                      Specify the font size. If None, use the matplotlub default
+    grid          : string (default='minor')
+                    Specify which grid lines are shown: 'major', 'minor' or 'none'
+    legend        : boolean
+                    If True, a legend is shown on the plot. By default, set
+                    to True if series labels are provided
+    legend_loc    : string (default='upper right')
+                    The matplotlib string specifying the location the legend
+                    should be placed ('best', 'upper right', 'center right',
+                    'lower left' etc.)
+    colour_series : list of strings (default=['k', 'b', 'g', 'r', 'c', 'm'])
+                    The repeating sequence of matplotlib colour specifiers
+                    setting the order in which colours are assigned to plot
+                    series. The sequence is repeated as many times as necessary
+                    to cover all the series
+    marker_series : list of strings (default=['+', 'x', 'o', 's'])
+                    The repeating sequence of matplotlib plot marker specifiers
+                    setting the order in which they are applied to data series.
+                    To plot all series as lines, use a single entry ['-']
+    font_face     : string (default=None)
+                    Specify the font face. If None, use the matplotlub default
+    font_size     : integer (default=None)
+                    Specify the font size. If None, use the matplotlub default
 
     Constructor: p = pylag.Plot(data_object=None, xdata=None, ydata=None, xscale='', yscale='', xlabel='', ylabel='', title='', labels=[], preset=None, show_plot=True)
 
@@ -108,35 +113,35 @@ class Plot(object):
                     If set, the plot is automatically produced from the object.
                     If a list of objects is passed, each one is plotted as a
                     separate data series on the plot
-    xdata		  : ndarray, tuple or list, optional (default=None)
+    xdata         : ndarray, tuple or list, optional (default=None)
                     If data_object is not set, the x co-ordinates of the series to
                     be plotted. If x values have symmetric errors, pass a tuple of
                     arrays (value, error). If multiple series are to be plotted,
                     pass a list of arrays or list of tuples
-    ydata		  : ndarray, tuple or list, optional (default=None)
+    ydata         : ndarray, tuple or list, optional (default=None)
                     If data_object is not set, the y co-ordinates of the series to
                     be plotted. If y values have symmetric errors, pass a tuple of
                     arrays (value, error). If multiple series are to be plotted,
                     pass a list of arrays or list of tuples
-    xscale		  : string, 'linear' or 'log', optional (default='')
+    xscale        : string, 'linear' or 'log', optional (default='')
                     If set, override the default x axis scaling specified by the
                     data object to be plotted (or the 'linear' default for manually
                     specified data series)
-    yscale		  : string, 'linear' or 'log', optional (default='')
+    yscale        : string, 'linear' or 'log', optional (default='')
                     If set, override the default y axis scaling
-    xlabel		  : string, optional (default='')
+    xlabel        : string, optional (default='')
                     If set, override the default x axis label set by the data object
-    ylabel		  : string, optional (default='')
+    ylabel        : string, optional (default='')
                     If set, override the default y axis label set by the data object
-    title	   	  : string, optional (default='')
+    title         : string, optional (default='')
                     The title to be shown at the top of the plot
     series_labels : list of strings, optional, default=[]
                     The label for each data series shown in the legend. Each
                     entry should correspond to one of the data objects or one
                     of the manually specified x,y series. If set, a legend will
                     be displayed on the plot, if not, the legend is hidden
-    preset		  : for future use
-    show_plot	  : boolean, optional (default=True)
+    preset        : for future use
+    show_plot     : boolean, optional (default=True)
                     display the plot window on screen automatically when the plot
                     is created or updated. If False, the plot can be displayed
                     by calling the show method()
@@ -244,10 +249,11 @@ class Plot(object):
         # if we're passed axis log/linear scaling, these override the scaling set in data_object
         if xscale != '':
             self._xscale = xscale
-        if ylabel != '':
+        if yscale != '':
             self._yscale = yscale
 
         self.plot()
+        all_plots.append(self)
 
     def _setup_axes(self):
         """
@@ -466,7 +472,7 @@ class ErrorRegionPlot(Plot):
                 self._ax.fill_between(xd, low_bound, high_bound, facecolor=colour, alpha=alpha)
 
 
-def write_data(data_object, filename, fmt='%15.10g', delimiter=' '):
+def write_data(data_object, filename, xdata=None, ydata=None, mode='w', fmt='%15.10g', delimiter=' '):
     """
     pylag.write_data
 
@@ -482,16 +488,20 @@ def write_data(data_object, filename, fmt='%15.10g', delimiter=' '):
     Arguments
     ---------
     data_object : pylag plottable data product object
-    filename	: string
+    filename    : string
                   The name of the file to be saved
-    fmt			: string, optional (default='%15.10g')
+    fmt            : string, optional (default='%15.10g')
                   Python string format specifier to set the formatting of
                   columns in the file.
-    delimiter	: string, optional (default=' ')
+    delimiter    : string, optional (default=' ')
                   The delimeter to use between columns
     """
     try:
-        xd, yd = data_object._getplotdata()
+        if data_object is not None:
+            xd, yd = data_object._getplotdata()
+        else:
+            xd, yd = xdata, ydata
+
         if isinstance(xd, tuple):
             data = [xd[0]]
             if isinstance(xd[1], (np.ndarray, list)):
@@ -508,7 +518,19 @@ def write_data(data_object, filename, fmt='%15.10g', delimiter=' '):
 
         data = np.array(data).transpose()
 
-        np.savetxt(filename, data, fmt=fmt, delimiter=delimiter)
+        with open(filename, mode) as fhandle:
+            np.savetxt(fhandle, data, fmt=fmt, delimiter=delimiter)
 
     except:
         raise ValueError('pylag write_data ERROR: The object I was passed does not seem to be plottable')
+
+
+def close_all_plots():
+    """
+    pylag.close_all_plots()
+
+    Closes all open plot windows and deletes the objects from memory
+    """
+    for p in all_plots:
+        p.close()
+    del all_plots[:]
