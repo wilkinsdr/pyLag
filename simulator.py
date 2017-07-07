@@ -9,6 +9,7 @@ from .lightcurve import *
 
 import numpy as np
 import scipy.fftpack
+import scipy.signal
 
 
 class SimLightCurve(LightCurve):
@@ -58,13 +59,13 @@ class SimLightCurve(LightCurve):
               Force all points in the light curve to have count rate greater
               than zero. Set all points below zero to zero
     """
-
     def __init__(self, dt=10., tmax=1000., plslope=2.0, std=0.5, lcmean=1.0, t=None, r=None, e=None, gtzero=True):
         if t is None and r is None:
             t = np.arange(0, tmax, dt)
             r = self.calculate(t, plslope, std, lcmean, gtzero=gtzero)
         if e is None:
-            e = np.sqrt(r / dt)
+            e = np.sqrt(r)
+            #e = np.sqrt(r / dt)
         LightCurve.__init__(self, t=t, r=r, e=e)
 
     def calculate(self, t, plslope, std, lcmean, plnorm=1., gtzero=True):
@@ -77,8 +78,8 @@ class SimLightCurve(LightCurve):
         and the phase of each component is drawn at random from a uniform
         distribution. The time series is computed from the inverse FFT of this.
 
-        Constructor Arguments
-        ---------------------
+        Arguments
+        ---------
         t	  	: ndarray
                   Time axis upon which the light curve will be calculated
         plslope : float,
@@ -207,3 +208,191 @@ def resample_light_curves(lclist, resamples=1):
         return lclist_set
     else:
         return new_lclist
+
+
+class ImpulseResponse(LightCurve):
+    """
+    pylag.ImpulseResponse
+
+    Class for storing an impulse response function with which a light curve can
+    be convolved to e.g calculate the reverberation response.
+
+    This class is derived from LightCurve and all operations that can be performed
+    on a LightCurve can be performed on the response function.
+
+    Note that the response function does not have error bars.
+
+    Member Variables
+    ----------------
+    time : ndarray
+           The time axis of the response function
+    rate : ndarray
+           The response count rate as a function of time
+
+    Constructor: pylag.ImpulseResponse(dt=10., tmax=1000., t=None, r=None)
+
+    Constructor Arguments
+    ---------------------
+    dt      : float, optional (default=10.)
+              The time bin size, in seconds, of the response function
+    tmax	: float, optional (default=1000.)
+              The length, in seconds, of the full response function
+    t	    : ndarray, optional (default=None)
+              If set, a response functionis created from an existing
+              time series. This is the time axis.
+    r	    : ndarray, optional (default=None)
+              If set, a response function created from an existing
+              time series. This is the count rate.
+    """
+    def __init__(self, dt=10., tmax=1000., t=None, r=None):
+        if t is None and r is None:
+            t = np.arange(0, tmax, dt)
+            r = np.zeros(t.shape)
+        e = np.zeros(t.shape)   # the response function doesn't have error bars
+        LightCurve.__init__(self, t=t, r=r, e=e)
+
+    def norm(self):
+        """
+        pylag.ImpulseResponse.norm()
+
+        Normalises the response function such that the sum of all points is unity
+        """
+        self.rate = self.rate / self.rate.sum()
+
+    def convolve(self, lc):
+        """
+        clc = pylag.ImpulseResponse.convolve(lc)
+
+        Convolves a light curve with this response.
+
+        The returned light curve contains only the 'valid' part of the convolution
+        (i.e. the part that requires no zero padding, starting the length of the
+         response function after te start of the original light curve)
+
+        Time axis alignes with input light curve.
+
+        Parameters
+        ----------
+        lc : LightCurve
+             LightCurve object which si to be convolved with this response
+
+        Returns
+        -------
+        clc : SimLightCurve
+              SimLightCurve object that contains the new light curve, convolved
+              with the response
+        """
+        t = np.arange(lc.time.min() + len(self)*self.dt, lc.time.max()+self.dt, self.dt)
+        t = lc.time[len(self)-1:]
+        r = scipy.signal.convolve(lc.rate, self.rate, mode='valid')
+        return SimLightCurve(t=t, r=r)
+
+
+class GaussianResponse(ImpulseResponse):
+    """
+    pylag.GaussianResponse
+
+    Gaussian impulse response function (derived from ImpulseResponse)
+
+    Member Variables
+    ----------------
+    time : ndarray
+           The time axis of the response function
+    rate : ndarray
+           The response count rate as a function of time
+
+    Constructor: pylag.GaussianResponse(mu, sigma, dt=10., tmax=None)
+
+    Constructor Arguments
+    ---------------------
+    mu      : float
+              Mean arrival time of the Gaussian impulse response profile
+    sigma   : float
+              Standard deviation of the Gaussian profile
+    dt      : float, optional (default=10.)
+              The time bin size, in seconds, of the response function
+    tmax	: float, optional (default=None)
+              The length, in seconds, of the full response function.
+              If None, will be set to 3*sigma after the mean time
+    """
+    def __init__(self, mu, sigma, dt=10., tmax=None):
+        if tmax is None:
+            tmax = mu + 3*sigma
+            tmax -= tmax % dt
+        t = np.arange(0, tmax, dt)
+        r = (1/(sigma*np.sqrt(2*np.pi))) * np.exp(-(t - mu) ** 2 / (2. * sigma ** 2))
+        r = r / r.sum()
+        ImpulseResponse.__init__(self, t=t, r=r)
+
+
+class DeltaResponse(ImpulseResponse):
+    """
+    pylag.DeltaResponse
+
+    Delta function impulse response function, i.e. a time shift
+    (derived from ImpulseResponse)
+
+    Member Variables
+    ----------------
+    time : ndarray
+           The time axis of the response function
+    rate : ndarray
+           The response count rate as a function of time
+
+    Constructor: pylag.DeltaResponse(t0, dt=10., tmax=None)
+
+    Constructor Arguments
+    ---------------------
+    t0      : float
+              Arrival time of the delta function response
+    dt      : float, optional (default=10.)
+              The time bin size, in seconds, of the response function
+    tmax	: float, optional (default=None)
+              The length, in seconds, of the full response function.
+              If None, will be set to one time bin after t0
+    """
+    def __init__(self, t0, dt=10., tmax=None):
+        if tmax is None:
+            tmax = t0 + 2*dt
+        t = np.arange(0, tmax, dt)
+        tix = int(t0 / dt)
+        r = np.zeros(t.shape)
+        r[tix] = 1
+        ImpulseResponse.__init__(self, t=t, r=r)
+
+
+class TopHatResponse(ImpulseResponse):
+    """
+    pylag.TopHatResponse
+
+    Top hat impulse response function (derived from ImpulseResponse)
+
+    Member Variables
+    ----------------
+    time : ndarray
+           The time axis of the response function
+    rate : ndarray
+           The response count rate as a function of time
+
+    Constructor: pylag.TopHatResponse(mu, sigma, dt=10., tmax=None)
+
+    Constructor Arguments
+    ---------------------
+    tstart  : float
+              Start time of the top hat profile
+    tend    : float
+              End time of the top hat profile
+    dt      : float, optional (default=10.)
+              The time bin size, in seconds, of the response function
+    tmax	: float, optional (default=None)
+              The length, in seconds, of the full response function.
+              If None, set to one time bin after tend
+    """
+    def __init__(self, tstart, tend, dt=10., tmax=None):
+        if tmax is None:
+            tmax = tend + dt
+        t = np.arange(0, tmax, dt)
+        r = np.zeros(t.shape)
+        r[(t >= tstart) & (t < tend)] = 1
+        r = r / r.sum()
+        ImpulseResponse.__init__(self, t=t, r=r)
