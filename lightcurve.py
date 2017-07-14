@@ -12,7 +12,10 @@ v1.0 09/03/2017 - D.R. Wilkins
 import numpy as np
 import scipy.fftpack
 import glob
-import pyfits
+try:
+    import astropy.io.fits as pyfits
+except:
+    import pyfits
 from scipy.stats import binned_statistic
 
 
