@@ -90,7 +90,7 @@ class LagEnergySpectrum(object):
                   be used for the reference
     """
 
-    def __init__(self, fmin, fmax, lclist=None, enmin=None, enmax=None, lcfiles='', interp_gaps=False, refband=None,
+    def __init__(self, fmin, fmax, lclist=None, lcfiles='', interp_gaps=False, refband=None,
                  bias=True):
         self.en = np.array([])
         self.en_error = np.array([])
@@ -99,18 +99,18 @@ class LagEnergySpectrum(object):
         self.coh = np.array([])
 
         if lcfiles != '':
-            enmin, enmax, lclist = self.find_lightcurves(lcfiles, interp_gaps=interp_gaps)
+            lclist = EnergyLCList(lcfiles, interp_gaps=interp_gaps)
 
-        self.en = (0.5 * (np.array(enmin) + np.array(enmax)))
-        self.en_error = self.en - np.array(enmin)
+        self.en = np.array(lclist.en)
+        self.en_error = np.arraty(lclist.en_error)
 
         if isinstance(lclist[0], LightCurve):
             print("Constructing lag energy spectrum in %d energy bins" % len(lclist))
-            self.lag, self.error, self.coh = self.calculate(lclist, fmin, fmax, refband, self.en, bias)
+            self.lag, self.error, self.coh = self.calculate(lclist.lclist, fmin, fmax, refband, self.en, bias)
         elif isinstance(lclist[0], list) and isinstance(lclist[0][0], LightCurve):
             print("Constructing lag energy spectrum from %d light curves in each of %d energy bins" % (
                 len(lclist[0]), len(lclist)))
-            self.lag, self.error, self.coh = self.calculate_stacked(lclist, fmin, fmax, refband, self.en, bias)
+            self.lag, self.error, self.coh = self.calculate_stacked(lclist.lclist, fmin, fmax, refband, self.en, bias)
 
     def calculate(self, lclist, fmin, fmax, refband=None, energies=None, bias=True):
         """
