@@ -1102,3 +1102,29 @@ class EnergyLCList(object):
                 lclist.append(lc1s + lc2s)
 
         return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=lclist)
+
+    def __sub__(self, other):
+        if not isinstance(other, EnergyLCList):
+            return NotImplemented
+
+        if len(self.lclist) != len(other.lclist):
+            raise AssertionError("EnergyLCList objects do not have same number of energy bands")
+
+        lclist = []
+        if isinstance(self.lclist[0], list):
+            if not isinstance(other.lclist[0], list):
+                raise AssertionError("EnergyLCList objects do not have the same dimension")
+            if len(self.lclist[0]) != len(other.lclist[0]):
+                raise AssertionError("EnergyLCList objects do not have the same number of segments in each energy band")
+
+            for en_lclist1, en_lclist2 in zip(self.lclist, other.lclist):
+                lclist.append([])
+                for lc1, lc2 in zip(en_lclist1, en_lclist2):
+                    lc1s, lc2s = extract_sim_lightcurves(lc1, lc2)
+                    lclist[-1].append(lc1s - lc2s)
+        else:
+            for lc1, lc2 in zip(self.lclist, other.lclist):
+                lc1s, lc2s = extract_lclist_time_segment(lc1, lc2)
+                lclist.append(lc1s - lc2s)
+
+        return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=lclist)
