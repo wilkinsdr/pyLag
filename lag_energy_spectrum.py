@@ -102,7 +102,7 @@ class LagEnergySpectrum(object):
             lclist = EnergyLCList(lcfiles, interp_gaps=interp_gaps)
 
         self.en = np.array(lclist.en)
-        self.en_error = np.arraty(lclist.en_error)
+        self.en_error = np.array(lclist.en_error)
 
         if isinstance(lclist[0], LightCurve):
             print("Constructing lag energy spectrum in %d energy bins" % len(lclist))

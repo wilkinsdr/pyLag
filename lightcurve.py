@@ -12,6 +12,7 @@ v1.0 09/03/2017 - D.R. Wilkins
 import numpy as np
 import scipy.fftpack
 import glob
+import re
 try:
     import astropy.io.fits as pyfits
 except:
@@ -932,19 +933,19 @@ def lclist_separate_segments(lclist):
 
 
 class EnergyLCList(object):
-    def __init__(self, searchstr=None, enmin=None, enmax=None, lclist=None):
+    def __init__(self, searchstr=None, enmin=None, enmax=None, lclist=None, **kwargs):
         if lclist is not None and enmin is not None and enmax is not None:
             self.lclist = lclist
-            self.enmin = enmin
-            self.enmax = enmax
+            self.enmin = np.array(enmin)
+            self.enmax = np.array(enmax)
         else:
             self.enmin, self.enmax, self.lclist = self.find_light_curves(searchstr)
 
         self.en = 0.5*(self.enmin + self.enmax)
-        self.en_error = self.en - np.array(enmin)
+        self.en_error = self.en - self.enmin
 
     @staticmethod
-    def find_light_curves(searchstr):
+    def find_light_curves(searchstr, **kwargs):
         """
         enmin, enmax, lclist = pylag.LagEnergySpectrum.FindLightCurves(searchstr)
 
@@ -1026,17 +1027,46 @@ class EnergyLCList(object):
         """
         new_lclist = []
 
-        if isinstance(lclist[0], list):
-            for en_lclist in lclist:
+        if isinstance(self.lclist[0], list):
+            for en_lclist in self.lclist:
                 new_lclist.append([])
                 for lc in en_lclist:
                     lcseg = lc.time_segment(start, end)
                     if len(lcseg) > 0:
                         new_lclist[-1].append(lcseg)
 
-        elif isinstance(lclist[0], LightCurve):
-            for lc in lclist:
+        elif isinstance(self.lclist[0], LightCurve):
+            for lc in self.lclist:
                 lcseg = lc.time_segment(start, end)
+                if len(lcseg) > 0:
+                    new_lclist.append(lcseg)
+                else:
+                    print(
+                        "pylag extract_lclist_time_segment WARNING: One of the light curves does not cover this time segment. Check consistency!")
+
+        return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
+
+    def segment(self, start, end):
+        """
+        new_lclist = pylag.extract_lclist_time_segment(lclist, tstart, tend)
+
+        Take a list of LightCurve objects or a list of lists of multiple light curve
+        segments in each energy band (as used for a lag-energy or covariance spectrum)
+        and return only the segment(s) within a	specified time interval
+        """
+        new_lclist = []
+
+        if isinstance(self.lclist[0], list):
+            for en_lclist in self.lclist:
+                new_lclist.append([])
+                for lc in en_lclist:
+                    lcseg = lc[start:end]
+                    if len(lcseg) > 0:
+                        new_lclist[-1].append(lcseg)
+
+        elif isinstance(self.lclist[0], LightCurve):
+            for lc in self.lclist:
+                lcseg = lc[start:end]
                 if len(lcseg) > 0:
                     new_lclist.append(lcseg)
                 else:
@@ -1058,16 +1088,21 @@ class EnergyLCList(object):
         """
         new_lclist = []
 
-        if isinstance(lclist[0], list):
-            for en_lclist in lclist:
+        # this is a horrible hack and could cause some weirdness but it is
+        # to deal with Python adding the length to a negative index
+        if end < len(self):
+            end -= len(self)
+
+        if isinstance(self.lclist[0], list):
+            for en_lclist in self.lclist:
                 new_lclist.append([])
                 for lc in en_lclist:
                     lcseg = lc[start:end]
                     if len(lcseg) > 0:
                         new_lclist[-1].append(lcseg)
 
-        elif isinstance(lclist[0], LightCurve):
-            for lc in lclist:
+        elif isinstance(self.lclist[0], LightCurve):
+            for lc in self.lclist:
                 lcseg = lc[start:end]
                 if len(lcseg) > 0:
                     new_lclist.append(lcseg)
@@ -1128,3 +1163,6 @@ class EnergyLCList(object):
                 lclist.append(lc1s - lc2s)
 
         return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=lclist)
+
+    def __len__(self):
+        return len(self.lclist)

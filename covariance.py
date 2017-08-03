@@ -277,7 +277,7 @@ class CovarianceSpectrum(object):
             lclist = EnergyLCList(lcfiles, interp_gaps=interp_gaps)
 
         self.en = np.array(lclist.en)
-        self.en_error = np.arraty(lclist.en_error)
+        self.en_error = np.array(lclist.en_error)
 
         if isinstance(lclist[0], LightCurve):
             print("Constructing covariance spectrum in %d energy bins" % len(lclist))
@@ -537,7 +537,7 @@ class CovarianceSpectrum(object):
         return np.array(enmin) / 1000., np.array(enmax) / 1000., lclist
 
     def _getplotdata(self):
-        return (self.en, self.en_error), (self.sed, self.error)
+        return (self.en, self.en_error), (self.sed, self.sed_error)
 
     def _getplotaxes(self):
         return 'Energy / keV', 'log', 'Covariance', 'log'
