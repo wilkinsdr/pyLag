@@ -148,7 +148,7 @@ class Plot(object):
     """
 
     def __init__(self, data_object=None, xdata=None, ydata=None, xscale='', yscale='', xlabel='',
-                 ylabel='', title='', series_labels=[], preset=None, show_plot=True):
+                 ylabel='', title='', series_labels=[], lines=False, preset=None, show_plot=True):
         self._fig = None
         self._ax = None
 
@@ -169,7 +169,10 @@ class Plot(object):
 
         # variables to set plot formatting
         self._colour_series = ['k', 'b', 'g', 'r', 'c', 'm']
-        self._marker_series = ['+', 'x', 'o', 's']
+        if lines:
+            self._marker_series = ['-']
+        else:
+            self._marker_series = ['+', 'x', 'o', 's']
         self._font_face = None
         self._font_size = None
         self._grid = 'minor'
