@@ -12,6 +12,7 @@ v1.0 09/03/2017 - D.R. Wilkins
 import numpy as np
 import scipy.fftpack
 import glob
+import re
 try:
     import astropy.io.fits as pyfits
 except:
@@ -247,6 +248,10 @@ class LightCurve(object):
         lc : LightCurve
              The extracted light curve segment as a new LightCurve object
         """
+        if start < 0:
+            start = self.time.min() + abs(start)
+        if end < 0:
+            end = self.time.max() - abs(end)
         this_t = np.array([t for t in self.time if start < t <= end])
         this_rate = np.array([r for t, r in zip(self.time, self.rate) if start < t <= end])
         this_error = np.array([e for t, e in zip(self.time, self.error) if start < t <= end])
@@ -925,3 +930,239 @@ def lclist_separate_segments(lclist):
                 new_lclist[-1].append(seg_lclist[seg_num])
 
     return new_lclist
+
+
+class EnergyLCList(object):
+    def __init__(self, searchstr=None, enmin=None, enmax=None, lclist=None, **kwargs):
+        if lclist is not None and enmin is not None and enmax is not None:
+            self.lclist = lclist
+            self.enmin = np.array(enmin)
+            self.enmax = np.array(enmax)
+        else:
+            self.enmin, self.enmax, self.lclist = self.find_light_curves(searchstr)
+
+        self.en = 0.5*(self.enmin + self.enmax)
+        self.en_error = self.en - self.enmin
+
+    @staticmethod
+    def find_light_curves(searchstr, **kwargs):
+        """
+        enmin, enmax, lclist = pylag.LagEnergySpectrum.FindLightCurves(searchstr)
+
+        Search the filesystem for light curve files and return a list of light
+        curve segments for each available observation segment in each energy
+        band. A 2-dimensional list of LightCurve objects from each segment
+        (inner index) in each energy band (outer index) is returned,
+        i.e. [[en1_obs1, en1_obs2, ...], [en2_obs1, en2_obs2, ...], ...]
+        suitable for calcualation of a stacked lag-energy spectrum. Lists of
+        lower and upper energies for each bin are also returned.
+
+        If only one light curve is found for each energy band, a 1 dimensional
+        list of light curves is returned.
+
+        Light curves are sorted by lower energy bound, then alphabetically by
+        filename such that if a common prefix convention is adopted identifying
+        the segment, the segments listed in each energy bin will match up.
+
+        Light curve filenames must have the substring enXXX-YYY where XXX and YYY
+        are the lower and upper bounds of the energy bin in eV.
+        e.g. obs1_src_en300-400.lc
+
+        Note: Make sure that the search string returns only the light curves to
+        be used in the observation and that there are the same number of segments
+        in each energy band!
+
+        Arguments
+        ---------
+        searchstr : string
+                  : Wildcard for searching the filesystem to find the light curve
+                    filesystem
+
+        Returns
+        -------
+        enmin :  ndarray
+                 numpy array countaining the lower energy bound of each band
+        enmax :  ndarray
+                 numpy array containing the upper energy bound of each band
+        lclist : list of list of LightCurve objects
+                 The list of light curve segments in each energy band for
+                 computing the lag-energy spectrum
+        """
+        lcfiles = sorted(glob.glob(searchstr))
+        enlist = list(set([re.search('(en[0-9]+\-[0-9]+)', lc).group(0) for lc in lcfiles]))
+
+        enmin = []
+        enmax = []
+        for estr in enlist:
+            matches = re.search('en([0-9]+)\-([0-9]+)', estr)
+            enmin.append(float(matches.group(1)))
+            enmax.append(float(matches.group(2)))
+        # zip the energy bins to sort them, then unpack
+        entuples = sorted(zip(enmin, enmax))
+        enmin, enmax = zip(*entuples)
+
+        lclist = []
+        for emin, emax in zip(enmin, enmax):
+            estr = 'en%d-%d' % (emin, emax)
+            energy_lightcurves = sorted([lc for lc in lcfiles if estr in lc])
+            # see how many light curves match this energy - if there's only one, we
+            # don't want nested lists so stacking isn't run
+            if len(energy_lightcurves) > 1:
+                energy_lclist = []
+                for lc in energy_lightcurves:
+                    energy_lclist.append(LightCurve(lc, **kwargs))
+                lclist.append(energy_lclist)
+            else:
+                lclist.append(LightCurve(energy_lightcurves[0], **kwargs))
+
+        return np.array(enmin) / 1000., np.array(enmax) / 1000., lclist
+
+    def time_segment(self, start, end):
+        """
+        new_lclist = pylag.extract_lclist_time_segment(lclist, tstart, tend)
+
+        Take a list of LightCurve objects or a list of lists of multiple light curve
+        segments in each energy band (as used for a lag-energy or covariance spectrum)
+        and return only the segment(s) within a	specified time interval
+        """
+        new_lclist = []
+
+        if isinstance(self.lclist[0], list):
+            for en_lclist in self.lclist:
+                new_lclist.append([])
+                for lc in en_lclist:
+                    lcseg = lc.time_segment(start, end)
+                    if len(lcseg) > 0:
+                        new_lclist[-1].append(lcseg)
+
+        elif isinstance(self.lclist[0], LightCurve):
+            for lc in self.lclist:
+                lcseg = lc.time_segment(start, end)
+                if len(lcseg) > 0:
+                    new_lclist.append(lcseg)
+                else:
+                    print(
+                        "pylag extract_lclist_time_segment WARNING: One of the light curves does not cover this time segment. Check consistency!")
+
+        return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
+
+    def segment(self, start, end):
+        """
+        new_lclist = pylag.extract_lclist_time_segment(lclist, tstart, tend)
+
+        Take a list of LightCurve objects or a list of lists of multiple light curve
+        segments in each energy band (as used for a lag-energy or covariance spectrum)
+        and return only the segment(s) within a	specified time interval
+        """
+        new_lclist = []
+
+        if isinstance(self.lclist[0], list):
+            for en_lclist in self.lclist:
+                new_lclist.append([])
+                for lc in en_lclist:
+                    lcseg = lc[start:end]
+                    if len(lcseg) > 0:
+                        new_lclist[-1].append(lcseg)
+
+        elif isinstance(self.lclist[0], LightCurve):
+            for lc in self.lclist:
+                lcseg = lc[start:end]
+                if len(lcseg) > 0:
+                    new_lclist.append(lcseg)
+                else:
+                    print(
+                        "pylag extract_lclist_time_segment WARNING: One of the light curves does not cover this time segment. Check consistency!")
+
+        return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
+
+    def __getitem__(self, index):
+        return self.lclist[index]
+
+    def __getslice__(self, start, end):
+        """
+        new_lclist = pylag.extract_lclist_time_segment(lclist, tstart, tend)
+
+        Take a list of LightCurve objects or a list of lists of multiple light curve
+        segments in each energy band (as used for a lag-energy or covariance spectrum)
+        and return only the segment(s) within a	specified time interval
+        """
+        new_lclist = []
+
+        # this is a horrible hack and could cause some weirdness but it is
+        # to deal with Python adding the length to a negative index
+        if end < len(self):
+            end -= len(self)
+
+        if isinstance(self.lclist[0], list):
+            for en_lclist in self.lclist:
+                new_lclist.append([])
+                for lc in en_lclist:
+                    lcseg = lc[start:end]
+                    if len(lcseg) > 0:
+                        new_lclist[-1].append(lcseg)
+
+        elif isinstance(self.lclist[0], LightCurve):
+            for lc in self.lclist:
+                lcseg = lc[start:end]
+                if len(lcseg) > 0:
+                    new_lclist.append(lcseg)
+                else:
+                    print(
+                        "pylag extract_lclist_time_segment WARNING: One of the light curves does not cover this time segment. Check consistency!")
+
+        return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
+
+    def __add__(self, other):
+        if not isinstance(other, EnergyLCList):
+            return NotImplemented
+
+        if len(self.lclist) != len(other.lclist):
+            raise AssertionError("EnergyLCList objects do not have same number of energy bands")
+
+        lclist = []
+        if isinstance(self.lclist[0], list):
+            if not isinstance(other.lclist[0], list):
+                raise AssertionError("EnergyLCList objects do not have the same dimension")
+            if len(self.lclist[0]) != len(other.lclist[0]):
+                raise AssertionError("EnergyLCList objects do not have the same number of segments in each energy band")
+
+            for en_lclist1, en_lclist2 in zip(self.lclist, other.lclist):
+                lclist.append([])
+                for lc1, lc2 in zip(en_lclist1, en_lclist2):
+                    lc1s, lc2s = extract_sim_lightcurves(lc1, lc2)
+                    lclist[-1].append(lc1s + lc2s)
+        else:
+            for lc1, lc2 in zip(self.lclist, other.lclist):
+                lc1s, lc2s = extract_lclist_time_segment(lc1, lc2)
+                lclist.append(lc1s + lc2s)
+
+        return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=lclist)
+
+    def __sub__(self, other):
+        if not isinstance(other, EnergyLCList):
+            return NotImplemented
+
+        if len(self.lclist) != len(other.lclist):
+            raise AssertionError("EnergyLCList objects do not have same number of energy bands")
+
+        lclist = []
+        if isinstance(self.lclist[0], list):
+            if not isinstance(other.lclist[0], list):
+                raise AssertionError("EnergyLCList objects do not have the same dimension")
+            if len(self.lclist[0]) != len(other.lclist[0]):
+                raise AssertionError("EnergyLCList objects do not have the same number of segments in each energy band")
+
+            for en_lclist1, en_lclist2 in zip(self.lclist, other.lclist):
+                lclist.append([])
+                for lc1, lc2 in zip(en_lclist1, en_lclist2):
+                    lc1s, lc2s = extract_sim_lightcurves(lc1, lc2)
+                    lclist[-1].append(lc1s - lc2s)
+        else:
+            for lc1, lc2 in zip(self.lclist, other.lclist):
+                lc1s, lc2s = extract_lclist_time_segment(lc1, lc2)
+                lclist.append(lc1s - lc2s)
+
+        return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=lclist)
+
+    def __len__(self):
+        return len(self.lclist)
