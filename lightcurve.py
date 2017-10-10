@@ -852,86 +852,6 @@ def extract_sim_lightcurves(lc1, lc2):
     return out_lc1, out_lc2
 
 
-def extract_lclist_time_segment(lclist, tstart, tend):
-    """
-    new_lclist = pylag.extract_lclist_time_segment(lclist, tstart, tend)
-
-    Take a list of LightCurve objects or a list of lists of multiple light curve
-    segments in each energy band (as used for a lag-energy or covariance spectrum)
-    and return only the segment(s) within a	specified time interval
-    """
-    new_lclist = []
-
-    if isinstance(lclist[0], list):
-        for en_lclist in lclist:
-            new_lclist.append([])
-            for lc in en_lclist:
-                lcseg = lc.time_segment(tstart, tend)
-                if len(lcseg) > 0:
-                    new_lclist[-1].append(lcseg)
-
-    elif isinstance(lclist[0], LightCurve):
-        for lc in lclist:
-            lcseg = lc.time_segment(tstart, tend)
-            if len(lcseg) > 0:
-                new_lclist.append(lcseg)
-            else:
-                print(
-                    "pylag extract_lclist_time_segment WARNING: One of the light curves does not cover this time segment. Check consistency!")
-
-    return new_lclist
-
-
-def split_lclist_segments(lclist, num_segments=1, segment_length=None):
-    """
-    new_lclist = pylag.split_lclist_segments(lclist, tstart, tend)
-
-    Take a list of LightCurve objects or a list of lists of multiple light curve
-    objects in each energy band (as used for a lag-energy or covariance spectrum)
-    and splits them into equal time segments. An extra layer is added to the list
-    with each LightCurve being turned into a list of LightCurves.
-    """
-    new_lclist = []
-
-    if isinstance(lclist[0], list):
-        for en_lclist in lclist:
-            new_lclist.append([])
-            for lc in en_lclist:
-                lcseg = lc.split_segments(num_segments, segment_length)
-                if len(lcseg) > 0:
-                    new_lclist[-1].append(lcseg)
-
-    elif isinstance(lclist[0], LightCurve):
-        for lc in lclist:
-            lcseg = lc.split_segments(num_segments, segment_length)
-            if len(lcseg) > 0:
-                new_lclist.append(lcseg)
-
-    return new_lclist
-
-
-def lclist_separate_segments(lclist):
-    """
-    """
-    new_lclist = []
-
-    if isinstance(lclist[0][0], list):
-        for seg_num in range(len(lclist[0][0])):
-            new_lclist.append([])
-            for en_lclist in lclist:
-                new_lclist[-1].append([])
-                for seg_lclist in en_lclist:
-                    new_lclist[-1][-1].append(seg_lclist[seg_num])
-
-    elif isinstance(lclist[0][0], LightCurve):
-        for seg_num in range(len(lclist[0])):
-            new_lclist.append([])
-            for seg_lclist in lclist:
-                new_lclist[-1].append(seg_lclist[seg_num])
-
-    return new_lclist
-
-
 class EnergyLCList(object):
     def __init__(self, searchstr=None, enmin=None, enmax=None, lclist=None, **kwargs):
         if lclist is not None and enmin is not None and enmax is not None:
@@ -1166,3 +1086,99 @@ class EnergyLCList(object):
 
     def __len__(self):
         return len(self.lclist)
+
+
+def extract_sim_lclists(lclist1, lclist2):
+    lclist = []
+    if isinstance(lclist1[0], list):
+        for en_lclist1, en_lclist2 in zip(lclist1.lclist, lclist2.lclist):
+            lclist.append([])
+            for lc1, lc2 in zip(en_lclist1, en_lclist2):
+                lc1s, lc2s = extract_sim_lightcurves(lc1, lc2)
+                lclist[-1].append(lc1s + lc2s)
+    else:
+        for lc1, lc2 in zip(lclist1.lclist, lclist2.lclist):
+            lc1s, lc2s = extract_sim_lightcurves(lc1, lc2)
+            lclist.append(lc1s + lc2s)
+
+    return EnergyLCList(enmin=lclist1.enmin, enmax=lclist2.enmax, lclist=lclist)
+
+
+def extract_lclist_time_segment(lclist, tstart, tend):
+    """
+    new_lclist = pylag.extract_lclist_time_segment(lclist, tstart, tend)
+
+    Take a list of LightCurve objects or a list of lists of multiple light curve
+    segments in each energy band (as used for a lag-energy or covariance spectrum)
+    and return only the segment(s) within a	specified time interval
+    """
+    new_lclist = []
+
+    if isinstance(lclist[0], list):
+        for en_lclist in lclist:
+            new_lclist.append([])
+            for lc in en_lclist:
+                lcseg = lc.time_segment(tstart, tend)
+                if len(lcseg) > 0:
+                    new_lclist[-1].append(lcseg)
+
+    elif isinstance(lclist[0], LightCurve):
+        for lc in lclist:
+            lcseg = lc.time_segment(tstart, tend)
+            if len(lcseg) > 0:
+                new_lclist.append(lcseg)
+            else:
+                print(
+                    "pylag extract_lclist_time_segment WARNING: One of the light curves does not cover this time segment. Check consistency!")
+
+    return new_lclist
+
+
+def split_lclist_segments(lclist, num_segments=1, segment_length=None):
+    """
+    new_lclist = pylag.split_lclist_segments(lclist, tstart, tend)
+
+    Take a list of LightCurve objects or a list of lists of multiple light curve
+    objects in each energy band (as used for a lag-energy or covariance spectrum)
+    and splits them into equal time segments. An extra layer is added to the list
+    with each LightCurve being turned into a list of LightCurves.
+    """
+    new_lclist = []
+
+    if isinstance(lclist[0], list):
+        for en_lclist in lclist:
+            new_lclist.append([])
+            for lc in en_lclist:
+                lcseg = lc.split_segments(num_segments, segment_length)
+                if len(lcseg) > 0:
+                    new_lclist[-1].append(lcseg)
+
+    elif isinstance(lclist[0], LightCurve):
+        for lc in lclist:
+            lcseg = lc.split_segments(num_segments, segment_length)
+            if len(lcseg) > 0:
+                new_lclist.append(lcseg)
+
+    return new_lclist
+
+
+def lclist_separate_segments(lclist):
+    """
+    """
+    new_lclist = []
+
+    if isinstance(lclist[0][0], list):
+        for seg_num in range(len(lclist[0][0])):
+            new_lclist.append([])
+            for en_lclist in lclist:
+                new_lclist[-1].append([])
+                for seg_lclist in en_lclist:
+                    new_lclist[-1][-1].append(seg_lclist[seg_num])
+
+    elif isinstance(lclist[0][0], LightCurve):
+        for seg_num in range(len(lclist[0])):
+            new_lclist.append([])
+            for seg_lclist in lclist:
+                new_lclist[-1].append(seg_lclist[seg_num])
+
+    return new_lclist
