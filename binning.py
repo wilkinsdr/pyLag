@@ -248,6 +248,7 @@ class LogBinning(Binning):
         """
         return int((np.log(x / self.bin_start[0]) / np.log(self.ratio)))
 
+
 class LinearBinning(Binning):
     """
     pylag.LinearBinning(Binning)

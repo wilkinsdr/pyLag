@@ -22,6 +22,17 @@ import matplotlib.colors as colors
 from scipy.stats import binned_statistic
 
 
+def weighted_std(values, weights):
+    """
+    Return the weighted average and standard deviation.
+
+    values, weights -- Numpy ndarrays with the same shape.
+    """
+    average = np.average(values, weights=weights)
+    variance = np.average((values-average)**2, weights=weights)  # Fast and numerically precise
+    return np.sqrt(variance)
+
+
 class ENTResponse(object):
     def __init__(self, filename=None, hduname=None, hdunum=0, en_bins=None, t=None, ent=None, tstart=0.):
         self.en = np.array([])
@@ -193,6 +204,17 @@ class ENTResponse(object):
         for ien in range(self.ent.shape[0]):
             if np.sum(self.ent[ien, :] > 0):
                 lag.append(np.average(self.time, weights=self.ent[ien, :]))
+            else:
+                lag.append(np.nan)
+        lag = np.array(lag)
+
+        return Spectrum(self.en_bins.bin_cent, lag, ylabel='Lag', yscale='linear')
+
+    def std_arrival(self):
+        lag = []
+        for ien in range(self.ent.shape[0]):
+            if np.sum(self.ent[ien, :] > 0):
+                lag.append(weighted_std(self.time, weights=self.ent[ien, :]))
             else:
                 lag.append(np.nan)
         lag = np.array(lag)
