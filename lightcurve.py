@@ -852,6 +852,11 @@ def extract_sim_lightcurves(lc1, lc2):
     return out_lc1, out_lc2
 
 
+def sum_sim_lightcurves(lc1, lc2):
+    lc1s, lc2s = extract_sim_lightcurves(lc1, lc2)
+    return lc1s + lc2s
+
+
 class EnergyLCList(object):
     def __init__(self, searchstr=None, enmin=None, enmax=None, lclist=None, **kwargs):
         if lclist is not None and enmin is not None and enmax is not None:
@@ -1088,7 +1093,7 @@ class EnergyLCList(object):
         return len(self.lclist)
 
 
-def extract_sim_lclists(lclist1, lclist2):
+def sum_sim_lclists(lclist1, lclist2):
     lclist = []
     if isinstance(lclist1[0], list):
         for en_lclist1, en_lclist2 in zip(lclist1.lclist, lclist2.lclist):

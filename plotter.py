@@ -475,6 +475,36 @@ class ErrorRegionPlot(Plot):
                 self._ax.fill_between(xd, low_bound, high_bound, facecolor=colour, alpha=alpha)
 
 
+class QuiverPlot(Plot):
+    """
+    pylag.QuiverPlot
+
+    Class to plot data objects as a field of arrows between data points.
+
+    See plot class for details
+    """
+    def _plot_data(self):
+        """
+        pylag.plot._plot_data()
+
+        Add each data series to the plot as points (or lines) with error bars
+        """
+        # repeat the colour and marker series as many times as necessary to provide for all the data series
+        colours = (self._colour_series * int(len(self.xdata) / len(self._colour_series) + 1))[:len(self.xdata)]
+        markers = (self._marker_series * int(len(self.xdata) / len(self._marker_series) + 1))[:len(self.xdata)]
+
+        # plot the data series in turn
+        for xd, yd, yerr, xerr, marker, colour, label in zip(self.xdata, self.ydata, self.yerror, self.xerror, markers,
+                                                             colours, self._labels):
+            if not isinstance(xerr, (np.ndarray, list)):
+                xerr = np.zeros(len(xd))
+            if not isinstance(yerr, (np.ndarray, list)):
+                yerr = np.zeros(len(yd))
+            self._ax.quiver(xd[np.isfinite(yd)][:-1], yd[np.isfinite(yd)][:-1], xd[np.isfinite(yd)][1:]-xd[np.isfinite(yd)][:-1],
+                            yd[np.isfinite(yd)][1:]-yd[np.isfinite(yd)][:-1], scale_units='xy', angles='xy', scale=1, color=colour, label=label)
+
+
+
 def write_data(data_object, filename, xdata=None, ydata=None, mode='w', fmt='%15.10g', delimiter=' '):
     """
     pylag.write_data
@@ -578,3 +608,32 @@ def plot_txt(filename, xcol=1, ycol=2, xerrcol=None, yerrcol=None, **kwargs):
         ydata = dat[:,ycol-1]
 
     return Plot(xdata=xdata, ydata=ydata, **kwargs)
+
+
+class DataSeries(object):
+    def __init__(self, x=np.array([]), y=np.array([]), xlabel='', xscale='linear', ylabel='', yscale='linear'):
+        self.xdata = x
+        self.ydata = y
+
+        self.xlabel = xlabel
+        self.xscale = xscale
+        self.ylabel = ylabel
+        self.yscale = yscale
+
+    def _getplotdata(self):
+        return self.xdata, self.ydata
+
+    def _getplotaxes(self):
+        return self.xlabel, self.xscale, self.ylabel, self.yscale
+
+    def append(self, x, y):
+        if isinstance(self.xdata, tuple) and isinstance(x, tuple):
+            self.xdata[0] = np.concatenate([self.xdata[0], x[0]])
+            self.xdata[1] = np.concatenate([self.xdata[1], x[1]])
+            self.ydata[0] = np.concatenate([self.ydata[0], y[0]])
+            self.ydata[1] = np.concatenate([self.ydata[1], y[1]])
+        elif isinstance(self.xdata, (np.ndarray, list)) and isinstance(x, (np.ndarray, list)):
+            self.xdata = np.concatenate([self.xdata, x])
+            self.ydata = np.concatenate([self.ydata, y])
+        else:
+            raise AssertionError('Data format mismatch')

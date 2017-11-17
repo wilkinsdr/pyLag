@@ -141,6 +141,7 @@ class SimLightCurve(LightCurve):
         """
         # sqrt(N) noise applies to the number of counts, not the rate
         counts = self.rate * self.dt
+        counts[counts<0] = 0
         # draw the counts in each time bin from a Poisson distribution
         # with the mean set according to the original number of counts in the bin
         rnd_counts = np.random.poisson(counts)
