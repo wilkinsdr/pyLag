@@ -59,16 +59,16 @@ class SimLightCurve(LightCurve):
               Force all points in the light curve to have count rate greater
               than zero. Set all points below zero to zero
     """
-    def __init__(self, dt=10., tmax=1000., plslope=2.0, std=0.5, lcmean=1.0, t=None, r=None, e=None, gtzero=True):
+    def __init__(self, dt=10., tmax=1000., plslope=2.0, std=0.5, lcmean=1.0, t=None, r=None, e=None, gtzero=True, exp=True):
         if t is None and r is None:
             t = np.arange(0, tmax, dt)
-            r = self.calculate(t, plslope, std, lcmean, gtzero=gtzero)
+            r = self.calculate(t, plslope, std, lcmean, gtzero=gtzero, exp=exp)
         if e is None:
             e = np.sqrt(r)
             #e = np.sqrt(r / dt)
         LightCurve.__init__(self, t=t, r=r, e=e)
 
-    def calculate(self, t, plslope, std, lcmean, plnorm=1., gtzero=True):
+    def calculate(self, t, plslope, std, lcmean, plnorm=1., gtzero=True, exp=False):
         """
         pylag.SimLightCurve.calculate(t, plslope, lcmean, std, plnorm=1.)
 
@@ -115,6 +115,9 @@ class SimLightCurve(LightCurve):
         # put the Fourier transform together then invert it to get the light curbe
         ft = ampl * np.exp(1j * phase)
         r = np.real(scipy.fftpack.ifft(ft))
+
+        if exp:
+            r = np.exp(r)
 
         # normalise and shift the light curve to get the desired mean and stdev
         r = std * r / np.std(r)
