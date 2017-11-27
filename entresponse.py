@@ -21,6 +21,8 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from scipy.stats import binned_statistic
 
+from .binning import *
+
 
 def weighted_std(values, weights):
     """
@@ -276,7 +278,9 @@ class Spectrum(object):
         return Spectrum(en=en_bin, spec=spec_bin, xlabel=self.xlabel, xscale=self.xscale, ylabel=self.ylabel,
                         yscale=self.yscale)
 
-    def rebin(self, bins):
+    def rebin(self, bins=None, Nen=None):
+        if bins is None:
+            bins = LogBinning(self.en.min(), self.en.max(), Nen)
         spec_bin = bins.bin(self.en, self.spec)
         return Spectrum(en=bins.bin_cent, spec=spec_bin, xlabel=self.xlabel, xscale=self.xscale, ylabel=self.ylabel,
                         yscale=self.yscale)
