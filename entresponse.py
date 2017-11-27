@@ -272,7 +272,7 @@ class Spectrum(object):
                 den = (self.en.max() - self.en.min()) / (float(Nen) - 1.)
             en_bin = np.arange(self.en.min(), self.en.max() + 2*den, den)
 
-        spec_bin = binned_statistic(self.en, self.spec, statistic='mean', bins=en_bin)
+        spec_bin,_,_ = binned_statistic(self.en, self.spec, statistic='mean', bins=en_bin)
         return Spectrum(en=en_bin, spec=spec_bin, xlabel=self.xlabel, xscale=self.xscale, ylabel=self.ylabel,
                         yscale=self.yscale)
 
