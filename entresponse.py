@@ -278,9 +278,9 @@ class Spectrum(object):
         return Spectrum(en=en_bin, spec=spec_bin, xlabel=self.xlabel, xscale=self.xscale, ylabel=self.ylabel,
                         yscale=self.yscale)
 
-    def rebin(self, bins=None, Nen=None):
+    def rebin(self, bins=None, Nbins=None):
         if bins is None:
-            bins = LogBinning(self.en.min(), self.en.max(), Nen)
+            bins = LogBinning(self.en.min(), self.en.max(), Nbins)
         spec_bin = bins.bin(self.en, self.spec)
         return Spectrum(en=bins.bin_cent, spec=spec_bin, xlabel=self.xlabel, xscale=self.xscale, ylabel=self.ylabel,
                         yscale=self.yscale)
