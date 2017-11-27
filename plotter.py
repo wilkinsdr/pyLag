@@ -529,33 +529,32 @@ def write_data(data_object, filename, xdata=None, ydata=None, mode='w', fmt='%15
     delimiter    : string, optional (default=' ')
                   The delimeter to use between columns
     """
-    try:
-        if data_object is not None:
+    if data_object is not None:
+        try:
             xd, yd = data_object._getplotdata()
-        else:
-            xd, yd = xdata, ydata
+        except:
+            raise ValueError('pylag write_data ERROR: The object I was passed does not seem to be plottable')
+    else:
+        xd, yd = xdata, ydata
 
-        if isinstance(xd, tuple):
-            data = [xd[0]]
-            if isinstance(xd[1], (np.ndarray, list)):
-                data.append(xd[1])
-        else:
-            data = [xd]
+    if isinstance(xd, tuple):
+        data = [xd[0]]
+        if isinstance(xd[1], (np.ndarray, list)):
+            data.append(xd[1])
+    else:
+        data = [xd]
 
-        if isinstance(yd, tuple):
-            data.append(yd[0])
-            if isinstance(yd[1], (np.ndarray, list)):
-                data.append(yd[1])
-        else:
-            data.append(yd)
+    if isinstance(yd, tuple):
+        data.append(yd[0])
+        if isinstance(yd[1], (np.ndarray, list)):
+            data.append(yd[1])
+    else:
+        data.append(yd)
 
-        data = np.array(data).transpose()
+    data = np.array(data).transpose()
 
-        with open(filename, mode) as fhandle:
-            np.savetxt(fhandle, data, fmt=fmt, delimiter=delimiter)
-
-    except:
-        raise ValueError('pylag write_data ERROR: The object I was passed does not seem to be plottable')
+    with open(filename, mode) as fhandle:
+        np.savetxt(fhandle, data, fmt=fmt, delimiter=delimiter)
 
 
 def close_all_plots():
