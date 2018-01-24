@@ -533,7 +533,7 @@ class LightCurve(object):
         """
         if isinstance(other, LightCurve):
             if len(self.rate) != len(other.rate):
-                raise AssertionError("pyLag LightCurve ERROR: Cannot add light curves of different lengths")
+                raise AssertionError("pyLag LightCurve ERROR: Cannot add light curves of different lengths, %d and %d" % (len(self.rate), len(other.rate)))
             # sum the count rate
             newrate = self.rate + other.rate
             # sum the errors in quadrature
@@ -915,6 +915,11 @@ class EnergyLCList(object):
         """
         lcfiles = sorted(glob.glob(searchstr))
         enlist = list(set([re.search('(en[0-9]+\-[0-9]+)', lc).group(0) for lc in lcfiles]))
+
+        obsid_list = list(set([re.search('(.*?)_(tbin[0-9]+)_(en[0-9]+\-[0-9]+)', lc).group(1) for lc in lcfiles]))
+        for o in obsid_list:
+            if len([lc for lc in lcfiles if o in lc]) < len(enlist):
+                raise AssertionError('%s does not have a complete set of energy bands' % o)
 
         enmin = []
         enmax = []
