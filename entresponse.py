@@ -76,9 +76,18 @@ class ENTResponse(object):
 
         try:
             en0 = hdu.header['EN0']
-            enmax = hdu.header['ENMAX']
             Nen = hdu.header['NEN']
             logbin_en = False  # hdu.header['ENLOG']
+
+            try:
+                enmax = hdu.header['ENMAX']
+            except:
+                # fallback for old format FITS header
+                den = hdu.header['DEN']
+                if logbin_en:
+                    enmax = en0 * den**Nen
+                else:
+                    enmax = en0 + den*Nen
 
             if logbin_en:
                 en_bins = LogBinning(en0, enmax, Nen)
@@ -151,7 +160,7 @@ class ENTResponse(object):
         ent = []
         for ien in range(self.ent.shape[0]):
             ent.append(bins.bin_fast(self.time, self.ent[ien,:]))
-        return ENTResponse(en=self.en, t=bins.bin_start, ent=np.array(ent), logbin_en=self.logbin_en, tstart=self.tstart)
+        return ENTResponse(en_bins=self.en_bins, t=bins.bin_start, ent=np.array(ent), tstart=self.tstart)
 
     def plot_image(self, vmin=None, vmax=None, mult_scale=True, cmap='hot'):
         fig, ax = plt.subplots()
@@ -186,17 +195,17 @@ class ENTResponse(object):
 
         return Spectrum(self.en_bins.bin_cent, spec)
 
-    def time_response(self, energy=None, index=False):
+    def time_response(self, energy=None, index=None):
         if isinstance(energy, tuple):
             enstarti = self.en_index(energy[0])
             enendi = self.en_index(energy[1])
             resp = np.sum(self.ent[enstarti:enendi, :], axis=0)
-        elif energy is None:
+        elif energy is None and index is None:
             resp = np.sum(self.ent, axis=0)
-        elif index:
-            resp = np.array(self.ent[:, energy])
+        elif index is not None:
+            resp = np.array(self.ent[index, :])
         else:
-            eni = self.en_tindex(energy)
+            eni = self.en_index(energy)
             resp = np.array(self.ent[eni, :])
 
         return ImpulseResponse(t=self.time, r=resp)
@@ -239,7 +248,7 @@ class ENTResponse(object):
         lclist = []
         for ien in range(len(self.en_bins)):
             lclist.append(LightCurve(t=self.time, r=self.ent[ien,:]))
-        return EnergyLCList(enmin=self.en_bins.bin_start, enmax=self.en_bins.bin_end, lclist=lclist)
+        return SimEnergyLCList(enmin=self.en_bins.bin_start, enmax=self.en_bins.bin_end, lclist=lclist)
 
     def lag_energy_spectrum(self, fmin=None, fmax=None):
         if fmin is None:
@@ -247,6 +256,12 @@ class ENTResponse(object):
             fmax = 1./(2.*(self.time[1]-self.time[0]))
         return LagEnergySpectrum(fmin, fmax, lclist=self.energy_lc_list())
 
+    def simulate_lc_list(self, tmax, plslope, std, lcmean):
+        lclist = []
+        lc = SimLightCurve(self.time[1] - self.time[0], tmax, plslope, std, lcmean)
+        for ien in range(len(self.en_bins)):
+            lclist.append(self.time_response(index=ien).convolve(lc))
+        return SimEnergyLCList(enmin=self.en_bins.bin_start, enmax=self.en_bins.bin_end, lclist=lclist)
 
 class Spectrum(object):
     def __init__(self, en, spec, xlabel='Energy / keV', xscale='log', ylabel='Count Rate', yscale='log'):

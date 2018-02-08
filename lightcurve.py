@@ -858,19 +858,19 @@ def sum_sim_lightcurves(lc1, lc2):
 
 
 class EnergyLCList(object):
-    def __init__(self, searchstr=None, enmin=None, enmax=None, lclist=None, **kwargs):
+    def __init__(self, searchstr=None, lcfiles=None, enmin=None, enmax=None, lclist=None, **kwargs):
         if lclist is not None and enmin is not None and enmax is not None:
             self.lclist = lclist
             self.enmin = np.array(enmin)
             self.enmax = np.array(enmax)
         else:
-            self.enmin, self.enmax, self.lclist = self.find_light_curves(searchstr)
+            self.enmin, self.enmax, self.lclist = self.find_light_curves(searchstr, lcfiles)
 
         self.en = 0.5*(self.enmin + self.enmax)
         self.en_error = self.en - self.enmin
 
     @staticmethod
-    def find_light_curves(searchstr, **kwargs):
+    def find_light_curves(searchstr, lcfiles=None, **kwargs):
         """
         enmin, enmax, lclist = pylag.LagEnergySpectrum.FindLightCurves(searchstr)
 
@@ -913,7 +913,8 @@ class EnergyLCList(object):
                  The list of light curve segments in each energy band for
                  computing the lag-energy spectrum
         """
-        lcfiles = sorted(glob.glob(searchstr))
+        if lcfiles is None:
+            lcfiles = sorted(glob.glob(searchstr))
         enlist = list(set([re.search('(en[0-9]+\-[0-9]+)', lc).group(0) for lc in lcfiles]))
 
         obsid_list = list(set([re.search('(.*?)_(tbin[0-9]+)_(en[0-9]+\-[0-9]+)', lc).group(1) for lc in lcfiles]))
@@ -1002,6 +1003,21 @@ class EnergyLCList(object):
                 else:
                     print(
                         "pylag extract_lclist_time_segment WARNING: One of the light curves does not cover this time segment. Check consistency!")
+
+        return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
+
+    def rebin(self, tbin):
+        new_lclist = []
+
+        if isinstance(self.lclist[0], list):
+            for en_lclist in self.lclist:
+                new_lclist.append([])
+                for lc in en_lclist:
+                    new_lclist[-1].append(lc.rebin3(tbin))
+
+        elif isinstance(self.lclist[0], LightCurve):
+            for lc in self.lclist:
+                new_lclist.append(lc.rebin3(tbin))
 
         return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
 

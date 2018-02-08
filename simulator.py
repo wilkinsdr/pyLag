@@ -112,7 +112,7 @@ class SimLightCurve(LightCurve):
         ampl = np.insert(ampl, 0, plnorm)  # add the zero frequency element
         phase = 2 * np.pi * np.random.rand(len(freq))
 
-        # put the Fourier transform together then invert it to get the light curbe
+        # put the Fourier transform together then invert it to get the light curve
         ft = ampl * np.exp(1j * phase)
         r = np.real(scipy.fftpack.ifft(ft))
 
@@ -267,6 +267,32 @@ def resample_enlclist(lclist, resamples=1):
         return lclist_set
     else:
         return EnergyLCList(enmin=lclist.enmin, enmax=lclist.enmax, lclist=new_lclist)
+
+
+class SimEnergyLCList(EnergyLCList):
+    def __init__(self, enmin=None, enmax=None, lclist=None, **kwargs):
+        if lclist is not None and enmin is not None and enmax is not None:
+            self.lclist = lclist
+            self.enmin = np.array(enmin)
+            self.enmax = np.array(enmax)
+
+        self.en = 0.5*(self.enmin + self.enmax)
+        self.en_error = self.en - self.enmin
+
+    def add_noise(self):
+        new_lclist = []
+
+        if isinstance(self.lclist[0], list):
+            for en_lclist in self.lclist:
+                new_lclist.append([])
+                for lc in en_lclist:
+                    new_lclist[-1].append(lc.add_noise())
+
+        elif isinstance(self.lclist[0], LightCurve):
+            for lc in self.lclist:
+                new_lclist.append(lc.add_noise())
+
+        return SimEnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
 
 
 class ImpulseResponse(LightCurve):
