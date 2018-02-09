@@ -67,6 +67,9 @@ class LightCurve(object):
                   If true, after reading a light curve that begins or ends with
                   a series of zero points, these leading and trailing zeros will
                   be cut off
+    max_gap     : int (optional, default=0)
+                  If >0, gaps longer than max_gap time bins will not be interpolated
+                  over
 
     Overloaded Operators
     --------------------
@@ -88,7 +91,7 @@ class LightCurve(object):
 
     """
 
-    def __init__(self, filename=None, t=[], r=[], e=[], interp_gaps=False, zero_nan=True, trim=False):
+    def __init__(self, filename=None, t=[], r=[], e=[], interp_gaps=False, zero_nan=True, trim=False, max_gap=0):
         self.time = np.array(t)
         if len(r) > 0:
             self.rate = np.array(r)
@@ -108,7 +111,7 @@ class LightCurve(object):
         self.length = len(self.rate)
 
         if interp_gaps:
-            self._interp_gaps()
+            self._interp_gaps(max_gap)
         if zero_nan:
             self._zeronan()
         if trim:
@@ -181,9 +184,9 @@ class LightCurve(object):
         """
         self.time = self.time - self.time.min()
 
-    def _interp_gaps(self):
+    def _interp_gaps(self, max_gap=0):
         """
-        pylag.LightCurve._interp_gaps()
+        pylag.LightCurve._interp_gaps(max_gap=0)
 
         Interpolate over gaps within the light curve for fixing gaps left by GTI
         filters when performing timing analysis.
@@ -191,6 +194,12 @@ class LightCurve(object):
         The missing data points are filled in by linear interpolation between the
         start end end points of the gap and the patched light curve is stored
         back in the original object.
+
+        Arguments
+        ---------
+        max_gap : int (optional, default=0)
+                  If >0, gaps longer than max_gap time bins will not be interpolated
+                  over
         """
         in_gap = False
         gap_count = 0
@@ -201,23 +210,67 @@ class LightCurve(object):
                 if np.isnan(self.rate[i]):
                     in_gap = True
                     gap_start = i - 1
-                    gap_count += 1
 
             elif in_gap:
                 if not np.isnan(self.rate[i]):
                     gap_end = i
                     in_gap = False
 
-                    self.rate[gap_start:gap_end] = np.interp(self.time[gap_start:gap_end],
-                                                             [self.time[gap_start], self.time[gap_end]],
-                                                             [self.rate[gap_start], self.rate[gap_end]])
-
                     gap_length = gap_end - gap_start
-                    if gap_length > max_gap:
-                        max_gap = gap_length
+
+                    if gap_length < max_gap or max_gap==0:
+                        gap_count += 1
+                        self.rate[gap_start:gap_end] = np.interp(self.time[gap_start:gap_end],
+                                                                 [self.time[gap_start], self.time[gap_end]],
+                                                                 [self.rate[gap_start], self.rate[gap_end]])
+
+                        if gap_length > max_gap:
+                            max_gap = gap_length
 
         print("Patched %d gaps" % gap_count)
         print("Longest gap was %d bins" % max_gap)
+
+    def split_on_gaps(self, min_segment=0):
+        """
+        lclist = pylag.LightCurve.split_on_gaps(min_segment=0)
+
+        Split the light curve on gaps into good segments
+
+        Arguments
+        ---------
+        min_segment : int (optional, default=0)
+                      the minimum length of good segment to be included in the output list
+
+        Returns
+        -------
+        lclist : list of LightCurves
+                 the good segments of the light curve
+        """
+        in_good_segment = False
+        gap_count = 0
+        max_gap = 0
+
+        lclist = []
+
+        for i in range(len(self.rate)):
+            if not in_good_segment:
+                if not np.isnan(self.rate[i]):
+                    in_good_segment = True
+                    good_start = i - 1
+
+            elif in_good_segment:
+                if np.isnan(self.rate[i]):
+                    good_end = i
+                    in_good_segment = False
+
+                    good_length = good_end - good_start
+
+                    if good_length >= min_segment:
+                        lclist.append(self[good_start:good_end])
+                        good_count += 1
+
+        print("Split light curve into  %d good segments" % good_count)
+        return lclist
 
     def _zeronan(self):
         """
