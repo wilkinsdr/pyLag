@@ -83,8 +83,9 @@ class CrossSpectrum(object):
                     "pyLag CrossSpectrum ERROR: Can only compute cross spectrum between two LightCurve objects")
 
             if lc1 != lc2:
-                raise AssertionError(
-                    "pyLag CrossSpectrum ERROR: Light curves must be the same length and have same time binning to compute cross spectrum")
+                lc1, lc2 = extract_sim_lightcurves(lc1, lc2)
+                #raise AssertionError(
+                #    "pyLag CrossSpectrum ERROR: Light curves must be the same length and have same time binning to compute cross spectrum")
 
             self.freq, self.crossft = self.calculate(lc1, lc2, norm)
 
