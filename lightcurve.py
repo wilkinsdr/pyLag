@@ -230,48 +230,6 @@ class LightCurve(object):
         print("Patched %d gaps" % gap_count)
         print("Longest gap was %d bins" % max_gap)
 
-    def split_on_gaps(self, min_segment=0):
-        """
-        lclist = pylag.LightCurve.split_on_gaps(min_segment=0)
-
-        Split the light curve on gaps into good segments
-
-        Arguments
-        ---------
-        min_segment : int (optional, default=0)
-                      the minimum length of good segment to be included in the output list
-
-        Returns
-        -------
-        lclist : list of LightCurves
-                 the good segments of the light curve
-        """
-        in_good_segment = False
-        gap_count = 0
-        max_gap = 0
-
-        lclist = []
-
-        for i in range(len(self.rate)):
-            if not in_good_segment:
-                if not np.isnan(self.rate[i]):
-                    in_good_segment = True
-                    good_start = i - 1
-
-            elif in_good_segment:
-                if np.isnan(self.rate[i]):
-                    good_end = i
-                    in_good_segment = False
-
-                    good_length = good_end - good_start
-
-                    if good_length >= min_segment:
-                        lclist.append(self[good_start:good_end])
-                        good_count += 1
-
-        print("Split light curve into  %d good segments" % good_count)
-        return lclist
-
     def _zeronan(self):
         """
         pylag.LightCurve._zeronan()
@@ -347,6 +305,62 @@ class LightCurve(object):
                 segments.append(self.time_segment(tstart, tstart + segment_length))
 
         return segments
+
+    def split_on_gaps(self, min_segment=0):
+        """
+        lclist = pylag.LightCurve.split_on_gaps(min_segment=0)
+
+        Split the light curve on gaps into good segments
+
+        Arguments
+        ---------
+        min_segment : int (optional, default=0)
+                      the minimum length of good segment to be included in the output list
+
+        Returns
+        -------
+        lclist : list of LightCurves
+                 the good segments of the light curve
+        """
+        in_good_segment = False
+        good_count = 0
+        short_count = 0
+
+        lclist = []
+
+        for i in range(len(self.rate)):
+            if not in_good_segment:
+                if not np.isnan(self.rate[i]):
+                    in_good_segment = True
+                    good_start = i
+
+            elif in_good_segment:
+                if np.isnan(self.rate[i]):
+                    good_end = i
+                    in_good_segment = False
+
+                    good_length = good_end - good_start
+
+                    if good_length >= min_segment:
+                        lclist.append(self[good_start:good_end])
+                        good_count += 1
+                    else:
+                        short_count += 1
+
+                # make sure we get the end of the light curve if it's good
+                elif i==len(self.rate)-1:
+                    print("got the end")
+                    good_length = good_end - good_start
+                    if good_length >= min_segment:
+                        lclist.append(self[good_start:good_end])
+                        good_count += 1
+                    else:
+                        short_count += 1
+
+        print("Split light curve into  %d good segments" % good_count)
+        if short_count > 0:
+            print("%d segments too short" % short_count)
+        return lclist
 
     def rebin(self, tbin):
         """
@@ -749,7 +763,12 @@ class LightCurve(object):
         """
         Overloaded operator to access count rate via [] operator
         """
-        return self.rate[index]
+        if isinstance(index, slice):
+            lcslice = LightCurve(t=self.time[index], r=self.rate[index], e=self.error[index])
+            lcslice.__class__ = self.__class__
+            return lcslice
+        else:
+            return self.rate[index]
 
     def __getslice__(self, start, end):
         """
