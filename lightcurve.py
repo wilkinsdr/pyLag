@@ -203,7 +203,7 @@ class LightCurve(object):
         """
         in_gap = False
         gap_count = 0
-        max_gap = 0
+        longest_gap = 0
 
         for i in range(len(self.rate)):
             if not in_gap:
@@ -224,11 +224,11 @@ class LightCurve(object):
                                                                  [self.time[gap_start], self.time[gap_end]],
                                                                  [self.rate[gap_start], self.rate[gap_end]])
 
-                        if gap_length > max_gap:
-                            max_gap = gap_length
+                        if gap_length > longest_gap:
+                            longest_gap = gap_length
 
         print("Patched %d gaps" % gap_count)
-        print("Longest gap was %d bins" % max_gap)
+        print("Longest gap was %d bins" % longest_gap)
 
     def _zeronan(self):
         """
@@ -350,6 +350,7 @@ class LightCurve(object):
                 # make sure we get the end of the light curve if it's good
                 elif i==len(self.rate)-1:
                     print("got the end")
+                    good_end = len(self.rate)
                     good_length = good_end - good_start
                     if good_length >= min_segment:
                         lclist.append(self[good_start:good_end])
@@ -361,6 +362,50 @@ class LightCurve(object):
         if short_count > 0:
             print("%d segments too short" % short_count)
         return lclist
+
+    def find_gaps(self):
+        """
+        lclist = pylag.LightCurve.split_on_gaps(min_segment=0)
+
+        Split the light curve on gaps into good segments
+
+        Arguments
+        ---------
+        min_segment : int (optional, default=0)
+                      the minimum length of good segment to be included in the output list
+
+        Returns
+        -------
+        lclist : list of LightCurves
+                 the good segments of the light curve
+        """
+        in_good_segment = False
+
+        good_length = []
+        gap_length = []
+        good_end = 0
+
+        for i in range(len(self.rate)):
+            if not in_good_segment:
+                if not np.isnan(self.rate[i]):
+                    in_good_segment = True
+                    good_start = i
+                    gap_length.append(good_start - good_end)
+
+            elif in_good_segment:
+                if np.isnan(self.rate[i]):
+                    good_end = i
+                    in_good_segment = False
+                    good_length.append(good_end - good_start)
+
+                # make sure we get the end of the light curve if it's good
+                elif i==len(self.rate)-1:
+                    print("got the end")
+                    good_end = len(self.rate)
+                    good_length.append(good_end - good_start)
+
+        print("Good segment lengths: ", good_length)
+        print("Gaps: ", gap_length)
 
     def rebin(self, tbin):
         """
@@ -936,7 +981,7 @@ class EnergyLCList(object):
             self.enmin = np.array(enmin)
             self.enmax = np.array(enmax)
         else:
-            self.enmin, self.enmax, self.lclist = self.find_light_curves(searchstr, lcfiles)
+            self.enmin, self.enmax, self.lclist = self.find_light_curves(searchstr, lcfiles, **kwargs)
 
         self.en = 0.5*(self.enmin + self.enmax)
         self.en_error = self.en - self.enmin
@@ -1075,6 +1120,31 @@ class EnergyLCList(object):
                 else:
                     print(
                         "pylag extract_lclist_time_segment WARNING: One of the light curves does not cover this time segment. Check consistency!")
+
+        return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
+
+    def split_on_gaps(self, min_segment=0):
+        """
+        new_lclist = pylag.extract_lclist_time_segment(lclist, tstart, tend)
+
+        Take a list of LightCurve objects or a list of lists of multiple light curve
+        segments in each energy band (as used for a lag-energy or covariance spectrum)
+        and return only the segment(s) within a	specified time interval
+        """
+        new_lclist = []
+
+        if isinstance(self.lclist[0], list):
+            for en_lclist in self.lclist:
+                new_lclist.append([])
+                for lc in en_lclist:
+                    lcseg = lc.split_on_gaps(min_segment)
+                    for seg in lcseg:
+                        new_lclist[-1].append(seg)
+
+        elif isinstance(self.lclist[0], LightCurve):
+            for lc in self.lclist:
+                lcseg = lc.split_on_gaps(min_segment)
+                new_lclist.append(lcseg)
 
         return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
 
