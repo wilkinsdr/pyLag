@@ -636,3 +636,36 @@ class DataSeries(object):
             self.ydata = np.concatenate([self.ydata, y])
         else:
             raise AssertionError('Data format mismatch')
+
+
+def dataset_ratio(ds1, ds2):
+    x1, y1 = ds1._getplotdata()
+    x2, y2 = ds2._getplotdata()
+
+    xlabel, xscale, ylabel, yscale = ds1._getplotaxes()
+
+    if isinstance(y1, tuple):
+        yd1 = y1[0]
+        ye1 = y1[1]
+    elif isinstance(y1, np.ndarray):
+        yd1 = y1
+        ye1 = np.zeros(len(yd1))
+    else:
+        raise AssertionError('Data format mismatch')
+
+    if isinstance(y2, tuple):
+        yd2 = y2[0]
+        ye2 = y2[1]
+    elif isinstance(y1, np.ndarray, list):
+        yd2 = y2
+        ye2 = np.zeros(len(yd2))
+    else:
+        raise AssertionError('Data format mismatch')
+
+    ratio = yd1 / yd2
+    if isinstance(y1, tuple) or isinstance(y2, tuple):
+        ratio_err = ratio * np.sqrt( (ye1/yd1)**2 + (ye2/yd2)**2 )
+        ratio = (ratio, ratio_err)
+
+    return DataSeries(x1, ratio, xlabel, xscale, 'ratio', 'linear')
+
