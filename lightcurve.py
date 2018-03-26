@@ -18,6 +18,7 @@ try:
 except:
     import pyfits
 from scipy.stats import binned_statistic
+from scipy.interpolate import interp1d
 
 
 class LightCurve(object):
@@ -498,7 +499,7 @@ class LightCurve(object):
         binlc.__class__ = self.__class__
         return binlc
 
-    def rebin3(self, tbin):
+    def rebin3(self, tbin=None, time=None):
         """
         rebin_lc = pylag.LightCurve.rebin3(tbin)
 
@@ -522,12 +523,15 @@ class LightCurve(object):
         rebin_lc : LightCurve
                    The rebinned light curve
         """
-        if tbin <= self.dt:
-            raise ValueError("pylag LightCurve Rebin ERROR: Must rebin light curve into larger bins")
-        if tbin % self.dt != 0:
-            print("pylag LightCurve Rebin WARNING: New time binning is not a multiple of the old")
+        # if tbin <= self.dt:
+        #     raise ValueError("pylag LightCurve Rebin ERROR: Must rebin light curve into larger bins")
+        # if tbin % self.dt != 0:
+        #     print("pylag LightCurve Rebin WARNING: New time binning is not a multiple of the old")
 
-        time = np.arange(min(self.time), max(self.time)+tbin, tbin)
+        if time is None:
+            time = np.arange(min(self.time), max(self.time)+tbin, tbin)
+        else:
+            tbin = np.diff(time)
         counts = binned_statistic(self.time, self.dt*self.rate, statistic='sum', bins=time)[0]
         rate = counts / tbin
         err = rate * np.sqrt(counts) / counts
@@ -536,6 +540,23 @@ class LightCurve(object):
         # make sure the returned object has the right class (if this is called from a derived class)
         binlc.__class__ = self.__class__
         return binlc
+
+    # TODO: Counts binning based on accumulated count over previous time window
+
+    def interpolate(self, tbin=None, time=None, interp_kind='nearest'):
+        if time is None:
+            time = np.arange(min(self.time), max(self.time)+tbin, tbin)
+        rate_interp = interp1d(self.time, self.rate, kind=interp_kind, fill_value='extrapolate')
+        tdiff = np.diff(time)
+        dt = np.hstack([tdiff, tdiff[-1]])
+        rate = rate_interp(time)
+        counts = rate * dt
+        err = rate * np.sqrt(counts) / counts
+
+        interp_lc = LightCurve(t=time, r=rate, e=err)
+        # make sure the returned object has the right class (if this is called from a derived class)
+        interp_lc.__class__ = self.__class__
+        return interp_lc
 
     def mean(self):
         """

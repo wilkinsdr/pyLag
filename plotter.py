@@ -669,3 +669,19 @@ def dataset_ratio(ds1, ds2):
 
     return DataSeries(x1, ratio, xlabel, xscale, 'ratio', 'linear')
 
+
+
+
+class AverageDataSeries(DataSeries):
+    def __init__(self, data_objects):
+        self.xdata = data_objects[0]._getplotdata()[0]
+        if isinstance(data_objects[0]._getplotdata()[1], tuple):
+            self.mean = np.mean(np.array([o._getplotdata()[1][0] for o in data_objects]), axis=0)
+            self.std = np.std(np.array([o._getplotdata()[1][0] for o in data_objects]), axis=0)
+        else:
+            self.mean = np.mean(np.array([o._getplotdata()[1] for o in data_objects]), axis=0)
+            self.std = np.mean(np.array([o._getplotdata()[1] for o in data_objects]), axis=0)
+
+        self.ydata = (self.mean, self.std)
+
+        self.xlabel, self.xscale, self.ylabel, self.yscale = data_objects[0]._getplotaxes()
