@@ -97,6 +97,7 @@ class LagFrequencySpectrum(object):
 
         f, self.lag = cross_spec.lag_spectrum()
         self.error = coh.lag_error()
+        self.coh = coh.coh
 
     def _getplotdata(self):
         return (self.freq, self.freq_error), (self.lag, self.error)
