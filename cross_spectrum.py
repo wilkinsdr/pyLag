@@ -16,6 +16,7 @@ from .lightcurve import *
 from .binning import *
 
 import numpy as np
+from scipy.stats import binned_statistic
 
 
 class CrossSpectrum(object):
@@ -330,7 +331,7 @@ class StackedCrossSpectrum(CrossSpectrum):
 
         CrossSpectrum.__init__(self, f=freq, cs=crossft)
 
-    def calculate(self):
+    def calculate_slow(self):
         """
         pylag.StackedCrossSpectrum.StackBinnedCrossSpectrum()
 
@@ -362,7 +363,25 @@ class StackedCrossSpectrum(CrossSpectrum):
 
         return np.array(cross_spec)
 
-    def freq_average(self, fmin, fmax):
+    def calculate(self):
+        """
+        pylag.StackedCrossSpectrum.StackBinnedCrossSpectrum()
+
+        Calculates the average cross spectrum in each frequency bin. The final
+        cross spectrum in each bin is the average over all of the individual
+        frequency points from all of the light curves that fall into that bin.
+
+        Returns
+        -------
+        cross_spec : ndarray
+                     The average cross spectrum (complex) in each frequency bin
+        """
+        freq_list = np.hstack([c.freq for c in self.cross_spectra])
+        crossft_list = np.hstack([c.crossft for c in self.cross_spectra])
+
+        return self.bins.bin(freq_list, crossft_list)
+
+    def freq_average_slow(self, fmin, fmax):
         """
         csavg = pylag.CrossSpectrum.freq_average(fmin, fmax)
 
@@ -389,3 +408,33 @@ class StackedCrossSpectrum(CrossSpectrum):
             cross_spec_points += cs.points_in_freqrange(fmin, fmax)
 
         return np.mean(cross_spec_points)
+
+    def freq_average(self, fmin, fmax):
+        """
+        csavg = pylag.CrossSpectrum.freq_average(fmin, fmax)
+
+        calculate the average value of the cross spectrum over a specified
+        frequency interval. The final cross spectrum is the average over all of
+        the individual frequency points from all of the light curves that fall
+        into the range.
+
+        Arguments
+        ---------
+        fmin : float
+               Lower bound of frequency range
+        fmax : float
+               Upper bound of frequency range
+
+        Returns
+        -------
+        csavg : complex
+                The average value of the cross spectrum over the frequency range
+
+        """
+        freq_list = np.hstack([c.freq for c in self.cross_spectra])
+        crossft_list = np.hstack([c.crossft for c in self.cross_spectra])
+
+        bin_edges = [fmin, fmax]
+        real_mean, _, _ = binned_statistic(freq_list, crossft_list.real, statistic='mean', bins=bin_edges)
+        imag_mean, _, _ = binned_statistic(freq_list, crossft_list.imag, statistic='mean', bins=bin_edges)
+        return np.complex(real_mean, imag_mean)

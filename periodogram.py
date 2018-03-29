@@ -117,7 +117,7 @@ class Periodogram(object):
         per = psdnorm * np.abs(ft) ** 2
         return f, per
 
-    def bin(self, bins):
+    def bin(self, bins, calc_error=True):
         """
         perbin = pylag.Periodogram.bin(bins)
 
@@ -126,8 +126,10 @@ class Periodogram(object):
 
         Arguments
         ---------
-        bins : Binning
-               pyLag Binning object to perform the Binning
+        bins       : Binning
+                     pyLag Binning object to perform the Binning
+        calc_error : bool, optional (default=True)
+                     Whether the error on each bin is required in returned periodogram
 
         Returns
         -------
@@ -138,8 +140,13 @@ class Periodogram(object):
         if not isinstance(bins, Binning):
             raise ValueError("pyLag CrossSpectrum bin ERROR: Expected a Binning object")
 
+        if calc_error:
+            binned_error = bins.std_error(self.freq, self.periodogram)
+        else:
+            binned_error = None
+
         return Periodogram(f=bins.bin_cent, per=bins.bin(self.freq, self.periodogram),
-                           err=bins.std_error(self.freq, self.periodogram), ferr=bins.x_error())
+                           err=binned_error, ferr=bins.x_error())
 
     def points_in_bins(self, bins):
         """
@@ -164,7 +171,7 @@ class Periodogram(object):
 
         return bins.points_in_bins(self.freq, self.periodogram)
 
-    def freq_average(self, fmin, fmax):
+    def freq_average_slow(self, fmin, fmax):
         """
         per_avg = pylag.Periodogram.freq_average(fmin, fmax)
 
@@ -184,6 +191,29 @@ class Periodogram(object):
                   The average value of the periodogram over the frequency range
         """
         return np.mean([p for f, p in zip(self.freq, self.periodogram) if fmin <= f < fmax])
+
+    def freq_average(self, fmin, fmax):
+        """
+        per_avg = pylag.Periodogram.freq_average(fmin, fmax)
+
+        calculate the average value of the periodogram over a specified frequency
+        interval.
+
+        Arguments
+        ---------
+        fmin : float
+               Lower bound of frequency range
+        fmax : float
+               Upper bound of frequency range
+
+        Returns
+        -------
+        per_avg : float
+                  The average value of the periodogram over the frequency range
+        """
+        bin_edges = [fmin, fmax]
+        per_mean, _, _ = binned_statistic(self.freq, self.periodogram, statistic='mean', bins=bin_edges)
+        return per_mean[0]
 
     def points_in_freqrange(self, fmin, fmax):
         """
@@ -244,7 +274,7 @@ class StackedPeriodogram(Periodogram):
               averaged over specified frequency ranges
     """
 
-    def __init__(self, lc_list, bins=None):
+    def __init__(self, lc_list, bins=None, calc_error=True):
         self.periodograms = []
         for lc in lc_list:
             self.periodograms.append(Periodogram(lc))
@@ -258,11 +288,11 @@ class StackedPeriodogram(Periodogram):
         if bins is not None:
             freq = bins.bin_cent
             ferr = bins.x_error()
-            per, err = self.calculate()
+            per, err = self.calculate(calc_error)
 
         Periodogram.__init__(self, f=freq, per=per, err=err, ferr=ferr)
 
-    def calculate(self):
+    def calculate_slow(self, calc_error=True):
         """
         per, err = pylag.StackedPeriodogram.calculate()
 
@@ -298,7 +328,32 @@ class StackedPeriodogram(Periodogram):
 
         return np.array(per), np.array(err)
 
-    def freq_average(self, fmin, fmax):
+    def calculate(self, calc_error=True):
+        """
+        per, err = pylag.StackedPeriodogram.calculate()
+
+        Calculates the average periodogram in each frequency bin. The final
+        periodogram in each bin is the average over all of the individual
+        frequency points from all of the light curves that fall into that bin.
+
+        Returns
+        -------
+        per : ndarray
+              The average periodogram in each frequency bin
+        err : ndarray
+              The standard error of the periodogram in each bin
+        """
+        freq_list = np.hstack([p.freq for p in self.periodograms])
+        per_list = np.hstack([p.periodogram for p in self.periodograms])
+
+        if calc_error:
+            error = self.bins.std_error(freq_list, per_list)
+        else:
+            error = None
+
+        return self.bins.bin(freq_list, per_list), error
+
+    def freq_average_slow(self, fmin, fmax):
         """
         per_avg = pylag.StackedPeriodogram.freq_average(fmin, fmax)
 
@@ -325,3 +380,32 @@ class StackedPeriodogram(Periodogram):
             per_points += per.points_in_freqrange(fmin, fmax)
 
         return np.mean(per_points)
+
+    def freq_average(self, fmin, fmax):
+        """
+        per_avg = pylag.StackedPeriodogram.freq_average(fmin, fmax)
+
+        calculate the average value of the periodogram over a specified
+        frequency interval. The final periodogram is the average over all of
+        the individual frequency points from all of the light curves that fall
+        into the range.
+
+        Arguments
+        ---------
+        fmin : float
+               Lower bound of frequency range
+        fmax : float
+               Upper bound of frequency range
+
+        Returns
+        -------
+        per_avg : complex
+                  The average value of the cross spectrum over the frequency range
+
+        """
+        freq_list = np.hstack([p.freq for p in self.periodograms])
+        per_list = np.hstack([p.periodogram for p in self.periodograms])
+
+        bin_edges = [fmin, fmax]
+        per_mean, _, _ = binned_statistic(freq_list, per_list, statistic='mean', bins=bin_edges)
+        return per_mean[0]

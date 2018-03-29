@@ -32,8 +32,7 @@ class Binning(object):
     num       : int
                 The number of bins
     """
-
-    def bin(self, x, y):
+    def bin_slow(self, x, y):
         """
         binned = pylag.Binning.bin(x, y)
 
@@ -84,6 +83,61 @@ class Binning(object):
         binned,_,_ = binned_statistic(x, y, statistic='mean', bins=self.bin_edges)
         return binned
 
+    def bin_fast_complex(self, x, y):
+        """
+        binned = pylag.Binning.bin_fast(x, y)
+
+        bin (x,y) data by x values into the bins specified by this object and
+        return the mean value in each bin, for complex variable y
+
+        Uses scipy binned_statistic for faster binning
+
+        Arguments
+        ---------
+        x : ndarray or list
+            The abcissa of input data points that are to be binned
+        y : ndarray or list
+            The ordinate/value of input data points
+
+        Returns
+        -------
+        binned : ndarray
+                 The mean value in each bin
+
+        """
+        real = y.real
+        imag = y.imag
+
+        real_binned, _, _ = binned_statistic(x, real, statistic='mean', bins=self.bin_edges)
+        imag_binned, _, _ = binned_statistic(x, imag, statistic='mean', bins=self.bin_edges)
+        binned = np.array([np.complex(r, i) for r, i in zip(real_binned, imag_binned)])
+        return binned
+
+    def bin(self, x, y):
+        """
+        binned = pylag.Binning.bin(x, y)
+
+        bin (x,y) data by x values into the bins specified by this object and
+        return the mean value in each bin.
+
+        Arguments
+        ---------
+        x : ndarray or list
+            The abcissa of input data points that are to be binned
+        y : ndarray or list
+            The ordinate/value of input data points
+
+        Returns
+        -------
+        binned : ndarray
+                 The mean value in each bin
+
+        """
+        if y.dtype == 'complex':
+            return self.bin_fast_complex(x, y)
+        else:
+            return self.bin_fast(x, y)
+
     def points_in_bins(self, x, y):
         """
         points = pylag.Binning.points_in_bins(x, y)
@@ -109,7 +163,7 @@ class Binning(object):
 
         return points
 
-    def num_points_in_bins(self, x):
+    def num_points_in_bins_slow(self, x):
         """
         bin_num = pylag.Binning.num_points_in_bins(x, y)
 
@@ -132,7 +186,28 @@ class Binning(object):
 
         return np.array(bin_num)
 
-    def std(self, x, y):
+    def num_points_in_bins(self, x):
+        """
+        bin_num = pylag.Binning.num_points_in_bins(x, y)
+
+        Return the number of data points that fall into each bin.
+
+        Arguments
+        ---------
+        x : ndarray or list
+            The abcissa of input data points that are to be binned
+
+        Returns
+        -------
+        bin_num : ndarray
+                  The number of data points that fall into each bin
+
+        """
+        num, _, _ = binned_statistic(x, np.ones(x.shape), statistic='sum', bins=self.bin_edges)
+        return num.astype(int)
+
+
+    def std_slow(self, x, y):
         """
         stdev = pylag.Binning.std(x, y)
 
@@ -157,7 +232,83 @@ class Binning(object):
 
         return np.array(stdev)
 
-    def std_error(self, x, y):
+    def std_fast(self, x, y):
+        """
+        stdev = pylag.Binning.std(x, y)
+
+        Return the standard deviation of the data points in each bin
+
+        Arguments
+        ---------
+        x : ndarray or list
+            The abcissa of input data points that are to be binned
+        y : ndarray or list
+            The ordinate/value of input data points
+
+        Returns
+        -------
+        stdev : ndarray
+                The standard deviation in each bin
+
+        """
+        binned,_,_ = binned_statistic(x, y, statistic='std', bins=self.bin_edges)
+        return binned
+
+    def std_fast_complex(self, x, y):
+        """
+        stdev = pylag.Binning.std(x, y)
+
+        Return the standard deviation of the data points in each bin
+        For complex variable y
+
+        Arguments
+        ---------
+        x : ndarray or list
+            The abcissa of input data points that are to be binned
+        y : ndarray or list
+            The ordinate/value of input data points
+
+        Returns
+        -------
+        stdev : ndarray
+                The standard deviation in each bin
+
+        """
+        real = y.real
+        imag = y.imag
+
+        # THIS DOES NOT WORK!!! Need to work out how to calculate std from reals
+
+        real_binned, _, _ = binned_statistic(x, real, statistic='std', bins=self.bin_edges)
+        imag_binned, _, _ = binned_statistic(x, imag, statistic='std', bins=self.bin_edges)
+        binned = np.array([np.complex(r, i) for r, i in zip(real_binned, imag_binned)])
+        return binned
+
+    def std(self, x, y):
+        """
+        stdev = pylag.Binning.std(x, y)
+
+        Return the standard deviation of the data points in each bin
+
+        Arguments
+        ---------
+        x : ndarray or list
+            The abcissa of input data points that are to be binned
+        y : ndarray or list
+            The ordinate/value of input data points
+
+        Returns
+        -------
+        stdev : ndarray
+                The standard deviation in each bin
+
+        """
+        if y.dtype == 'complex':
+            return self.std_slow(x, y)
+        else:
+            return self.std_fast(x, y)
+
+    def std_error_slow(self, x, y):
         """
         stderr = pylag.Binning.std_error(x, y)
 
@@ -177,6 +328,30 @@ class Binning(object):
 
         """
         return self.std(x, y) / np.sqrt(self.num_points_in_bins(x))
+
+    def std_error(self, x, y):
+        """
+        stderr = pylag.Binning.std_error(x, y)
+
+        Return the standard error of the data points in each bin
+
+        Arguments
+        ---------
+        x : ndarray or list
+            The abcissa of input data points that are to be binned
+        y : ndarray or list
+            The ordinate/value of input data points
+
+        Returns
+        -------
+        binned : ndarray
+                 The standard error in each bin
+
+        """
+        std, _, binnum = binned_statistic(x, y, statistic='std', bins=self.bin_edges)
+        num_points = np.array([len(binnum[binnum==i+1]) for i in range(len(self))])
+
+        return std / np.sqrt(num_points)
 
     def x_error(self):
         """
