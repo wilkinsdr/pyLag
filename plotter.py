@@ -680,7 +680,7 @@ class AverageDataSeries(DataSeries):
             self.std = np.std(np.array([o._getplotdata()[1][0] for o in data_objects]), axis=0)
         else:
             self.mean = np.mean(np.array([o._getplotdata()[1] for o in data_objects]), axis=0)
-            self.std = np.mean(np.array([o._getplotdata()[1] for o in data_objects]), axis=0)
+            self.std = np.std(np.array([o._getplotdata()[1] for o in data_objects]), axis=0)
 
         self.ydata = (self.mean, self.std)
 

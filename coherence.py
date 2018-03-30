@@ -100,6 +100,10 @@ class Coherence(object):
             self.per2 = Periodogram(lc2)
             if bins is not None:
                 self.num_freq = lc1.bin_num_freq(bins)
+                # apply binning to cross spectrum and periodogram
+                self.cross_spec = self.cross_spec.bin(bins)
+                self.per1 = self.per1.bin(bins, calc_error=False)
+                self.per2 = self.per2.bin(bins, calc_error=False)
             elif fmin > 0 and fmax > 0:
                 self.num_freq = lc1.num_freq_in_range(fmin, fmax)
             self.lc1mean = lc1.mean()
@@ -110,8 +114,8 @@ class Coherence(object):
         # the light curves
         elif isinstance(lc1, list) and isinstance(lc2, list):
             self.cross_spec = StackedCrossSpectrum(lc1, lc2, bins)
-            self.per1 = StackedPeriodogram(lc1, bins)
-            self.per2 = StackedPeriodogram(lc2, bins)
+            self.per1 = StackedPeriodogram(lc1, bins, calc_error=False)
+            self.per2 = StackedPeriodogram(lc2, bins, calc_error=False)
             if bins is not None:
                 self.num_freq = np.zeros(bins.num)
 
@@ -125,6 +129,10 @@ class Coherence(object):
             self.lc2mean = stacked_mean_count_rate(lc2)
 
         self.coh = self.calculate(bins, fmin, fmax, bias)
+
+        # delete the cross spectrum and periodograms to save some memory once
+        # we've finished the calculation
+        del self.cross_spec, self.per1, self.per2
 
     def calculate(self, bins=None, fmin=None, fmax=None, bias=True):
         """
@@ -156,9 +164,11 @@ class Coherence(object):
               calculated over a single frequency range
         """
         if bins is not None:
-            cross_spec = self.cross_spec.bin(self.bins).crossft
-            per1 = self.per1.bin(self.bins).periodogram
-            per2 = self.per2.bin(self.bins).periodogram
+            # note the binning is already taken care of in the constructor
+            # since the StackedPeriodogram needs to be binned when created
+            cross_spec = self.cross_spec.crossft
+            per1 = self.per1.periodogram
+            per2 = self.per2.periodogram
         elif fmin > 0 and fmax > 0:
             cross_spec = self.cross_spec.freq_average(fmin, fmax)
             per1 = self.per1.freq_average(fmin, fmax)

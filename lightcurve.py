@@ -615,7 +615,7 @@ class LightCurve(object):
 
         return bins.num_points_in_bins(freq)
 
-    def num_freq_in_range(self, fmin, fmax):
+    def num_freq_in_range_slow(self, fmin, fmax):
         """
         num_freq = pylag.LightCurve.num_freq_in_range()
 
@@ -637,6 +637,28 @@ class LightCurve(object):
         freq = scipy.fftpack.fftfreq(self.length, d=self.dt)
 
         return len([f for f in freq if fmin <= f < fmax])
+
+    def num_freq_in_range(self, fmin, fmax):
+        """
+        num_freq = pylag.LightCurve.num_freq_in_range()
+
+        Returns the number of sample frequencies that fall into bins specified
+        in a pyLag Binning object
+
+        Arguments
+        ---------
+        fmin : float
+               Lower bound of frequency range
+        fmax : float
+               Upper bound of frequency range
+
+        Returns
+        -------
+        numfreq : ndarray
+                  The number of frequencies falling into each bin
+        """
+        freq = scipy.fftpack.fftfreq(self.length, d=self.dt)
+        return int((fmax - fmin) / (freq[1] - freq[0])) + 1
 
     def concatenate(self, other):
         """
@@ -889,7 +911,7 @@ def get_lclist(searchstr, **kwargs):
     return lclist
 
 
-def stacked_mean_count_rate(lclist):
+def stacked_mean_count_rate_slow(lclist):
     """
     mean_rate = pylag.stacked_mean_count_rate(lclist)
 
@@ -908,6 +930,24 @@ def stacked_mean_count_rate(lclist):
     for lc in lclist:
         rate_points += lc.rate.tolist()
     return np.mean(rate_points)
+
+
+def stacked_mean_count_rate(lclist):
+    """
+    mean_rate = pylag.stacked_mean_count_rate(lclist)
+
+    Return the mean count rate over a list of light curves
+
+    Arguments
+    ---------
+    lclist : list of LightCurve objects
+
+    Returns
+    -------
+    mean_rate : float
+                The mean count rate
+    """
+    return np.mean(np.hstack([lc.rate for lc in lclist]))
 
 
 def extract_sim_lightcurves(lc1, lc2):

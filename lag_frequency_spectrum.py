@@ -88,15 +88,16 @@ class LagFrequencySpectrum(object):
 
         if isinstance(lc1, list) and isinstance(lc2, list):
             print("Constructing lag-frequency spectrum from %d pairs of light curves" % len(lc1))
-            self.cross_spec = StackedCrossSpectrum(lc1, lc2, bins)
-            self.coh = Coherence(lc1, lc2, bins)
+            cross_spec = StackedCrossSpectrum(lc1, lc2, bins)
+            coh = Coherence(lc1, lc2, bins)
         elif isinstance(lc1, LightCurve) and isinstance(lc2, LightCurve):
             print("Computing lag-frequency spectrum from pair of light curves")
-            self.cross_spec = CrossSpectrum(lc1, lc2).bin(bins)
-            self.coh = Coherence(lc1, lc2, bins)
+            cross_spec = CrossSpectrum(lc1, lc2).bin(bins)
+            coh = Coherence(lc1, lc2, bins)
 
-        f, self.lag = self.cross_spec.lag_spectrum()
-        self.error = self.coh.lag_error()
+        f, self.lag = cross_spec.lag_spectrum()
+        self.error = coh.lag_error()
+        self.coh = coh.coh
 
     def _getplotdata(self):
         return (self.freq, self.freq_error), (self.lag, self.error)
