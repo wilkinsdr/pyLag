@@ -378,7 +378,6 @@ class StackedCrossSpectrum(CrossSpectrum):
         """
         freq_list = np.hstack([c.freq for c in self.cross_spectra])
         crossft_list = np.hstack([c.crossft for c in self.cross_spectra])
-
         return self.bins.bin(freq_list, crossft_list)
 
     def freq_average_slow(self, fmin, fmax):

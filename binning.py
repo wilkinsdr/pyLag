@@ -133,7 +133,7 @@ class Binning(object):
                  The mean value in each bin
 
         """
-        if y.dtype == 'complex':
+        if y.dtype == 'complex' or y.dtype == 'complex64' or y.dtype == 'complex128':
             return self.bin_fast_complex(x, y)
         else:
             return self.bin_fast(x, y)
