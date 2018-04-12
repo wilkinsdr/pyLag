@@ -638,6 +638,48 @@ class DataSeries(object):
             raise AssertionError('Data format mismatch')
 
 
+class Spectrum(object):
+    def __init__(self, en, spec, err=None, xlabel='Energy / keV', xscale='log', ylabel='Count Rate', yscale='log'):
+        self.en = en
+        self.spec = spec
+        self.error = err
+
+        self.xlabel = xlabel
+        self.xscale = xscale
+        self.ylabel = ylabel
+        self.yscale = yscale
+
+    def _getplotdata(self):
+        if self.error is not None:
+            return self.en, (self.spec, self.error)
+        else:
+            return self.en, self.spec
+
+    def _getplotaxes(self):
+        return self.xlabel, self.xscale, self.ylabel, self.yscale
+
+    def rebin2(self, Nen=None, logbin=True, den=None):
+        if logbin:
+            if den is None:
+                den = np.exp(np.log(self.en.max() / self.en.min()) / (float(Nen) - 1.))
+            en_bin = self.en.min() * den ** np.arange(0, Nen+1, 1)
+        else:
+            if den is None:
+                den = (self.en.max() - self.en.min()) / (float(Nen) - 1.)
+            en_bin = np.arange(self.en.min(), self.en.max() + 2*den, den)
+
+        spec_bin,_,_ = binned_statistic(self.en, self.spec, statistic='mean', bins=en_bin)
+        return Spectrum(en=en_bin, spec=spec_bin, xlabel=self.xlabel, xscale=self.xscale, ylabel=self.ylabel,
+                        yscale=self.yscale)
+
+    def rebin(self, bins=None, Nbins=None):
+        if bins is None:
+            bins = LogBinning(self.en.min(), self.en.max(), Nbins)
+        spec_bin = bins.bin(self.en, self.spec)
+        return Spectrum(en=bins.bin_cent, spec=spec_bin, xlabel=self.xlabel, xscale=self.xscale, ylabel=self.ylabel,
+                        yscale=self.yscale)
+
+
 def dataset_ratio(ds1, ds2):
     x1, y1 = ds1._getplotdata()
     x2, y2 = ds2._getplotdata()
