@@ -22,6 +22,7 @@ import matplotlib.colors as colors
 from scipy.stats import binned_statistic
 
 from .binning import *
+from .plotter import Spectrum
 
 
 def weighted_std(values, weights):
@@ -36,7 +37,7 @@ def weighted_std(values, weights):
 
 
 class ENTResponse(object):
-    def __init__(self, filename=None, hduname=None, hdunum=0, en_bins=None, t=None, ent=None, tstart=0.):
+    def __init__(self, filename=None, hduname=None, hdunum=0, en_bins=None, t=None, ent=None, logbin_en=None, tstart=0.):
         self.en = np.array([])
         self.time = np.array([])
         self.ent = np.array([])
@@ -51,6 +52,8 @@ class ENTResponse(object):
                 self.time = t
             if ent is not None:
                 self.ent = ent
+            if logbin_en is not None:
+                self.logbin_en = logbin_en
 
         self.t0 = min(self.time)
         self.dt = self.time[1] - self.time[0]
@@ -77,7 +80,7 @@ class ENTResponse(object):
         try:
             en0 = hdu.header['EN0']
             Nen = hdu.header['NEN']
-            logbin_en = False  # hdu.header['ENLOG']
+            logbin_en = hdu.header['ENLOG']
 
             try:
                 enmax = hdu.header['ENMAX']
@@ -263,39 +266,96 @@ class ENTResponse(object):
             lclist.append(self.time_response(index=ien).convolve(lc))
         return SimEnergyLCList(enmin=self.en_bins.bin_start, enmax=self.en_bins.bin_end, lclist=lclist)
 
-class Spectrum(object):
-    def __init__(self, en, spec, xlabel='Energy / keV', xscale='log', ylabel='Count Rate', yscale='log'):
-        self.en = en
-        self.spec = spec
+    def write_fits(self, filename):
+        hdu = pyfits.PrimaryHDU()
 
-        self.xlabel = xlabel
-        self.xscale = xscale
-        self.ylabel = ylabel
-        self.yscale = yscale
+        hdu.header['EN0'] = self.en_bins.bin_start[0]
+        hdu.header['ENMAX'] = self.en_bins.bin_end[-1]
+        hdu.header['NEN'] = len(self.en_bins)
+        hdu.header['ENLOG'] = self.logbin_en
 
-    def _getplotdata(self):
-        return self.en, self.spec
+        hdu.header['T0'] = self.t0
+        hdu.header['DT'] = self.dt
+        hdu.header['NT'] = len(self.time)
+        hdu.header['TSTART'] = self.tstart
 
-    def _getplotaxes(self):
-        return self.xlabel, self.xscale, self.ylabel, self.yscale
+        hdu.data = self.ent
 
-    def rebin2(self, Nen=None, logbin=True, den=None):
-        if logbin:
-            if den is None:
-                den = np.exp(np.log(self.en.max() / self.en.min()) / (float(Nen) - 1.))
-            en_bin = self.en.min() * den ** np.arange(0, Nen+1, 1)
+        hdu.writeto(filename)
+
+    def __add__(self, other):
+        if not isinstance(other, ENTResponse):
+            return NotImplemented
+
+        if self.ent.shape != other.ent.shape:
+            raise AssertionError("Response matrices must have the same dimensions to be added!")
+
+        sum_ent = self.ent + other.ent
+
+        return ENTResponse(en_bins=self.en_bins, t=self.time, ent=sum_ent, logbin_en=self.logbin_en, tstart=self.tstart)
+
+    def __iadd__(self, other):
+        if not isinstance(other, ENTResponse):
+            return NotImplemented
+
+        if self.ent.shape != other.ent.shape:
+            raise AssertionError("Response matrices must have the same dimensions to be added!")
+
+        self.ent += other.ent
+
+    def __sub__(self, other):
+        if not isinstance(other, ENTResponse):
+            return NotImplemented
+
+        if self.ent.shape != other.ent.shape:
+            raise AssertionError("Response matrices must have the same dimensions to be subtracted!")
+
+        sub_ent = self.ent - other.ent
+
+        return ENTResponse(en_bins=self.en_bins, t=self.time, ent=sub_ent, logbin_en=self.logbin_en, tstart=self.tstart)
+
+    def __isub__(self, other):
+        if not isinstance(other, ENTResponse):
+            return NotImplemented
+
+        if self.ent.shape != other.ent.shape:
+            raise AssertionError("Response matrices must have the same dimensions to be subtracted!")
+
+        self.ent -= other.ent
+
+    def __mul__(self, other):
+        if isinstance(other, (int, float)):
+            mul_ent = self.ent * other
+        elif isinstance(other, ENTResponse):
+            mul_ent = self.ent * other.ent
         else:
-            if den is None:
-                den = (self.en.max() - self.en.min()) / (float(Nen) - 1.)
-            en_bin = np.arange(self.en.min(), self.en.max() + 2*den, den)
+            return NotImplemented
 
-        spec_bin,_,_ = binned_statistic(self.en, self.spec, statistic='mean', bins=en_bin)
-        return Spectrum(en=en_bin, spec=spec_bin, xlabel=self.xlabel, xscale=self.xscale, ylabel=self.ylabel,
-                        yscale=self.yscale)
+        return ENTResponse(en_bins=self.en_bins, t=self.time, ent=mul_ent, logbin_en=self.logbin_en, tstart=self.tstart)
 
-    def rebin(self, bins=None, Nbins=None):
-        if bins is None:
-            bins = LogBinning(self.en.min(), self.en.max(), Nbins)
-        spec_bin = bins.bin(self.en, self.spec)
-        return Spectrum(en=bins.bin_cent, spec=spec_bin, xlabel=self.xlabel, xscale=self.xscale, ylabel=self.ylabel,
-                        yscale=self.yscale)
+    def __imul__(self, other):
+        if isinstance(other, (int, float)):
+            self.ent *= other
+        elif isinstance(other, ENTResponse):
+            self.ent *= other.ent
+        else:
+            return NotImplemented
+
+    def __div__(self, other):
+        if isinstance(other, (int, float)):
+            div_ent = self.ent / other
+        elif isinstance(other, ENTResponse):
+            div_ent = self.ent / other.ent
+        else:
+            return NotImplemented
+
+        return ENTResponse(en_bins=self.en_bins, t=self.time, ent=div_ent, logbin_en=self.logbin_en, tstart=self.tstart)
+
+    def __idiv__(self, other):
+        if isinstance(other, (int, float)):
+            self.ent /= other
+        elif isinstance(other, ENTResponse):
+            self.ent /= other.ent
+        else:
+            return NotImplemented
+
