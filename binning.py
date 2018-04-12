@@ -203,7 +203,8 @@ class Binning(object):
                   The number of data points that fall into each bin
 
         """
-        num, _, _ = binned_statistic(x, np.ones(x.shape), statistic='sum', bins=self.bin_edges)
+        # num, _, _ = binned_statistic(x, np.ones(x.shape), statistic='sum', bins=self.bin_edges)
+        num, _ = np.histogram(x, bins=self.bin_edges)
         return num.astype(int)
 
 
