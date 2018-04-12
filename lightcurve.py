@@ -185,7 +185,7 @@ class LightCurve(object):
         """
         self.time = self.time - self.time.min()
 
-    def _interp_gaps(self, max_gap=0):
+    def _interp_gaps(self, max_gap=0, min_gap=0, zero_gaps=False):
         """
         pylag.LightCurve._interp_gaps(max_gap=0)
 
@@ -207,19 +207,20 @@ class LightCurve(object):
         longest_gap = 0
 
         for i in range(len(self.rate)):
+            gap_cond = np.isnan(self.rate[i]) or (zero_gaps and self.rate[i] == 0)
             if not in_gap:
-                if np.isnan(self.rate[i]):
+                if gap_cond:
                     in_gap = True
                     gap_start = i - 1
 
             elif in_gap:
-                if not np.isnan(self.rate[i]):
+                if not gap_cond:
                     gap_end = i
                     in_gap = False
 
                     gap_length = gap_end - gap_start
 
-                    if gap_length < max_gap or max_gap==0:
+                    if (gap_length < max_gap or max_gap==0) and gap_length >= min_gap:
                         gap_count += 1
                         self.rate[gap_start:gap_end] = np.interp(self.time[gap_start:gap_end],
                                                                  [self.time[gap_start], self.time[gap_end]],
