@@ -170,13 +170,18 @@ class ENTResponse(object):
 
         if vmin is None:
             vmin = self.ent.min()
+        elif mult_scale:
+            vmin *= self.ent.max()
         if vmax is None:
             vmax = self.ent.max()
-        if mult_scale:
-            vmin *= self.ent.max()
+        elif mult_scale:
             vmax *= self.ent.max()
         if vmin == 0:
             vmin = 1.e-3
+
+        if isinstance(self.en_bins, LogBinning):
+            ax.set_yscale('log')
+
         ax.pcolormesh(self.time, self.en_bins.bin_cent, self.ent, norm=colors.LogNorm(vmin=vmin, vmax=vmax), cmap=cmap)
         plt.xlabel('Time')
         plt.ylabel('Energy / keV')
