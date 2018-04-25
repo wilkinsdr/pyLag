@@ -7,9 +7,9 @@ See the wiki for documentation
 
 Dependencies
 ------------
-- pyfits (change to astropy.io.fits coming soon!)
+- astropy.io.fits or pyfits
 - numpy
-- scipy (specifically fftpack)
+- scipy (specifically fftpack and stats)
 - matplotlib (for plotting functionality)
 
 pyLag runs in python 2 or 3.
