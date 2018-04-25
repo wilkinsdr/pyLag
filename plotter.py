@@ -690,7 +690,7 @@ def dataset_ratio(ds1, ds2):
     if isinstance(y1, tuple):
         yd1 = y1[0]
         ye1 = y1[1]
-    elif isinstance(y1, np.ndarray):
+    elif isinstance(y1, (np.ndarray, list)):
         yd1 = y1
         ye1 = np.zeros(len(yd1))
     else:
@@ -711,8 +711,6 @@ def dataset_ratio(ds1, ds2):
         ratio = (ratio, ratio_err)
 
     return DataSeries(x1, ratio, xlabel, xscale, 'ratio', 'linear')
-
-
 
 
 class AverageDataSeries(DataSeries):
