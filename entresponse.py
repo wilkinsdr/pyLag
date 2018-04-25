@@ -52,8 +52,12 @@ class ENTResponse(object):
                 self.time = t
             if ent is not None:
                 self.ent = ent
+            elif en_bins is not None and t is not None:
+                self.ent = np.zeros((len(en_bins), len(t)))
             if logbin_en is not None:
                 self.logbin_en = logbin_en
+            else:
+                self.logbin_en = False
 
         self.t0 = min(self.time)
         self.dt = self.time[1] - self.time[0]
@@ -301,12 +305,13 @@ class ENTResponse(object):
 
     def __iadd__(self, other):
         if not isinstance(other, ENTResponse):
-            return NotImplemented
+            raise AssertionError("Can only add ENTResponse objects!")
 
         if self.ent.shape != other.ent.shape:
             raise AssertionError("Response matrices must have the same dimensions to be added!")
 
         self.ent += other.ent
+        return self
 
     def __sub__(self, other):
         if not isinstance(other, ENTResponse):
@@ -327,6 +332,7 @@ class ENTResponse(object):
             raise AssertionError("Response matrices must have the same dimensions to be subtracted!")
 
         self.ent -= other.ent
+        return self
 
     def __mul__(self, other):
         if isinstance(other, (int, float)):
@@ -346,6 +352,8 @@ class ENTResponse(object):
         else:
             return NotImplemented
 
+        return self
+
     def __div__(self, other):
         if isinstance(other, (int, float)):
             div_ent = self.ent / other
@@ -363,4 +371,6 @@ class ENTResponse(object):
             self.ent /= other.ent
         else:
             return NotImplemented
+
+        return self
 
