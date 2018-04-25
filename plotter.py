@@ -551,7 +551,8 @@ def write_data(data_object, filename, xdata=None, ydata=None, mode='w', fmt='%15
     else:
         data.append(yd)
 
-    data = np.array(data).transpose()
+    #data = np.array(data).transpose()
+    data = tuple(data)
 
     with open(filename, mode) as fhandle:
         np.savetxt(fhandle, data, fmt=fmt, delimiter=delimiter)
@@ -698,7 +699,7 @@ def dataset_ratio(ds1, ds2):
     if isinstance(y2, tuple):
         yd2 = y2[0]
         ye2 = y2[1]
-    elif isinstance(y1, np.ndarray, list):
+    elif isinstance(y1, (np.ndarray, list)):
         yd2 = y2
         ye2 = np.zeros(len(yd2))
     else:
