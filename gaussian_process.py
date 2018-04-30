@@ -12,7 +12,7 @@ v1.0 09/03/2017 - D.R. Wilkins
 import numpy as np
 
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
+from sklearn.gaussian_process.kernels import RBF, RationalQuadratic, WhiteKernel, ConstantKernel as C
 
 from .lightcurve import *
 from .periodogram import *
@@ -29,14 +29,18 @@ class GPLightCurve(LightCurve):
 
         # need to remove the gaps from the light curve
         # (only store the non-zero time bins)
-        self.remove_gaps()
+        self.remove_gaps(to_self=True)
+
+        self.mean_rate = self.mean()
 
         if kernel is not None:
             self.kernel = kernel
         else:
-            self.kernel = C(1.0, (1e-3,1e3)) * RBF(10, (1e-2,1e2))
+            #self.kernel = C(1.0, (1e-3,1e3)) * RBF(10, (np.min(np.diff(self.time)),1e10))
+            #self.kernel = RBF(1, (1e-5, 1e10))
+            self.kernel = k = C(1.0, (1e-3,1e3)) * RationalQuadratic()
 
-        self.gp_regressor = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=n_restarts_optimizer)
+        self.gp_regressor = GaussianProcessRegressor(kernel=self.kernel, n_restarts_optimizer=n_restarts_optimizer, normalize_y=True)
 
         if run_fit:
             self.fit()
@@ -48,15 +52,20 @@ class GPLightCurve(LightCurve):
     def predict(self, t=None):
         if t is None:
             t = np.arange(self.time.min(), self.time.max(), np.min(np.diff(self.time)))
-        r, e = self.gp_regressor.predict(t, return_std=True)
+        t_samples = np.atleast_2d(t).T
+        r, e = self.gp_regressor.predict(t_samples, return_std=True)
         return LightCurve(t=t, r=r, e=e)
 
-    def sample(self, t=None):
+    def sample(self, n_samples=1, t=None):
         if t is None:
             t = np.arange(self.time.min(), self.time.max(), np.min(np.diff(self.time)))
-        r = self.gp_regressor.sample_y(t)
-        e = np.zeros(r.shape)
-        return LightCurve(t=t, r=r, e=e)
+        t_samples = np.atleast_2d(t).T
+        r = self.gp_regressor.sample_y(t_samples, n_samples=n_samples)
+        e = np.zeros(t.shape)
+        if n_samples == 1:
+            return LightCurve(t=t, r=r.ravel(), e=e)
+        else:
+            return [LightCurve(t=t, r=r[:,n], e=e) for n in range(n_samples)]
 
 
 class GPPeriodogram(Periodogram):
@@ -73,18 +82,20 @@ class GPPeriodogram(Periodogram):
         Periodogram.__init__(self, f=freq, per=per, err=err, ferr=freq_error)
 
     def calculate(self, n_samples=10, bins=None):
-        per = []
-        freq = None
-        for n in range(n_samples):
-            sample_per = Periodogram(self.gplc.sample())
-            if bins is not None:
-                sample_per = sample_per.bin(bins, calc_error=False)
-            per.append(sample_per.periodogram)
-            if n == 0:
-                freq = sample_per.freq
-                freq_error = sample_per.freq_error
+        sample_lcs = self.gplc.sample(t=None, n_samples=n_samples)
+        if not isinstance(sample_lcs, list):
+            sample_lcs = [sample_lcs]
 
-        per_avg = np.mean(np.array(per), axis=0)
-        per_std = np.std(np.array(per), axis=0)
+        if bins is not None:
+            freq = sample_lcs[0].ftfreq()
+            freq_error = None
+            per = np.array([Periodogram(lc).bin(bins).periodogram for lc in sample_lcs])
+        else:
+            freq = bins.bin_cent
+            freq_error = bins.bin_end - bins.bin_cent
+            per = np.array([Periodogram(lc).periodogram for lc in sample_lcs])
+
+        per_avg = np.mean(per, axis=0)
+        per_std = np.std(per, axis=0)
 
         return freq, freq_error, per_avg, per_std
