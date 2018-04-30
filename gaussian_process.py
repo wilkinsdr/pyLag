@@ -38,7 +38,7 @@ class GPLightCurve(LightCurve):
         else:
             #self.kernel = C(1.0, (1e-3,1e3)) * RBF(10, (np.min(np.diff(self.time)),1e10))
             #self.kernel = RBF(1, (1e-5, 1e10))
-            self.kernel = k = C(1.0, (1e-3,1e3)) * RationalQuadratic()
+            self.kernel = C(1.0, (1e-3,1e3)) * RationalQuadratic()
 
         self.gp_regressor = GaussianProcessRegressor(kernel=self.kernel, n_restarts_optimizer=n_restarts_optimizer, normalize_y=True)
 
@@ -87,12 +87,12 @@ class GPPeriodogram(Periodogram):
             sample_lcs = [sample_lcs]
 
         if bins is not None:
-            freq = sample_lcs[0].ftfreq()
-            freq_error = None
-            per = np.array([Periodogram(lc).bin(bins).periodogram for lc in sample_lcs])
-        else:
             freq = bins.bin_cent
             freq_error = bins.bin_end - bins.bin_cent
+            per = np.array([Periodogram(lc).bin(bins).periodogram for lc in sample_lcs])
+        else:
+            freq = sample_lcs[0].ftfreq()
+            freq_error = None
             per = np.array([Periodogram(lc).periodogram for lc in sample_lcs])
 
         per_avg = np.mean(per, axis=0)
