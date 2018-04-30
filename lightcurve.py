@@ -409,6 +409,14 @@ class LightCurve(object):
         print("Good segment lengths: ", good_length)
         print("Gaps: ", gap_length)
 
+    def remove_gaps(self):
+        t = self.time[self.rate>0]
+        r = self.rate[self.rate>0]
+        e = self.error[self.rate>0]
+        lc = LightCurve(t=t,r=r, e=e)
+        lc.__class__ = self.__class__
+        return lc
+
     def rebin(self, tbin):
         """
         rebin_lc = pylag.LightCurve.rebin(tbin)

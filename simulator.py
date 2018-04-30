@@ -151,6 +151,18 @@ class SimLightCurve(LightCurve):
 
         return SimLightCurve(t=self.time, r=rate, e=error)
 
+    def add_gaps(self, period, length):
+        freq = 1. / period
+        duty = (period - length) / period
+
+        window = scipy.signal.square(2*np.pi*freq*self.time, duty=duty)
+        window[window < 0] = 0
+
+        rate = self.rate * window
+        error = self.error * window
+
+        return SimLightCurve(t=self.time, r=rate, e=error)
+
 
 def resample_light_curves(lclist, resamples=1):
     """
