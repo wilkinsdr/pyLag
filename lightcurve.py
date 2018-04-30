@@ -409,13 +409,20 @@ class LightCurve(object):
         print("Good segment lengths: ", good_length)
         print("Gaps: ", gap_length)
 
-    def remove_gaps(self):
+    def remove_gaps(self, to_self=False):
         t = self.time[self.rate>0]
         r = self.rate[self.rate>0]
         e = self.error[self.rate>0]
-        lc = LightCurve(t=t,r=r, e=e)
-        lc.__class__ = self.__class__
-        return lc
+
+        if to_self:
+            self.time = t
+            self.rate = r
+            self.error = e
+
+        else:
+            lc = LightCurve(t=t,r=r, e=e)
+            lc.__class__ = self.__class__
+            return lc
 
     def rebin(self, tbin):
         """
@@ -602,6 +609,21 @@ class LightCurve(object):
 
         return freq[:int(self.length / 2)], ft[:int(self.length / 2)]
 
+    def ftfreq(self):
+        """
+        freq = pylag.LightCurve.ftfreq()
+
+        Returns the FFT sample frequencies for this light curve
+
+        Return Values
+        -------------
+        freq : ndarray
+               The sample frequencies
+        """
+        freq = scipy.fftpack.fftfreq(self.length, d=self.dt)
+
+        return freq[:int(self.length / 2)]
+
     def bin_num_freq(self, bins):
         """
         numfreq = pylag.LightCurve.bin_num_freq(bins)
@@ -708,6 +730,12 @@ class LightCurve(object):
             newlc.__class__ = self.__class__
             return newlc
 
+        elif isinstance(other, (float, int)):
+            newrate = self.rate + other
+            newerr = np.sqrt(newrate*self.dt) / self.dt
+            newlc = LightCurve(t=self.time, r=newrate, e=newerr)
+            newlc.__class__ = self.__class__
+            return newlc
         else:
             return NotImplemented
 
