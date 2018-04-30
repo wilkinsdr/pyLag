@@ -138,7 +138,7 @@ class Periodogram(object):
 
         """
         if not isinstance(bins, Binning):
-            raise ValueError("pyLag CrossSpectrum bin ERROR: Expected a Binning object")
+            raise ValueError("pyLag Periodogram bin ERROR: Expected a Binning object")
 
         if calc_error:
             binned_error = bins.std_error(self.freq, self.periodogram)
