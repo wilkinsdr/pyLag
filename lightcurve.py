@@ -1069,7 +1069,9 @@ def extract_sim_lightcurves(lc1, lc2):
             err2 = err2[1:]
 
     out_lc1 = LightCurve(t=time1, r=rate1, e=err1)
+    out_lc1.__class__ = lc1.__class__
     out_lc2 = LightCurve(t=time2, r=rate2, e=err2)
+    out_lc2.__class__ = lc2.__class__
 
     return out_lc1, out_lc2
 
