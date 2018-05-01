@@ -99,3 +99,42 @@ class GPPeriodogram(Periodogram):
         per_std = np.std(per, axis=0)
 
         return freq, freq_error, per_avg, per_std
+
+
+class GPLagFrequencySpectrum(LagFrequencySpectrum):
+    def __init__(self, lc1=None, lc2=None, gplc1=None, gplc2=None, bin=None, n_samples=10):
+        if gplc1 is not None:
+            self.gplc1 = gplc1
+        elif lc1 is not None:
+            self.gplc1 = GPLightCurve(lc=lc1)
+            self.gplc1.fit()
+        else:
+            raise ValueError("GPLagFrequencySpectrum requires a pair of light curves!")
+
+        if gplc2 is not None:
+            self.gplc2 = gplc2
+        elif lc2 is not None:
+            self.gplc2 = GPLightCurve(lc=lc2)
+            self.gplc2.fit()
+        else:
+            raise ValueError("GPLagFrequencySpectrum requires a pair of light curves!")
+
+        self.freq, self.freq_error, self.lag, self.error = self.calculate(n_samples, bins)
+
+
+    def calculate(self, n_samples=10, bins):
+        sample_lcs1 = self.gplc1.sample(t=None, n_samples=n_samples)
+        sample_lcs2 = self.gplc2.sample(t=None, n_samples=n_samples)
+        if not isinstance(sample_lcs1, list):
+            sample_lcs1 = [sample_lcs1]
+        if not isinstance(sample_lcs2, list):
+            sample_lcs2 = [sample_lcs2]
+
+        freq = bins.bin_cent
+        freq_error = bins.bin_end - bins.bin_cent
+        lag = np.array([LagFrequencySpectrum(lc).lag for (lc1, lc2) in zip(sample_lcs1, sample_lcs2)])
+
+        lag_avg = np.mean(lag, axis=0)
+        lag_std = np.std(lag, axis=0)
+
+        return freq, freq_error, lag_avg, lag_std

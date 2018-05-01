@@ -74,7 +74,7 @@ class LagFrequencySpectrum(object):
            pyLag LightCurve object for the reference or soft band
     """
 
-    def __init__(self, bins, lc1=None, lc2=None, lc1files=None, lc2files=None, interp_gaps=False):
+    def __init__(self, bins, lc1=None, lc2=None, lc1files=None, lc2files=None, interp_gaps=False, calc_error=True):
         self.freq = bins.bin_cent
         self.freq_error = bins.x_error()
 
@@ -89,15 +89,21 @@ class LagFrequencySpectrum(object):
         if isinstance(lc1, list) and isinstance(lc2, list):
             print("Constructing lag-frequency spectrum from %d pairs of light curves" % len(lc1))
             cross_spec = StackedCrossSpectrum(lc1, lc2, bins)
-            coh = Coherence(lc1, lc2, bins)
+            if calc_error:
+                coh = Coherence(lc1, lc2, bins)
         elif isinstance(lc1, LightCurve) and isinstance(lc2, LightCurve):
             print("Computing lag-frequency spectrum from pair of light curves")
             cross_spec = CrossSpectrum(lc1, lc2).bin(bins)
-            coh = Coherence(lc1, lc2, bins)
+            if calc_error:
+                coh = Coherence(lc1, lc2, bins)
 
         f, self.lag = cross_spec.lag_spectrum()
-        self.error = coh.lag_error()
-        self.coh = coh.coh
+        if calc_error:
+            self.error = coh.lag_error()
+            self.coh = coh.coh
+        else:
+            self.error = None
+            self.coh = None
 
     def _getplotdata(self):
         return (self.freq, self.freq_error), (self.lag, self.error)
