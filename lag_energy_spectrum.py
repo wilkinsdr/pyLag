@@ -91,7 +91,7 @@ class LagEnergySpectrum(object):
     """
 
     def __init__(self, fmin, fmax, lclist=None, lcfiles='', interp_gaps=False, refband=None,
-                 bias=True):
+                 bias=True, calc_error=True):
         self.en = np.array([])
         self.en_error = np.array([])
         self.lag = np.array([])
@@ -106,13 +106,13 @@ class LagEnergySpectrum(object):
 
         if isinstance(lclist[0], LightCurve):
             print("Constructing lag energy spectrum in %d energy bins" % len(lclist))
-            self.lag, self.error, self.coh = self.calculate(lclist.lclist, fmin, fmax, refband, self.en, bias)
+            self.lag, self.error, self.coh = self.calculate(lclist.lclist, fmin, fmax, refband, self.en, bias, calc_error)
         elif isinstance(lclist[0], list) and isinstance(lclist[0][0], LightCurve):
             print("Constructing lag energy spectrum from %d light curves in each of %d energy bins" % (
                 len(lclist[0]), len(lclist)))
-            self.lag, self.error, self.coh = self.calculate_stacked(lclist.lclist, fmin, fmax, refband, self.en, bias)
+            self.lag, self.error, self.coh = self.calculate_stacked(lclist.lclist, fmin, fmax, refband, self.en, bias, calc_error)
 
-    def calculate(self, lclist, fmin, fmax, refband=None, energies=None, bias=True):
+    def calculate(self, lclist, fmin, fmax, refband=None, energies=None, bias=True, calc_error=True):
         """
         lag, error = pylag.LagEnergySpectrum.calculate(lclist, fmin, fmax, refband=None, energies=None)
 
@@ -174,13 +174,14 @@ class LagEnergySpectrum(object):
                 if energies[energy_num] < refband[0] or energies[energy_num] > refband[1]:
                     thisref = reflc
             lag.append(CrossSpectrum(lc, thisref).lag_average(fmin, fmax))
-            coherence_obj = Coherence(lc, reflc, fmin=fmin, fmax=fmax, bias=bias)
-            error.append(coherence_obj.lag_error())
-            coh.append(coherence_obj.coh)
+            if calc_error:
+                coherence_obj = Coherence(lc, reflc, fmin=fmin, fmax=fmax, bias=bias)
+                error.append(coherence_obj.lag_error())
+                coh.append(coherence_obj.coh)
 
         return np.array(lag), np.array(error), np.array(coh)
 
-    def calculate_stacked(self, lclist, fmin, fmax, refband=None, energies=None, bias=True):
+    def calculate_stacked(self, lclist, fmin, fmax, refband=None, energies=None, bias=True, calc_error=True):
         """
         lag, error = pylag.LagEnergySpectrum.CalculateStacked(lclist, fmin, fmax, refband=None, energies=None)
 
@@ -265,9 +266,10 @@ class LagEnergySpectrum(object):
             # coherence between the sets of lightcurves for this energy band and
             # for the reference
             lag.append(StackedCrossSpectrum(energy_lclist, ref_lclist).lag_average(fmin, fmax))
-            coherence_obj = Coherence(energy_lclist, ref_lclist, fmin=fmin, fmax=fmax, bias=bias)
-            error.append(coherence_obj.lag_error())
-            coh.append(coherence_obj.coh)
+            if calc_error:
+                coherence_obj = Coherence(energy_lclist, ref_lclist, fmin=fmin, fmax=fmax, bias=bias)
+                error.append(coherence_obj.lag_error())
+                coh.append(coherence_obj.coh)
 
         return np.array(lag), np.array(error), np.array(coh)
 
