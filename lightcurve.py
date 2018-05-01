@@ -709,6 +709,13 @@ class LightCurve(object):
         newlc.__class__ = self.__class__
         return newlc
 
+    def sort_time(self):
+        """
+        Sort the light curve points in time order
+        """
+        t, r, e = zip(*sorted(zip(self.time, self.rate, self.error)))
+        return LightCurve(t=np.array(t), r=np.array(r), e=np.array(e))
+
     def __add__(self, other):
         """
         Overloaded + operator to add two light curves together and return the
@@ -1243,6 +1250,18 @@ class EnergyLCList(object):
             for lc in self.lclist:
                 lcseg = lc.split_on_gaps(min_segment)
                 new_lclist.append(lcseg)
+
+        return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
+
+    def concatenate_segments(self):
+        new_lclist = []
+
+        if isinstance(self.lclist[0], list):
+            for en_lclist in self.lclist:
+                new_lclist.append(LightCurve().concatenate(en_lclist).sort_time())
+
+        elif isinstance(self.lclist[0], LightCurve):
+            raise AssertionError("EnergyLCList object does not contain multiple segments per energy band")
 
         return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
 
