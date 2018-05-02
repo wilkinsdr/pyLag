@@ -214,7 +214,7 @@ class GPLagFrequencySpectrum(LagFrequencySpectrum):
         freq_error = bins.bin_end - bins.bin_cent
 
         lag = []
-        for n in range(n_samples)
+        for n in range(n_samples):
             sample_lc1 = self.gplc1.sample(t=None, n_samples=1)
             sample_lc2 = self.gplc2.sample(t=None, n_samples=1)
             lag.append(LagFrequencySpectrum(bins, sample_lc1, sample_lc2, calc_error=False).lag)
