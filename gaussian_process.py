@@ -22,7 +22,7 @@ from .lag_energy_spectrum import *
 
 
 class GPLightCurve(LightCurve):
-    def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, kernel=None, n_restarts_optimizer=9, run_fit=True, use_errors=True, noise_kernel=False):
+    def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, kernel=None, n_restarts_optimizer=9, run_fit=True, use_errors=True, noise_kernel=False, lognorm=False):
         if lc is not None:
             t = lc.time
             r = lc.rate
@@ -50,6 +50,11 @@ class GPLightCurve(LightCurve):
             self.gp_regressor = GaussianProcessRegressor(kernel=self.kernel, n_restarts_optimizer=n_restarts_optimizer,
                                                          normalize_y=True, alpha=alpha)
 
+        if lognorm:
+            self.lognorm = True
+            self.error = self.error / self.rate
+            self.rate = np.log(self.rate)
+
         if run_fit:
             self.fit()
 
@@ -62,6 +67,9 @@ class GPLightCurve(LightCurve):
             t = np.arange(self.time.min(), self.time.max(), np.min(np.diff(self.time)))
         t_samples = np.atleast_2d(t).T
         r, e = self.gp_regressor.predict(t_samples, return_std=True)
+        if self.lognorm:
+            r = np.exp(r)
+            e = r * e
         return LightCurve(t=t, r=r, e=e)
 
     def sample(self, n_samples=1, t=None):
@@ -71,9 +79,15 @@ class GPLightCurve(LightCurve):
         r = self.gp_regressor.sample_y(t_samples, n_samples=n_samples)
         e = np.zeros(t.shape)
         if n_samples == 1:
-            return LightCurve(t=t, r=r.ravel(), e=e)
+            if self.lognorm:
+                return LightCurve(t=t, r=np.exp(r.ravel()), e=e)
+            else:
+                return LightCurve(t=t, r=r.ravel(), e=e)
         else:
-            return [LightCurve(t=t, r=r[:,n], e=e) for n in range(n_samples)]
+            if self.lognorm:
+                return [LightCurve(t=t, r=np.exp(r[:, n]), e=e) for n in range(n_samples)]
+            else:
+                return [LightCurve(t=t, r=r[:,n], e=e) for n in range(n_samples)]
 
 
 class GPPeriodogram(Periodogram):
