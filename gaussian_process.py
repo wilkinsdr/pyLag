@@ -50,8 +50,8 @@ class GPLightCurve(LightCurve):
             self.gp_regressor = GaussianProcessRegressor(kernel=self.kernel, n_restarts_optimizer=n_restarts_optimizer,
                                                          normalize_y=True, alpha=alpha)
 
-        if lognorm:
-            self.lognorm = True
+        self.lognorm = lognorm
+        if self.lognorm:
             self.error = self.error / self.rate
             self.rate = np.log(self.rate)
 
