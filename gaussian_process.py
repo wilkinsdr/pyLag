@@ -18,6 +18,7 @@ from .lightcurve import *
 from .periodogram import *
 from .cross_spectrum import *
 from .lag_frequency_spectrum import *
+from .lag_energy_spectrum import *
 
 class GPLightCurve(LightCurve):
     def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, kernel=None, n_restarts_optimizer=9, run_fit=True):
@@ -101,28 +102,94 @@ class GPPeriodogram(Periodogram):
         return freq, freq_error, per_avg, per_std
 
 
+class GPEnergyLCList(EnergyLCList):
+    def __init__(self, searchstr=None, lcfiles=None, enlclist=None, enmin=None, enmax=None, lclist=None, **kwargs):
+        if enlclist is not None:
+            self.enmin = enlclist.enmin
+            self.enmax = enlclist.enmax
+            lclist = enlclist.lclist
+        elif lclist is not None and enmin is not None and enmax is not None:
+            self.enmin = np.array(enmin)
+            self.enmax = np.array(enmax)
+        elif lclist is None:
+            self.enmin, self.enmax, lclist = self.find_light_curves(searchstr, lcfiles, **kwargs)
+
+        self.en = 0.5*(self.enmin + self.enmax)
+        self.en_error = self.en - self.enmin
+
+        self.lclist = []
+
+        if isinstance(lclist[0], list):
+            for en_lclist in lclist:
+                self.lclist.append([])
+                for lc in en_lclist:
+                    self.lclist[-1].append(GPLightCurve(lc=lc, **kwargs))
+
+        elif isinstance(lclist[0], LightCurve):
+            for lc in lclist:
+                self.lclist.append(GPLightCurve(lc=lc, **kwargs))
+
+    def fit(self):
+        if isinstance(lclist[0], list):
+            for en_lclist in self.lclist:
+                for lc in en_lclist:
+                    lc.fit()
+
+        elif isinstance(lclist[0], LightCurve):
+            for lc in self.lclist:
+                lc.fit()
+
+    def sample(self, n_samples=1, t=None):
+        if n_samples == 1:
+            sample_lclist = []
+            if isinstance(self.lclist[0], list):
+                for en_lclist in self.lclist:
+                    sample_lclist.append([])
+                    for lc in en_lclist:
+                        sample_lclist[-1].append(lc.sample(n_samples=1, t=t))
+
+            elif isinstance(self.lclist[0], LightCurve):
+                for lc in self.lclist:
+                    sample_lclist.append(lc.sample(n_samples=1, t=t))
+
+            return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=sample_lclist)
+
+        elif n_samples > 1:
+            sample_lclist = []
+            if isinstance(self.lclist[0], list):
+                for en_lclist in self.lclist:
+                    sample_lclist.append([])
+                    for lc in en_lclist:
+                        sample_lclist[-1].append(lc.sample(n_samples=1, t=t))
+
+            elif isinstance(self.lclist[0], LightCurve):
+                for lc in self.lclist:
+                    sample_lclist.append(lc.sample(n_samples=1, t=t))
+
+            sample_lclist = lclist_separate_segments(sample_lclist)
+
+            return [EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=lclist) for lclist in sample_lclist]
+
+
 class GPLagFrequencySpectrum(LagFrequencySpectrum):
-    def __init__(self, lc1=None, lc2=None, gplc1=None, gplc2=None, bin=None, n_samples=10):
+    def __init__(self, bins, lc1=None, lc2=None, gplc1=None, gplc2=None, n_samples=10):
         if gplc1 is not None:
             self.gplc1 = gplc1
         elif lc1 is not None:
-            self.gplc1 = GPLightCurve(lc=lc1)
-            self.gplc1.fit()
+            self.gplc1 = GPLightCurve(lc=lc1, run_fit=True)
         else:
             raise ValueError("GPLagFrequencySpectrum requires a pair of light curves!")
 
         if gplc2 is not None:
             self.gplc2 = gplc2
         elif lc2 is not None:
-            self.gplc2 = GPLightCurve(lc=lc2)
-            self.gplc2.fit()
+            self.gplc2 = GPLightCurve(lc=lc2, run_fit=True)
         else:
             raise ValueError("GPLagFrequencySpectrum requires a pair of light curves!")
 
-        self.freq, self.freq_error, self.lag, self.error = self.calculate(n_samples, bins)
+        self.freq, self.freq_error, self.lag, self.error = self.calculate(bins, n_samples)
 
-
-    def calculate(self, n_samples=10, bins):
+    def calculate(self, bins, n_samples=10):
         sample_lcs1 = self.gplc1.sample(t=None, n_samples=n_samples)
         sample_lcs2 = self.gplc2.sample(t=None, n_samples=n_samples)
         if not isinstance(sample_lcs1, list):
@@ -132,9 +199,36 @@ class GPLagFrequencySpectrum(LagFrequencySpectrum):
 
         freq = bins.bin_cent
         freq_error = bins.bin_end - bins.bin_cent
-        lag = np.array([LagFrequencySpectrum(lc).lag for (lc1, lc2) in zip(sample_lcs1, sample_lcs2)])
+        lag = np.array([LagFrequencySpectrum(bins, lc1, lc2, calc_error=False).lag for (lc1, lc2) in zip(sample_lcs1, sample_lcs2)])
 
         lag_avg = np.mean(lag, axis=0)
         lag_std = np.std(lag, axis=0)
 
         return freq, freq_error, lag_avg, lag_std
+
+
+class GPLagEnergySpectrum(LagEnergySpectrum):
+    def __init__(self, fmin, fmax, lclist=None, gplclist=None, n_samples=10):
+        if gplclist is not None:
+            self.gplclist = gplclist
+        elif lclist is not None:
+            self.gplclist = GPEnergyLCList(enlclist=lclist, run_fit=True)
+        else:
+            raise ValueError("GPLagFrequencySpectrum requires a light curve list!")
+
+        self.en = np.array(lclist.en)
+        self.en_error = np.array(lclist.en_error)
+
+        self.lag, self.error = self.calculate(fmin, fmax, n_samples)
+
+    def calculate(self, fmin, fmax, n_samples=10):
+        sample_lclists = self.gplclist.sample(t=None, n_samples=n_samples)
+        if not isinstance(sample_lclists, list):
+            sample_lclists = [sample_lclists]
+
+        lag = np.array([LagEnergySpectrum(lclist).lag for lclist in sample_lclists])
+
+        lag_avg = np.mean(lag, axis=0)
+        lag_std = np.std(lag, axis=0)
+
+        return lag_avg, lag_std
