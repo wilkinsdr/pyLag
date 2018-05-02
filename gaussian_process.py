@@ -172,7 +172,7 @@ class GPEnergyLCList(EnergyLCList):
 
 
 class GPLagFrequencySpectrum(LagFrequencySpectrum):
-    def __init__(self, bins, lc1=None, lc2=None, gplc1=None, gplc2=None, n_samples=10):
+    def __init__(self, bins, lc1=None, lc2=None, gplc1=None, gplc2=None, n_samples=10, low_mem=False):
         if gplc1 is not None:
             self.gplc1 = gplc1
         elif lc1 is not None:
@@ -187,9 +187,12 @@ class GPLagFrequencySpectrum(LagFrequencySpectrum):
         else:
             raise ValueError("GPLagFrequencySpectrum requires a pair of light curves!")
 
-        self.freq, self.freq_error, self.lag, self.error = self.calculate(bins, n_samples)
+        if low_mem:
+            self.freq, self.freq_error, self.lag, self.error = self.calculate_seq(bins, n_samples)
+        else:
+            self.freq, self.freq_error, self.lag, self.error = self.calculate_batch(bins, n_samples)
 
-    def calculate(self, bins, n_samples=10):
+    def calculate_batch(self, bins, n_samples=10):
         sample_lcs1 = self.gplc1.sample(t=None, n_samples=n_samples)
         sample_lcs2 = self.gplc2.sample(t=None, n_samples=n_samples)
         if not isinstance(sample_lcs1, list):
@@ -201,6 +204,22 @@ class GPLagFrequencySpectrum(LagFrequencySpectrum):
         freq_error = bins.bin_end - bins.bin_cent
         lag = np.array([LagFrequencySpectrum(bins, lc1, lc2, calc_error=False).lag for (lc1, lc2) in zip(sample_lcs1, sample_lcs2)])
 
+        lag_avg = np.mean(lag, axis=0)
+        lag_std = np.std(lag, axis=0)
+
+        return freq, freq_error, lag_avg, lag_std
+
+    def calculate_seq(self, bins, n_samples=10):
+        freq = bins.bin_cent
+        freq_error = bins.bin_end - bins.bin_cent
+
+        lag = []
+        for n in range(n_samples)
+            sample_lc1 = self.gplc1.sample(t=None, n_samples=1)
+            sample_lc2 = self.gplc2.sample(t=None, n_samples=1)
+            lag.append(LagFrequencySpectrum(bins, sample_lc1, sample_lc2, calc_error=False).lag)
+
+        lag = np.array(lag)
         lag_avg = np.mean(lag, axis=0)
         lag_std = np.std(lag, axis=0)
 
