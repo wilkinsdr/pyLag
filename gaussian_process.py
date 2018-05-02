@@ -20,8 +20,9 @@ from .cross_spectrum import *
 from .lag_frequency_spectrum import *
 from .lag_energy_spectrum import *
 
+
 class GPLightCurve(LightCurve):
-    def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, kernel=None, n_restarts_optimizer=9, run_fit=True):
+    def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, kernel=None, n_restarts_optimizer=9, run_fit=True, use_errors=True, noise_kernel=False):
         if lc is not None:
             t = lc.time
             r = lc.rate
@@ -37,11 +38,17 @@ class GPLightCurve(LightCurve):
         if kernel is not None:
             self.kernel = kernel
         else:
-            #self.kernel = C(1.0, (1e-3,1e3)) * RBF(10, (np.min(np.diff(self.time)),1e10))
-            #self.kernel = RBF(1, (1e-5, 1e10))
-            self.kernel = C(1.0, (1e-3,1e3)) * RationalQuadratic()
+            self.kernel = C(1.0, (1e-3, 1e3)) * RationalQuadratic()
+            if noise_kernel:
+                noise_level = np.sqrt(self.mean_rate * self.dt) / (self.mean_rate * self.dt)
+                self.kernel += WhiteKernel(noise_level=noise_level, noise_level_bounds=(1e-10, 1e+1))
 
-        self.gp_regressor = GaussianProcessRegressor(kernel=self.kernel, n_restarts_optimizer=n_restarts_optimizer, normalize_y=True)
+        if noise_kernel or not use_errors:
+            self.gp_regressor = GaussianProcessRegressor(kernel=self.kernel, n_restarts_optimizer=n_restarts_optimizer, normalize_y=True)
+        else:
+            alpha = (self.error / self.rate)**2
+            self.gp_regressor = GaussianProcessRegressor(kernel=self.kernel, n_restarts_optimizer=n_restarts_optimizer,
+                                                         normalize_y=True, alpha=alpha)
 
         if run_fit:
             self.fit()
