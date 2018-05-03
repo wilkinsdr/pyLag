@@ -76,7 +76,7 @@ class GPLightCurve(LightCurve):
         if t is None:
             t = np.arange(self.time.min(), self.time.max(), np.min(np.diff(self.time)))
         t_samples = np.atleast_2d(t).T
-        r = self.gp_regressor.sample_y(t_samples, n_samples=n_samples)
+        r = self.gp_regressor.sample_y(t_samples, n_samples=n_samples, random_state=None)
         e = np.zeros(t.shape)
         if n_samples == 1:
             if self.lognorm:
