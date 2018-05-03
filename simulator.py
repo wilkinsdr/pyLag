@@ -64,8 +64,8 @@ class SimLightCurve(LightCurve):
             t = np.arange(0, tmax, dt)
             r = self.calculate(t, plslope, std, lcmean, gtzero=gtzero, lognorm=lognorm)
         if e is None:
-            e = np.sqrt(r)
-            #e = np.sqrt(r / dt)
+            #e = np.sqrt(r)
+            e = np.sqrt(r / dt)
         LightCurve.__init__(self, t=t, r=r, e=e)
 
     def calculate(self, t, plslope, std, lcmean, plnorm=1., gtzero=True, lognorm=False):
