@@ -116,7 +116,8 @@ class SimLightCurve(LightCurve):
             re[int(Nf / 2)] = np.random.randn() / (2. * np.pi * np.abs(freq[int(Nf / 2)])) ** (plslope / 2.)
             re[int(Nf/2)+1:] = np.flip(re[1:int(Nf/2)], axis=0)
         else:
-            re[int(Nf / 2):] = np.flip(re[1:int(Nf / 2)], axis=0)
+            re[int(Nf / 2)] = np.random.randn() / (2. * np.pi * np.abs(freq[int(Nf / 2)])) ** (plslope / 2.)
+            re[int(Nf / 2)+1:] = np.flip(re[1:int(Nf / 2)+1], axis=0)
         re[0] = plnorm * np.random.randn()
         # and the imaginary part
         imag[1:int(Nf/2)] = np.random.randn(len(freq[1:int(Nf/2)])) / (2. * np.pi * np.abs(freq[1:int(Nf/2)]))**(plslope/2.)
@@ -126,8 +127,8 @@ class SimLightCurve(LightCurve):
             # FT at the Nyquist frequency is real
             imag[int(Nf/2)+1:] = -1.*np.flip(imag[1:int(Nf/2)], axis=0)
         else:
-            imag[int(Nf / 2):] = -1.*np.flip(imag[1:int(Nf / 2)], axis=0)
-        #imag[0] = plnorm * np.random.randn()
+            imag[int(Nf / 2)] = np.random.randn() / (2. * np.pi * np.abs(freq[int(Nf / 2)])) ** (plslope / 2.)
+            imag[int(Nf / 2)+1:] = -1.*np.flip(imag[1:int(Nf / 2)+1], axis=0)
 
         # put the Fourier transform together then invert it to get the light curve
         ft = re + (1j * imag)
