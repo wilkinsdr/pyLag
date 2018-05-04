@@ -569,7 +569,7 @@ def close_all_plots():
     del all_plots[:]
 
 
-def plot_txt(filename, xcol=1, ycol=2, xerrcol=None, yerrcol=None, **kwargs):
+def plot_txt(filename, xcol=1, ycol=2, xerrcol=None, yerrcol=None, transpose=False, **kwargs):
     """
     p = pylag.plot_txt(filename, xcol=1, ycol=2, xerrcol=None, yerrcol=None, **kwargs)
 
@@ -598,6 +598,8 @@ def plot_txt(filename, xcol=1, ycol=2, xerrcol=None, yerrcol=None, **kwargs):
     p : Plot object containing the plot that was created
     """
     dat = np.genfromtxt(filename)
+    if transpose:
+        dat = dat.T
     if xerrcol is not None:
         xdata = (dat[:,xcol-1], dat[:,xerrcol-1])
     else:
