@@ -248,7 +248,7 @@ class GPLagFrequencySpectrum(LagFrequencySpectrum):
 
 
 class GPLagEnergySpectrum(LagEnergySpectrum):
-    def __init__(self, fmin, fmax, lclist=None, gplclist=None, n_samples=10):
+    def __init__(self, fmin, fmax, lclist=None, gplclist=None, n_samples=10, low_mem=False):
         if gplclist is not None:
             self.gplclist = gplclist
         elif lclist is not None:
@@ -259,15 +259,30 @@ class GPLagEnergySpectrum(LagEnergySpectrum):
         self.en = np.array(lclist.en)
         self.en_error = np.array(lclist.en_error)
 
-        self.lag, self.error = self.calculate(fmin, fmax, n_samples)
+        if low_mem:
+            self.lag, self.error = self.calculate_seq(fmin, fmax, n_samples)
+        else:
+            self.lag, self.error = self.calculate_batch(fmin, fmax, n_samples)
 
-    def calculate(self, fmin, fmax, n_samples=10):
+    def calculate_batch(self, fmin, fmax, n_samples=10):
         sample_lclists = self.gplclist.sample(t=None, n_samples=n_samples)
         if not isinstance(sample_lclists, list):
             sample_lclists = [sample_lclists]
 
-        lag = np.array([LagEnergySpectrum(lclist).lag for lclist in sample_lclists])
+        lag = np.array([LagEnergySpectrum(lclist, calc_error=False).lag for lclist in sample_lclists])
 
+        lag_avg = np.mean(lag, axis=0)
+        lag_std = np.std(lag, axis=0)
+
+        return lag_avg, lag_std
+
+    def calculate_seq(self, bins, n_samples=10):
+        lag = []
+        for n in range(n_samples):
+            sample_lclist = self.gplclist.sample(t=None, n_samples=1)
+            lag.append(LagEnergySpectrum(sample_lclist, calc_error=False).lag)
+
+        lag = np.array(lag)
         lag_avg = np.mean(lag, axis=0)
         lag_std = np.std(lag, axis=0)
 
