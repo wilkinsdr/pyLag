@@ -254,7 +254,7 @@ class ENTResponse(object):
 
         resp1 = self.time_response(enband1)
         resp2 = self.time_response(enband2)
-        return LagFrequencySpectrum(fbins, lc1=resp1, lc2=resp2)
+        return LagFrequencySpectrum(fbins, lc1=resp1, lc2=resp2, calc_error=False)
 
     def energy_lc_list(self):
         lclist = []
@@ -266,7 +266,7 @@ class ENTResponse(object):
         if fmin is None:
             fmin = 1./(2.*(self.time.max() - self.time.min()))
             fmax = 1./(2.*(self.time[1]-self.time[0]))
-        return LagEnergySpectrum(fmin, fmax, lclist=self.energy_lc_list())
+        return LagEnergySpectrum(fmin, fmax, lclist=self.energy_lc_list(), calc_error=False)
 
     def simulate_lc_list(self, tmax, plslope, std, lcmean):
         lclist = []
