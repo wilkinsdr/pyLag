@@ -178,6 +178,9 @@ class LagEnergySpectrum(object):
                 coherence_obj = Coherence(lc, reflc, fmin=fmin, fmax=fmax, bias=bias)
                 error.append(coherence_obj.lag_error())
                 coh.append(coherence_obj.coh)
+            else:
+                error.append(np.nan)
+                coh.append(np.nan)
 
         return np.array(lag), np.array(error), np.array(coh)
 
