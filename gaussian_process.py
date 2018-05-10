@@ -41,7 +41,7 @@ class GPLightCurve(LightCurve):
             self.kernel = C(1.0, (1e-3, 1e3)) * RationalQuadratic()
             if noise_kernel:
                 noise_level = np.sqrt(self.mean_rate * self.dt) / (self.mean_rate * self.dt)
-                self.kernel += WhiteKernel(noise_level=noise_level, noise_level_bounds=(1e-10, 1e+1))
+                self.kernel += WhiteKernel(noise_level=noise_level, noise_level_bounds=(1e-10, 2*noise_level))
 
         if noise_kernel or not use_errors:
             self.gp_regressor = GaussianProcessRegressor(kernel=self.kernel, n_restarts_optimizer=n_restarts_optimizer, normalize_y=True)
