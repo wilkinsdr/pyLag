@@ -256,8 +256,8 @@ class GPLagEnergySpectrum(LagEnergySpectrum):
         else:
             raise ValueError("GPLagFrequencySpectrum requires a light curve list!")
 
-        self.en = np.array(lclist.en)
-        self.en_error = np.array(lclist.en_error)
+        self.en = np.array(self.gplclist.en)
+        self.en_error = np.array(self.gplclist.en_error)
 
         if low_mem:
             self.lag, self.error = self.calculate_seq(fmin, fmax, n_samples)
