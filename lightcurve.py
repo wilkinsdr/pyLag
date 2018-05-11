@@ -587,6 +587,11 @@ class LightCurve(object):
         """
         return np.mean(self.rate)
 
+    def time_at_rate(self, ratemin, ratemax):
+        bins = np.array([ratemin, ratemax])
+        count, _ = np.histogram(self.rate, bins=bins)
+        return count[0] * self.dt
+
     def ft(self):
         """
         freq, ft = pylag.LightCurve.ft()
