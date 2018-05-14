@@ -186,7 +186,10 @@ class ENTResponse(object):
         if isinstance(self.en_bins, LogBinning):
             ax.set_yscale('log')
 
-        ax.pcolormesh(self.time, self.en_bins.bin_cent, self.ent, norm=colors.LogNorm(vmin=vmin, vmax=vmax), cmap=cmap)
+        img_ent = np.array(self.ent)
+        img_ent[img_ent < vmin] = vmin
+
+        ax.pcolormesh(self.time, self.en_bins.bin_cent, img_ent, norm=colors.LogNorm(vmin=vmin, vmax=vmax, clip=True), cmap=cmap)
         plt.xlabel('Time')
         plt.ylabel('Energy / keV')
 
