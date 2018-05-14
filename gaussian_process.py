@@ -269,18 +269,18 @@ class GPLagEnergySpectrum(LagEnergySpectrum):
         if not isinstance(sample_lclists, list):
             sample_lclists = [sample_lclists]
 
-        lag = np.array([LagEnergySpectrum(lclist, calc_error=False).lag for lclist in sample_lclists])
+        lag = np.array([LagEnergySpectrum(fmin, fmax, lclist, calc_error=False).lag for lclist in sample_lclists])
 
         lag_avg = np.mean(lag, axis=0)
         lag_std = np.std(lag, axis=0)
 
         return lag_avg, lag_std
 
-    def calculate_seq(self, bins, n_samples=10):
+    def calculate_seq(self, fmin, fmax, n_samples=10):
         lag = []
         for n in range(n_samples):
             sample_lclist = self.gplclist.sample(t=None, n_samples=1)
-            lag.append(LagEnergySpectrum(sample_lclist, calc_error=False).lag)
+            lag.append(LagEnergySpectrum(fmin, fmax, sample_lclist, calc_error=False).lag)
 
         lag = np.array(lag)
         lag_avg = np.mean(lag, axis=0)
