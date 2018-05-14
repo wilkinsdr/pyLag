@@ -14,4 +14,5 @@ from .fvar import *
 from .plotter import *
 from .simulator import *
 from .entresponse import *
+from .continuum import *
 from .event_list import *
