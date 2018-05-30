@@ -22,7 +22,7 @@ from .lag_energy_spectrum import *
 
 
 class GPLightCurve(LightCurve):
-    def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, kernel=None, n_restarts_optimizer=9, run_fit=True, use_errors=True, noise_kernel=False, lognorm=False):
+    def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, kernel=None, n_restarts_optimizer=9, run_fit=True, use_errors=True, noise_kernel=False, lognorm=False, remove_gaps=True):
         if lc is not None:
             t = lc.time
             r = lc.rate
@@ -31,7 +31,8 @@ class GPLightCurve(LightCurve):
 
         # need to remove the gaps from the light curve
         # (only store the non-zero time bins)
-        self.remove_gaps(to_self=True)
+        if remove_gaps:
+            self.remove_gaps(to_self=True)
 
         self.mean_rate = self.mean()
 
@@ -133,7 +134,7 @@ class GPEnergyLCList(EnergyLCList):
             self.enmin = np.array(enmin)
             self.enmax = np.array(enmax)
         elif lclist is None:
-            self.enmin, self.enmax, lclist = self.find_light_curves(searchstr, lcfiles, **kwargs)
+            self.enmin, self.enmax, lclist = self.find_light_curves(searchstr, lcfiles)
 
         self.en = 0.5*(self.enmin + self.enmax)
         self.en_error = self.en - self.enmin
