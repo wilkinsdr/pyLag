@@ -92,7 +92,7 @@ class LightCurve(object):
 
     """
 
-    def __init__(self, filename=None, t=[], r=[], e=[], interp_gaps=False, zero_nan=True, trim=False, max_gap=0):
+    def __init__(self, filename=None, t=[], r=[], e=[], interp_gaps=False, zero_nan=True, trim=False, max_gap=0, add_tstart=False):
         self.time = np.array(t)
         if len(r) > 0:
             self.rate = np.array(r)
@@ -105,7 +105,7 @@ class LightCurve(object):
 
         if filename is not None:
             self.filename = filename
-            self.read_fits(filename)
+            self.read_fits(filename, add_tstart=add_tstart)
 
         if len(self.time) > 1:
             self.dt = self.time[1] - self.time[0]
@@ -118,7 +118,7 @@ class LightCurve(object):
         if trim:
             self.trim()
 
-    def read_fits(self, filename, byte_swap=True):
+    def read_fits(self, filename, byte_swap=True, add_tstart=False):
         """
         pylag.LightCurve.read_fits(filename)
 
@@ -142,6 +142,13 @@ class LightCurve(object):
                 self._byteswap()
 
             self.dt = self.time[1] - self.time[0]
+
+            if add_tstart:
+                try:
+                    tstart = fitsfile[0].header['TSTART']
+                    self.time += tstart
+                except:
+                    raise AssertionError("pyLag LightCurve ERROR: Could not read TSTART from FITS header")
 
             fitsfile.close()
 
