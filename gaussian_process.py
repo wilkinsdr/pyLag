@@ -286,7 +286,7 @@ class GPLagEnergySpectrum(LagEnergySpectrum):
         lag = []
         for n in range(n_samples):
             if n % int(n_samples/10) == 0:
-                print('Sample %d/%d' (n, n_samples))
+                print('Sample %d/%d' % (n, n_samples))
             sample_lclist = self.gplclist.sample(t=None, n_samples=1)
             lag.append(LagEnergySpectrum(fmin, fmax, sample_lclist, refband=refband, calc_error=False).lag)
 
