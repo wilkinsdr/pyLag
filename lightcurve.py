@@ -1378,7 +1378,7 @@ class EnergyLCList(object):
                     lclist[-1].append(lc1s - lc2s)
         else:
             for lc1, lc2 in zip(self.lclist, other.lclist):
-                lc1s, lc2s = extract_lclist_time_segment(lc1, lc2)
+                lc1s, lc2s = extract_sim_lightcurves(lc1, lc2)
                 lclist.append(lc1s - lc2s)
 
         return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=lclist)
