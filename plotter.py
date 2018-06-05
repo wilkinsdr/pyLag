@@ -715,6 +715,70 @@ def dataset_ratio(ds1, ds2):
     return DataSeries(x1, ratio, xlabel, xscale, 'ratio', 'linear')
 
 
+def dataset_difference(ds1, ds2):
+    x1, y1 = ds1._getplotdata()
+    x2, y2 = ds2._getplotdata()
+
+    xlabel, xscale, ylabel, yscale = ds1._getplotaxes()
+
+    if isinstance(y1, tuple):
+        yd1 = y1[0]
+        ye1 = y1[1]
+    elif isinstance(y1, (np.ndarray, list)):
+        yd1 = y1
+        ye1 = np.zeros(len(yd1))
+    else:
+        raise AssertionError('Data format mismatch')
+
+    if isinstance(y2, tuple):
+        yd2 = y2[0]
+        ye2 = y2[1]
+    elif isinstance(y1, (np.ndarray, list)):
+        yd2 = y2
+        ye2 = np.zeros(len(yd2))
+    else:
+        raise AssertionError('Data format mismatch')
+
+    diff = yd1 - yd2
+    if isinstance(y1, tuple) or isinstance(y2, tuple):
+        diff_err = np.sqrt( ye1**2 + ye2**2 )
+        diff = (diff, diff_err)
+
+    return DataSeries(x1, diff, xlabel, xscale, 'difference', yscale)
+
+
+def dataset_frac_difference(ds1, ds2):
+    x1, y1 = ds1._getplotdata()
+    x2, y2 = ds2._getplotdata()
+
+    xlabel, xscale, ylabel, yscale = ds1._getplotaxes()
+
+    if isinstance(y1, tuple):
+        yd1 = y1[0]
+        ye1 = y1[1]
+    elif isinstance(y1, (np.ndarray, list)):
+        yd1 = y1
+        ye1 = np.zeros(len(yd1))
+    else:
+        raise AssertionError('Data format mismatch')
+
+    if isinstance(y2, tuple):
+        yd2 = y2[0]
+        ye2 = y2[1]
+    elif isinstance(y1, (np.ndarray, list)):
+        yd2 = y2
+        ye2 = np.zeros(len(yd2))
+    else:
+        raise AssertionError('Data format mismatch')
+
+    diff = (yd1 - yd2) / np.abs(yd2)
+    if isinstance(y1, tuple) or isinstance(y2, tuple):
+        diff_err = diff * np.sqrt((ye1 + ye2)/(yd1 - yd2)**2 + (ye2/yd2)**2)
+        diff = (diff, diff_err)
+
+    return DataSeries(x1, diff, xlabel, xscale, 'frac. difference', yscale)
+
+
 class AverageDataSeries(DataSeries):
     def __init__(self, data_objects):
         self.xdata = data_objects[0]._getplotdata()[0]
