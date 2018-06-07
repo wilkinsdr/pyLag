@@ -408,6 +408,17 @@ class ImpulseResponse(LightCurve):
         r = scipy.signal.convolve(lc.rate, self.rate, mode='valid')
         return SimLightCurve(t=t, r=r)
 
+    def lagfreq(self, fbins):
+        """
+        pylag.ImpulseResponse.lagfreq()
+
+        Returns the time lag associated with Fourier frequencies defined by fbins
+        """
+        f, ft = self.ft()
+        ft_bin = bins.bin(f, ft)
+        lag = np.arg(ft_bin) / (2*np.pi*fbins.bin_cent)
+        return lag
+
 
 class GaussianResponse(ImpulseResponse):
     """
