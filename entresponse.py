@@ -262,7 +262,7 @@ class ENTResponse(object):
     def energy_lc_list(self):
         lclist = []
         for ien in range(len(self.en_bins)):
-            lclist.append(LightCurve(t=self.time, r=self.ent[ien,:]))
+            lclist.append(ImpulseResponse(t=self.time, r=self.ent[ien,:]))
         return SimEnergyLCList(enmin=self.en_bins.bin_start, enmax=self.en_bins.bin_end, lclist=lclist)
 
     def lag_energy_spectrum(self, fmin=None, fmax=None):
