@@ -408,16 +408,53 @@ class ImpulseResponse(LightCurve):
         r = scipy.signal.convolve(lc.rate, self.rate, mode='valid')
         return SimLightCurve(t=t, r=r)
 
-    def lagfreq(self, fbins):
+    def avg_arrival(self):
         """
-        pylag.ImpulseResponse.lagfreq()
+        avg_arr = pylag.ImpulseResponse.avg_arrival()
+
+        Returns the average arrival time of this response function
+        (i.e. the weighted average of the time according to count rate)
+
+        Returns
+        -------
+        avg_arr : float
+                  Average arrival time
+        """
+        return np.average(self.time, weights=self.rate)
+
+    def lagfreq(self, fbins=None):
+        """
+        freq, lag = pylag.ImpulseResponse.lagfreq()
 
         Returns the time lag associated with Fourier frequencies defined by fbins
+
+        Parameters
+        ----------
+        fbins : Binning, optional (default=None)
+                If a Binning object is passed, the Fourier transform will be binned
+                before computing the phase
+
+        Returns
+        -------
+        freq : ndarray
+               Sample frequencies or the central frequency of each bin
+        lag  : ndarray
+               The time lag associated with each frequency or bin
         """
         f, ft = self.ft()
-        ft_bin = bins.bin(f, ft)
-        lag = np.arg(ft_bin) / (2*np.pi*fbins.bin_cent)
-        return lag
+        if fbins is not None:
+            ft_bin = fbins.bin(f, ft)
+            freq = fbins.bin_cent
+            lag = np.angle(ft_bin) / (2*np.pi*fbins.bin_cent)
+        else:
+            freq = f
+            lag = np.angle(ft) / (2*np.pi*f)
+        return freq, lag
+
+    def pad(self, new_tmax):
+        pad_t = np.arange(self.time.min(), new_tmax, self.time[1]-self.time[0])
+        pad_r = np.pad(self.rate, (0, len(pad_t) - len(self.time)), 'linear_ramp')
+        return ImpulseResponse(t=pad_t, r=pad_r)
 
 
 class GaussianResponse(ImpulseResponse):
