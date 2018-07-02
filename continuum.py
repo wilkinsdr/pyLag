@@ -101,3 +101,37 @@ class VerticalPropContinuumENT(ENTResponse):
         return ent
 
 
+class GammagradContinuumENT(ENTResponse):
+    def __init__(self, t0, dt, gamma_start, gamma_end, ent=None, en_bins=None, t=None, tstart=0.):
+        if ent is not None:
+            self.en_bins = ent.en_bins
+            self.time = ent.time
+            self.tstart = ent.tstart
+        elif en_bins is not None and t is not None:
+            self.en_bins = en_bins
+            self.time = t
+            self.tstart = tstart
+        else:
+            raise ValueError("Dimensions of response must be specified!")
+
+        self.t0 = self.time.min()
+        self.dt = self.time[1] - self.time[0]
+
+        self.ent = self.calculate(t0, dt, gamma_start, gamma_end)
+
+    def calculate(self, t0, dt, gamma_start, gamma_end):
+        ent = np.zeros((len(self.en_bins), len(self.time)))
+        en = self.en_bins.bin_cent
+
+        for it, t in enumerate(self.time):
+            if (t+self.tstart) >= t0 and (t+self.tstart) < t0 + dt:
+                gamma = gamma_start + (t + self.tstart - t0) * (gamma_end - gamma_start)/dt
+                norm = 1.0
+                spec = en**-gamma
+                ent[:, it] += norm * spec/np.sum(spec)
+            elif t >= t0 + dt:
+                break
+
+        return ent
+
+
