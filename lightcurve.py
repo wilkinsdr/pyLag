@@ -599,7 +599,7 @@ class LightCurve(object):
         count, _ = np.histogram(self.rate, bins=bins)
         return count[0] * self.dt
 
-    def ft(self):
+    def ft(self, all_freq=False):
         """
         freq, ft = pylag.LightCurve.ft()
 
@@ -619,7 +619,10 @@ class LightCurve(object):
         ft = scipy.fftpack.fft(self.rate)
         freq = scipy.fftpack.fftfreq(self.length, d=self.dt)
 
-        return freq[:int(self.length / 2)], ft[:int(self.length / 2)]
+        if all_freq:
+            return freq, ft
+        else:
+            return freq[:int(self.length / 2)], ft[:int(self.length / 2)]
 
     def ftfreq(self):
         """
@@ -1481,3 +1484,10 @@ def lclist_separate_segments(lclist):
                 new_lclist[-1].append(seg_lclist[seg_num])
 
     return new_lclist
+
+
+def ifft_lightcurve(f, ft):
+    r = np.real(scipy.fftpack.ifft(ft))
+    nyq = np.abs(np.max(f))
+    t = np.arange(0, 1./f[1] + 1./(2.*nyq), 1./(2.*nyq))
+    return LightCurve(t=t, r=r, e=[])
