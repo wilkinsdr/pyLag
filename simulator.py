@@ -104,44 +104,56 @@ class SimLightCurve(LightCurve):
         freq = scipy.fftpack.fftfreq(len(t), d=t[1] - t[0])
         Nf = len(freq)
 
+        psd = np.zeros(freq.shape)
+        if isinstance(plslope, (float,int)):
+            psd = (2*np.pi*np.abs(freq))**(-plslope/2.)
+        elif isinstance(plslope, tuple):
+            if len(plslope) == 3:
+                slope1, fb, slope2 = plslope
+                psd[np.abs(freq) <= fb] = (2*np.pi*np.abs(freq[np.abs(freq) <= fb]))**(-slope1/2.)
+                psd[np.abs(freq) > fb] = (2*np.pi*fb)**((slope2-slope1)/2.) * (2*np.pi*np.abs(freq[np.abs(freq) > fb]))**(-slope2/2.)
+            else:
+                raise ValueError("pylag SimLightCurve ERROR: Unexpected PSD specification")
+        else:
+            raise ValueError("pylag SimLightCurve ERROR: Unexpected PSD specification")
+
         re = np.zeros(freq.shape)
         imag = np.zeros(freq.shape)
 
         # randomly draw the real part of the Fourier transform from a normal distribution
         # total magnitude of the FT is set by the desired power spectrum
-        re[1:int(Nf/2)] = np.random.randn(len(freq[1:int(Nf/2)]))/(2.*np.pi*np.abs(freq[1:int(Nf/2)]))**(plslope/2.)
+        re[1:int(Nf/2)] = np.random.randn(len(freq[1:int(Nf/2)])) * psd[1:int(Nf/2)]
         if Nf % 2 == 0:
             # if total number of frequency bins is even, we have the Nyquist frequency with no positive counterpart
             # FT at the Nyquist frequency is real
-            re[int(Nf / 2)] = np.random.randn() / (2. * np.pi * np.abs(freq[int(Nf / 2)])) ** (plslope / 2.)
+            re[int(Nf / 2)] = np.random.randn() * psd[int(Nf / 2)]
             re[int(Nf/2)+1:] = np.flip(re[1:int(Nf/2)], axis=0)
         else:
-            re[int(Nf / 2)] = np.random.randn() / (2. * np.pi * np.abs(freq[int(Nf / 2)])) ** (plslope / 2.)
+            re[int(Nf / 2)] = np.random.randn() * psd[int(Nf / 2)]
             re[int(Nf / 2)+1:] = np.flip(re[1:int(Nf / 2)+1], axis=0)
         re[0] = plnorm * np.random.randn()
         # and the imaginary part
-        imag[1:int(Nf/2)] = np.random.randn(len(freq[1:int(Nf/2)])) / (2. * np.pi * np.abs(freq[1:int(Nf/2)]))**(plslope/2.)
+        imag[1:int(Nf/2)] = np.random.randn(len(freq[1:int(Nf/2)])) * psd[1:int(Nf/2)]
         if Nf % 2 == 0:
             # the FT at negative frequencies is the complex conjugate of that at positive frequencies
             # if total number of frequency bins is even, we have the Nyquist frequency with no positive counterpart
             # FT at the Nyquist frequency is real
             imag[int(Nf/2)+1:] = -1.*np.flip(imag[1:int(Nf/2)], axis=0)
         else:
-            imag[int(Nf / 2)] = np.random.randn() / (2. * np.pi * np.abs(freq[int(Nf / 2)])) ** (plslope / 2.)
+            imag[int(Nf / 2)] = np.random.randn() * psd[int(Nf / 2)]
             imag[int(Nf / 2)+1:] = -1.*np.flip(imag[1:int(Nf / 2)+1], axis=0)
 
         # put the Fourier transform together then invert it to get the light curve
         ft = re + (1j * imag)
         r = np.real(scipy.fftpack.ifft(ft))
 
-        if lognorm:
-            r = np.log(std) * r / np.std(r)
-            r = r - np.mean(r) + np.log(lcmean)
-            r = np.exp(r)
-
         # normalise and shift the light curve to get the desired mean and stdev
+        # for lognorm light curves, this is mean and std of log(count rate)
         r = std * r / np.std(r)
         r = r - np.mean(r) + lcmean
+
+        if lognorm:
+            r = np.exp(r)
 
         # don't let any points drop below zero (the detector will see nothing here)
         if gtzero:
