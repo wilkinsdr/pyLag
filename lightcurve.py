@@ -1319,7 +1319,9 @@ class EnergyLCList(object):
         :return:
         """
         if isinstance(self.lclist[0], list):
-            new_lclist = [[]]*len(self.lclist)
+            new_lclist = []
+            for en in range(len(self.lclist)):
+                new_lclist.append([])
             for seg in range(len(self.lclist[0])):
                 filt = np.ones(self.lclist[0][seg].rate.shape).astype(bool)
                 for en in range(len(self.lclist)):
