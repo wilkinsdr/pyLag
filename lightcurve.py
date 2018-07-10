@@ -1312,6 +1312,43 @@ class EnergyLCList(object):
 
         return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
 
+    def remove_zeros(self):
+        """
+        Remove time bins where any of the light curves go to zero
+
+        :return:
+        """
+        if isinstance(self.lclist[0], list):
+            new_lclist = [[]]*len(self.lclist)
+            for seg in range(len(self.lclist[0])):
+                filt = np.ones(self.lclist[0][seg].rate.shape).astype(bool)
+                for en in range(len(self.lclist)):
+                    filt *= (self.lclist[en][seg].rate > 0)
+                for en in range(len(self.lclist)):
+                    t = self.lclist[en][seg].time[filt]
+                    r = self.lclist[en][seg].rate[filt]
+                    e = self.lclist[en][seg].error[filt]
+                    lc = LightCurve(t=t, r=r, e=e)
+                    lc.__class__ = self.lclist[en][seg].__class__
+                    new_lclist[en].append(lc)
+
+        elif isinstance(self.lclist[0], LightCurve):
+            new_lclist = []
+            filt = np.ones(self.lclist[0].rate.shape).astype(bool)
+            for en in range(len(self.lclist)):
+                filt *= (self.lclist[en].rate > 0)
+            for en in range(len(self.lclist)):
+                t = self.lclist[en].time[filt]
+                r = self.lclist[en].rate[filt]
+                e = self.lclist[en].error[filt]
+                lc = LightCurve(t=t, r=r, e=e)
+                lc.__class__ = self.lclist[en].__class__
+                new_lclist.append(lc)
+
+        lclist = EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
+        lclist.__class__ = self.__class__
+        return lclist
+
     def __getitem__(self, index):
         return self.lclist[index]
 
