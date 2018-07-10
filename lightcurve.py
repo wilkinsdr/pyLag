@@ -416,6 +416,21 @@ class LightCurve(object):
         print("Good segment lengths: ", good_length)
         print("Gaps: ", gap_length)
 
+    def remove_nan(self, to_self=False):
+        t = self.time[np.logical_not(np.isnan(self.rate))]
+        r = self.rate[np.logical_not(np.isnan(self.rate))]
+        e = self.error[np.logical_not(np.isnan(self.rate))]
+
+        if to_self:
+            self.time = t
+            self.rate = r
+            self.error = e
+
+        else:
+            lc = LightCurve(t=t, r=r, e=e)
+            lc.__class__ = self.__class__
+            return lc
+
     def remove_gaps(self, to_self=False):
         t = self.time[self.rate>0]
         r = self.rate[self.rate>0]

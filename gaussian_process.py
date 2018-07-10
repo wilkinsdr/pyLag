@@ -22,7 +22,7 @@ from .lag_energy_spectrum import *
 
 
 class GPLightCurve(LightCurve):
-    def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, kernel=None, n_restarts_optimizer=9, run_fit=True, use_errors=True, noise_kernel=False, lognorm=False, remove_gaps=True):
+    def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, kernel=None, n_restarts_optimizer=9, run_fit=True, use_errors=True, noise_kernel=False, lognorm=False, remove_gaps=True, remove_nan=False):
         if lc is not None:
             t = lc.time
             r = lc.rate
@@ -33,6 +33,8 @@ class GPLightCurve(LightCurve):
         # (only store the non-zero time bins)
         if remove_gaps:
             self.remove_gaps(to_self=True)
+        elif remove_nan:
+            self.remove_nan(to_self=True)
 
         self.mean_rate = self.mean()
 
