@@ -20,6 +20,8 @@ except:
 from scipy.stats import binned_statistic
 from scipy.interpolate import interp1d
 
+from .plotter import Spectrum
+
 
 class LightCurve(object):
     """
@@ -1350,6 +1352,20 @@ class EnergyLCList(object):
         lclist = EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
         lclist.__class__ = self.__class__
         return lclist
+
+    def mean_spectrum(self):
+        en = 0.5 * (self.enmin + self.enmax)
+        enerr = 0.5 * (self.enmax - self.enmin)
+
+        if isinstance(self.lclist[0], LightCurve):
+            avg_rate = np.array([l.mean() for l in self.lclist])
+            std_rate = np.array([np.std(l.rate) for l in self.lclist])
+        elif isinstance(self.lclist[0], list):
+            concat_lclist = self.concatenate_segments()
+            avg_rate = np.array([l.mean() for l in concat_lclist.lclist])
+            std_rate = np.array([np.std(l.rate) for l in concat_lclist.lclist])
+
+        return Spectrum((en, enerr), (avg_rate, std_rate))
 
     def __getitem__(self, index):
         return self.lclist[index]
