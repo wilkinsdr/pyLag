@@ -281,7 +281,7 @@ class LightCurve(object):
         segment.__class__ = self.__class__
         return segment
 
-    def split_segments(self, num_segments=1, segment_length=None, use_end=False):
+    def split_segments_time(self, num_segments=1, segment_length=None, use_end=False):
         """
         segments = pylag.LightCurve.split_segments(num_segments=1, segment_length=None)
 
@@ -314,6 +314,46 @@ class LightCurve(object):
         for tstart in np.arange(self.time.min(), self.time.max(), segment_length):
             if ((tstart + segment_length) <= self.time.max()) or use_end:
                 segments.append(self.time_segment(tstart, tstart + segment_length))
+
+        return segments
+
+    def split_segments(self, num_segments=1, segment_length=None, use_end=False):
+        """
+        segments = pylag.LightCurve.split_segments(num_segments=1, segment_length=None)
+
+        Divides the light curve into equal time segments which are returned as a
+        list of LightCurve objects. The segments are always of equal legnth. If
+        the light curve does not divide into the specified segment length, the
+        end of the light curve will not be included.
+
+        Arguments
+        ---------
+        num_segments   : int, optional (default=1)
+                         The number of segments to divide the light curve into
+        segment_length : float, optional (default=None)
+                         If set, the length of the light curve segments to be
+                         created.
+        use_end        : boolean, optional (default=False)
+                         Sometimes the light curve will not divide exactly into
+                         the desired number of segments. If true, in this case,
+                         the list of segments will also include the partial
+                         segment from the end of the light curve
+
+        Returns
+        -------
+        segments : list of LightCurves
+        """
+        if segment_length is None:
+            segment_length = (self.time.max() - self.time.min()) / float(num_segments)
+
+        seg_bins = int(segment_length / (self.time[1] - self.time[0]))
+
+        segments = []
+        for bin_start in range(0, len(self), seg_bins):
+            if (bin_start + seg_bins) <= len(self):
+                segments.append(self[bin_start:bin_start + seg_bins])
+            elif use_end:
+                segments.append(self[bin_start:])
 
         return segments
 
@@ -641,7 +681,7 @@ class LightCurve(object):
         else:
             return freq[:int(self.length / 2)], ft[:int(self.length / 2)]
 
-    def ftfreq(self):
+    def ftfreq(self, all_freq=False):
         """
         freq = pylag.LightCurve.ftfreq()
 
@@ -654,7 +694,10 @@ class LightCurve(object):
         """
         freq = scipy.fftpack.fftfreq(self.length, d=self.dt)
 
-        return freq[:int(self.length / 2)]
+        if all_freq:
+            return freq
+        else:
+            return freq[:int(self.length / 2)]
 
     def bin_num_freq(self, bins):
         """
