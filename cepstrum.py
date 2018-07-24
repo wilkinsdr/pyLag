@@ -103,3 +103,34 @@ class Cepstrum(object):
 
     def _getplotaxes(self):
         return 'Quefrency / s', 'log', 'Cepstrum', 'log'
+
+
+class StackedCepstrum(Cepstrum):
+    def __init__(self, lc_list, bins=None, calc_error=True):
+        self.cepstra = []
+        for lc in lc_list:
+            self.cepstra.append(Cepstrum(lc))
+
+        self.bins = bins
+        quef = []
+        cepstrum = []
+        err = []
+        qerr = []
+
+        if bins is not None:
+            quef = bins.bin_cent
+            qerr = bins.x_error()
+            cepstrum, err = self.calculate(calc_error)
+
+        Cepstrum.__init__(self, q=quef, cep=cepstrum, err=err, qerr=qerr)
+
+    def calculate(self, calc_error=True):
+        quef_list = np.hstack([c.quef for c in self.cepstra])
+        cep_list = np.hstack([c.cepstrum for c in self.cepstra])
+
+        if calc_error:
+            error = self.bins.std_error(quef_list, cep_list)
+        else:
+            error = None
+
+        return self.bins.bin(quef_list, cep_list), error
