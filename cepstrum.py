@@ -65,7 +65,7 @@ class Cepstrum(object):
         lft = np.log(np.abs(ft)**2)
         ift = scipy.fftpack.ifft(lft)
         cep = np.abs(ift)**2
-        return lc.time[0:int(len(f)/2)], cep[0:int(len(f)/2)]
+        return lc.time[0:int(len(f)/2)] - lc.time[0], cep[0:int(len(f)/2)]
 
     def bin(self, bins, calc_error=True):
         """
