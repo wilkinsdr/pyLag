@@ -400,7 +400,6 @@ class LightCurve(object):
 
                 # make sure we get the end of the light curve if it's good
                 elif i==len(self.rate)-1:
-                    print("got the end")
                     good_end = len(self.rate)
                     good_length = good_end - good_start
                     if good_length >= min_segment:
@@ -790,6 +789,14 @@ class LightCurve(object):
         """
         t, r, e = zip(*sorted(zip(self.time, self.rate, self.error)))
         return LightCurve(t=np.array(t), r=np.array(r), e=np.array(e))
+
+    def log(self):
+        """
+        Return the logarithm of the count rate
+        """
+        r = np.log(self.rate)
+        e = self.error / self.rate
+        return LightCurve(t=self.time, r=r, e=e)
 
     def __add__(self, other):
         """
