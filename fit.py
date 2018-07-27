@@ -33,6 +33,18 @@ def broken_pl_model(params, x):
     func[x > xbreak] = norm * xbreak ** (slope2 - slope1) * x[x > xbreak] ** -slope2
     return func
 
+def broken_pl_plus_const_model(params, x):
+    norm = params['norm'].value
+    slope1 = params['slope1'].value
+    xbreak = params['xbreak'].value
+    slope2 = params['slope2'].value
+    const = params['const'].value
+
+    func = np.zeros(x.shape)
+    func[x <= xbreak] = norm * x[x <= xbreak] ** -slope1 + const
+    func[x > xbreak] = norm * xbreak ** (slope2 - slope1) * x[x > xbreak] ** -slope2 + const
+    return func
+
 
 class Fit(object):
     def __init__(self, data, modelfn, params, statistic=chisq):
@@ -72,7 +84,7 @@ class Fit(object):
             self.xdata = self.xdata[np.logical_not(np.isnan(self.yerror))]
             if self.xerror is not None:
                 self.xerror = self.xerror[np.logical_not(np.isnan(self.yerror))]
-            self.yerror = self.ydata[np.logical_not(np.isnan(self.yerror))]
+            self.yerror = self.yerror[np.logical_not(np.isnan(self.yerror))]
 
     def perform_fit(self, fit_range=None):
         if isinstance(fit_range, tuple):
@@ -86,7 +98,7 @@ class Fit(object):
             ye = self.yerror
         else:
             raise ValueError("pylag Fit perform_fit ERROR: Unexpected value for fit_range")
-        self.minimizer = lmfit.Minimizer(self.statistic, self.params, fcn_args=(xd, yd, ye, self.modelfn))
+        self.minimizer = lmfit.Minimizer(self.statistic, self.params, fcn_args=(xd, yd, ye, self.modelfn), xtol=1e-10, ftol=1e-10)
         self.fit_result = self.minimizer.minimize()
         #self.fit_result = lmfit.minimize(self.statistic, self.params, args=(xd, yd, ye, self.modelfn))
 
@@ -109,11 +121,32 @@ class Fit(object):
             x = self.xdata
         return x, self.modelfn(self.fit_result.params, x)
 
+    def ratio(self):
+        r = self.ydata / self.modelfn(self.fit_result.params, self.xdata)
+        if self.yerror is not None:
+            e = r * (self.yerror / self.ydata)
+            return r, e
+        else:
+            return r
+
     def _getdataseries(self, x=None):
         x, y = self.fit_function(x)
         return DataSeries(x, y)
 
+    def _getratioseries(self, x=None):
+        if self.xerror is not None:
+            x = (self.xdata, self.xerror)
+        else:
+            x = self.xdata
+        xlabel, xscale, ylabel, yscale = self.data_obj._getplotaxes()
+        return DataSeries(x, self.ratio(), xlabel=xlabel, xscale=xscale, ylabel='Data / Model', yscale='linear')
+
     def plot_fit(self, x=None):
         p = Plot([self.data_obj, self._getdataseries(x)])
+        p.marker_series = ['+', '-']
+        return p
+
+    def plot_ratio(self, x=None):
+        p = Plot(self._getratioseries(x))
         p.marker_series = ['+', '-']
         return p
