@@ -127,7 +127,7 @@ class GPPeriodogram(Periodogram):
 
 
 class GPEnergyLCList(EnergyLCList):
-    def __init__(self, searchstr=None, lcfiles=None, enlclist=None, enmin=None, enmax=None, lclist=None, **kwargs):
+    def __init__(self, searchstr=None, lcfiles=None, enlclist=None, enmin=None, enmax=None, lclist=None, lc_class=GPLightCurve, **kwargs):
         if enlclist is not None:
             self.enmin = enlclist.enmin
             self.enmax = enlclist.enmax
@@ -147,11 +147,11 @@ class GPEnergyLCList(EnergyLCList):
             for en_lclist in lclist:
                 self.lclist.append([])
                 for lc in en_lclist:
-                    self.lclist[-1].append(GPLightCurve(lc=lc, **kwargs))
+                    self.lclist[-1].append(lc_class(lc=lc, **kwargs))
 
         elif isinstance(lclist[0], LightCurve):
             for lc in lclist:
-                self.lclist.append(GPLightCurve(lc=lc, **kwargs))
+                self.lclist.append(lc_class(lc=lc, **kwargs))
 
     def fit(self):
         if isinstance(lclist[0], list):
