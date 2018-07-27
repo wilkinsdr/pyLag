@@ -12,6 +12,22 @@ import scipy.fftpack
 import scipy.signal
 
 
+def psd_powerlaw(freq, slope1, fbreak=None, slope2=None):
+    psd = np.zeros(freq.shape)
+    if fbreak is None and slope2 is None:
+        psd = (2 * np.pi * np.abs(freq)) ** (-slope1 / 2.)
+    else:
+        psd[np.abs(freq) <= fbreak] = (2 * np.pi * np.abs(freq[np.abs(freq) <= fbreak])) ** (-slope1 / 2.)
+        psd[np.abs(freq) > fbreak] = (2 * np.pi * fbreak) ** ((slope2 - slope1) / 2.) * (
+                2 * np.pi * np.abs(freq[np.abs(freq) > fbreak])) ** (-slope2 / 2.)
+
+    return psd
+
+
+def psd_sho(freq, S0, f0, Q):
+    return np.sqrt(2./np.pi) * (S0 * f0**4) / ((freq**2 - f0**2)**2 + freq**2 * (f0/Q)**2)
+
+
 class SimLightCurve(LightCurve):
     """
     pylag.SimLightCurve
@@ -59,16 +75,16 @@ class SimLightCurve(LightCurve):
               Force all points in the light curve to have count rate greater
               than zero. Set all points below zero to zero
     """
-    def __init__(self, dt=10., tmax=1000., plslope=2.0, std=0.5, lcmean=1.0, t=None, r=None, e=None, gtzero=True, lognorm=False):
+    def __init__(self, dt=10., tmax=1000., psd_param=(2), std=0.5, lcmean=1.0, t=None, r=None, e=None, gtzero=True, lognorm=False, psdfn=psd_powerlaw):
         if t is None and r is None:
             t = np.arange(0, tmax, dt)
-            r = self.calculate(t, plslope, std, lcmean, gtzero=gtzero, lognorm=lognorm)
+            r = self.calculate(t, psd_param, std, lcmean, gtzero=gtzero, lognorm=lognorm, psdfn=psdfn)
         if e is None:
             #e = np.sqrt(r)
             e = np.sqrt(r / dt)
-        LightCurve.__init__(self, t=t, r=r, e=e)
+        LightCurve.__init__(self, t=t, r=r, e=e, zero_nan=False)
 
-    def calculate(self, t, plslope, std, lcmean, plnorm=1., gtzero=True, lognorm=False):
+    def calculate(self, t, psd_param, std, lcmean, plnorm=1., gtzero=True, lognorm=False, psdfn=psd_powerlaw):
         """
         pylag.SimLightCurve.calculate(t, plslope, lcmean, std, plnorm=1.)
 
@@ -104,18 +120,9 @@ class SimLightCurve(LightCurve):
         freq = scipy.fftpack.fftfreq(len(t), d=t[1] - t[0])
         Nf = len(freq)
 
-        psd = np.zeros(freq.shape)
-        if isinstance(plslope, (float,int)):
-            psd = (2*np.pi*np.abs(freq))**(-plslope/2.)
-        elif isinstance(plslope, tuple):
-            if len(plslope) == 3:
-                slope1, fb, slope2 = plslope
-                psd[np.abs(freq) <= fb] = (2*np.pi*np.abs(freq[np.abs(freq) <= fb]))**(-slope1/2.)
-                psd[np.abs(freq) > fb] = (2*np.pi*fb)**((slope2-slope1)/2.) * (2*np.pi*np.abs(freq[np.abs(freq) > fb]))**(-slope2/2.)
-            else:
-                raise ValueError("pylag SimLightCurve ERROR: Unexpected PSD specification")
-        else:
-            raise ValueError("pylag SimLightCurve ERROR: Unexpected PSD specification")
+        if not isinstance(psd_param, tuple):
+            psd_param = tuple([psd_param])
+        psd = psdfn(freq, *psd_param)
 
         re = np.zeros(freq.shape)
         imag = np.zeros(freq.shape)
@@ -187,15 +194,18 @@ class SimLightCurve(LightCurve):
 
         return SimLightCurve(t=self.time, r=rate, e=error)
 
-    def add_gaps(self, period, length):
+    def add_gaps(self, period, length, gap_value=0):
         freq = 1. / period
         duty = (period - length) / period
 
         window = scipy.signal.square(2*np.pi*freq*self.time, duty=duty)
-        window[window < 0] = 0
+        #window[window < 0] = gap_value
 
-        rate = self.rate * window
-        error = self.error * window
+        rate = np.array(self.rate)
+        error = np.array(self.error)
+
+        rate[window < 0] = gap_value
+        error[window < 0] = gap_value
 
         return SimLightCurve(t=self.time, r=rate, e=error)
 
