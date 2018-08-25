@@ -169,6 +169,16 @@ class ENTResponse(object):
             ent.append(bins.bin_fast(self.time, self.ent[ien,:]))
         return ENTResponse(en_bins=self.en_bins, t=bins.bin_start, ent=np.array(ent), tstart=self.tstart)
 
+    def rescale_time(self, mult=None, mass=None):
+        """
+        Rescale the time axis of the light curve, multiplying by a constant
+        e.g. for GM/c^3 to s conversion
+        """
+        if mass is not None:
+            mult = 6.67E-11 * mass * 2E30 / (3E8)**3
+        t = self.time * mult
+        return ENTResponse(en_bins=self.en_bins, t=t, ent=self.ent, tstart=self.tstart)
+
     def plot_image(self, vmin=None, vmax=None, mult_scale=True, cmap='hot'):
         fig, ax = plt.subplots()
 
