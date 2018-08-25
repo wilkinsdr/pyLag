@@ -834,3 +834,46 @@ class AverageDataSeries(DataSeries):
         self.ydata = (self.mean, self.std)
 
         self.xlabel, self.xscale, self.ylabel, self.yscale = data_objects[0]._getplotaxes()
+
+
+def txt_to_ds(filename, xcol=1, ycol=2, xerrcol=None, yerrcol=None, transpose=False, **kwargs):
+    """
+    p = pylag.txt_to_ds(filename, xcol=1, ycol=2, xerrcol=None, yerrcol=None, **kwargs)
+
+    Create a DataSet object from a text file with data in columns.
+
+    The columns are read using the numpy genfromtxt function and a Plot object is created
+    using specified columns. The new plot is returned and also added to the pylag.all_plots
+    list.
+
+    Parameters
+    ----------
+    filename : string
+               Name of text file to be plotted
+    xcol     : int, optional (default = 1)
+               Number of the column in the file (starting at 1) containing the x data points
+    ycol     : intm optional (default = 2)
+               Number of the column containing the y data points
+    xerrcol  : int, optional (default = None)
+               If not None, the values in this column will be used as the x error bars
+    yerrcol  : int, optional (default = None)
+               If not None, the values in this column will be used as the y error bars
+    kwargs   : Arguments passed to Plot constructor
+
+    Returns
+    -------
+    p : Plot object containing the plot that was created
+    """
+    dat = np.genfromtxt(filename)
+    if transpose:
+        dat = dat.T
+    if xerrcol is not None:
+        xdata = (dat[:,xcol-1], dat[:,xerrcol-1])
+    else:
+        xdata = dat[:,xcol-1]
+    if yerrcol is not None:
+        ydata = (dat[:,ycol-1], dat[:,yerrcol-1])
+    else:
+        ydata = dat[:,ycol-1]
+
+    return DataSeries(x=xdata, y=ydata, **kwargs)
