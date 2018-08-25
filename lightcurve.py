@@ -798,6 +798,18 @@ class LightCurve(object):
         e = self.error / self.rate
         return LightCurve(t=self.time, r=r, e=e)
 
+    def rescale_time(self, mult=None, mass=None):
+        """
+        Rescale the time axis of the light curve, multiplying by a constant
+        e.g. for GM/c^3 to s conversion
+        """
+        if mass is not None:
+            mult = 6.67E-11 * mass * 2E30 / (3E8)**3
+        t = self.time * mult
+        lc = LightCurve(t=t, r=self.rate, e=self.error)
+        lc.__class__ = self.__class__
+        return lc
+
     def __add__(self, other):
         """
         Overloaded + operator to add two light curves together and return the
