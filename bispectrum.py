@@ -21,6 +21,17 @@ class Bispectrum(object):
 
         bispec = ft[f1] * ft[f2] * ft_conj[f1 + f2]
 
+        # alternative test
+        # df = f[1] - f[0]
+        # f1, f2 = np.meshgrid(f[:int(len(f)/4)], f[:int(len(f)/4)])
+        # bispec = np.zeros(f1.shape)
+        # for i in range(f1.shape[0]):
+        #     for j in range(f1.shape[1]):
+        #         if1 = int((f1[i,j] - f[0])/df)
+        #         if2 = int((f2[i, j] - f[0]) / df)
+        #         ifsum = int((f1[i, j] + f2[i, j] - f[0]) / df)
+        #         bispec[i, j] = ft[if1] * ft[if2] * ft_conj[ifsum]
+
         return bispec
 
     @staticmethod
@@ -80,6 +91,29 @@ class Bispectrum(object):
         ax.set_xlabel('Frequency 1 / Hz')
         ax.set_ylabel('Frequency 2 / Hz')
         cb.set_label('Biphase / rad')
+
+    def sumfreq(self, bins=None):
+        f1, f2 = np.meshgrid(range(self.freq1.shape[0]), range(self.freq1.shape[0]))
+        #print(np.array([np.mean(self.bispec[f1+f2 == i]) for i in range(2*self.freq1.shape[0]-1)]))
+        # avg_bispec = np.array([np.mean(self.bispec[np.logical_and(f1+f2 == i, f1*f2 != 0)]) for i in range(2*self.freq1.shape[0]-1)])
+        # avg_bicoh = np.array([np.mean(self.bicoherence[np.logical_and(f1+f2 == i, f1*f2 != 0)]) for i in range(2 * self.freq1.shape[0]-1)])
+        # avg_biphase = np.array([np.mean(self.biphase[np.logical_and(f1+f2 == i, f1*f2 != 0)]) for i in range(2 * self.freq1.shape[0]-1)])
+        avg_bispec = np.array([np.mean(self.bispec[f1+f2 == i]) for i in
+                               range(2 * self.freq1.shape[0] - 1)])
+        avg_bicoh = np.array([np.mean(self.bicoherence[f1+f2 == i]) for i in
+                              range(2 * self.freq1.shape[0] - 1)])
+        avg_biphase = np.array([np.mean(self.biphase[f1+f2 == i]) for i in
+                                range(2 * self.freq1.shape[0] - 1)])
+        df = self.freq1[0,1] - self.freq1[0,0]
+        sumfreq = np.arange(self.freq1.min(), 2*self.freq1.max()+df, df)
+
+        if bins is not None:
+            bispec_bin = bins.bin(sumfreq, avg_bispec)
+            bicoh_bin = bins.bin(sumfreq, avg_bicoh)
+            biphase_bin = bins.bin(sumfreq, avg_biphase)
+            return bins.bin_cent, bins.x_error(), bispec_bin, bicoh_bin, biphase_bin
+
+        return sumfreq, avg_bispec, avg_bicoh, avg_biphase
 
 
 class BinnedBispectrum(Bispectrum):
@@ -151,8 +185,8 @@ class BinnedBispectrum1D(Bispectrum):
         self.freq = bins.bin_cent
         self.freq_err = bins.x_error()
         self.bispec = self.calculate_bispectrum(lc, bins)
-        self.bicoherence = self.calculate_bicoherence(lc, bins)
-        self.biphase = np.angle(self.bispec)
+        self.bicoherence, self.bicoherence_error, self.biphase, self.biphase_error = self.calculate_bicoherence(lc, bins)
+        #self.biphase = np.angle(self.bispec)
 
     def calculate_bispectrum(self, lclist, bins):
         freq1 = []
@@ -210,10 +244,18 @@ class BinnedBispectrum1D(Bispectrum):
 
         bicoh_binned = np.abs(bispec_binned)**2 / (norm1_binned * norm2_binned)
 
-        return bicoh_binned
+        num_points, _ = np.histogram(sumfreq, bins=bins.bin_edges)
+
+        bicoh_error = np.sqrt((4 * bicoh_binned**2 / (2*num_points)) * (1 - bicoh_binned**2)**3)
+
+        biphase_error = np.sqrt((1./(2. * num_points)) * (1./bicoh_binned**2 - 1))
+
+        biphase = np.angle(bispec_binned)
+
+        return bicoh_binned, bicoh_error, biphase, biphase_error
 
     def bicoherence_series(self):
-        return DataSeries(x=(self.freq, self.freq_err), y=self.bicoherence, xlabel='f1 + f2 / Hz', xscale='log', ylabel='Bicoherence', yscale='linear')
+        return DataSeries(x=(self.freq, self.freq_err), y=(self.bicoherence, self.bicoherence_error), xlabel='f1 + f2 / Hz', xscale='log', ylabel='Bicoherence', yscale='linear')
 
     def biphase_series(self):
-        return DataSeries(x=(self.freq, self.freq_err), y=self.biphase, xlabel='f1 + f2 / Hz', xscale='log', ylabel='Biphase / rad', yscale='linear')
+        return DataSeries(x=(self.freq, self.freq_err), y=(self.biphase, self.biphase_error), xlabel='f1 + f2 / Hz', xscale='log', ylabel='Biphase / rad', yscale='linear')
