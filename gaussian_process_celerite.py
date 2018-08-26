@@ -47,7 +47,7 @@ class GPLightCurve_Celerite(GPLightCurve):
             if noise_kernel:
                 noise_level = np.sqrt(self.mean_rate * self.dt) / (self.mean_rate * self.dt)
                 noise_bounds = dict(log_sigma=(-10, np.log(2*noise_level)))
-                self.kernel += terms.JitterTerm(log_sigma=log(noise_level), bounds=noise_bounds)
+                self.kernel += terms.JitterTerm(log_sigma=np.log(noise_level), bounds=noise_bounds)
 
         self.gp = celerite.GP(self.kernel, mean=self.mean_rate)
         if use_errors:
