@@ -90,7 +90,10 @@ class GPLightCurve_Celerite(GPLightCurve):
         r = minimize(gp_minus_log_likelihood, initial_params, method="L-BFGS-B", bounds=bounds, args=(self.rate, self.gp))
         for i in range(kernel_restarts):
             print("restarting fit from ", r.x)
-            r = minimize(gp_minus_log_likelihood, r.x, method="L-BFGS-B", bounds=bounds,
+            new_start = []
+            for par in r.x:
+                new_start.append(par + 0.1*par*scipy.randn())
+            r = minimize(gp_minus_log_likelihood, new_start, method="L-BFGS-B", bounds=bounds,
                          args=(self.rate, self.gp))
         self.gp.set_parameter_vector(r.x)
         print(r)
