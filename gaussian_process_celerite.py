@@ -20,7 +20,7 @@ from scipy.optimize import minimize
 
 
 class GPLightCurve_Celerite(GPLightCurve):
-    def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, kernel=None, kernel_pars=(1.0/np.sqrt(2.0), 1E-5), run_fit=True, use_errors=True, noise_kernel=False, lognorm=False, remove_gaps=True, remove_nan=False):
+    def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, num_terms=1, kernel=None, run_fit=True, use_errors=True, noise_kernel=False, lognorm=False, remove_gaps=True, remove_nan=False):
         if lc is not None:
             t = lc.time
             r = lc.rate
@@ -40,16 +40,14 @@ class GPLightCurve_Celerite(GPLightCurve):
         if kernel is not None:
             self.kernel = kernel
         else:
-            Q, w0 = kernel_pars
-            S0 = self.var / (w0 * Q)
-            bounds = dict(log_S0=(-15, 15), log_Q=(-15, 15), log_omega0=(-15, 15))
-            self.kernel = terms.SHOTerm(log_S0=np.log(S0), log_Q=np.log(Q), log_omega0=np.log(w0), bounds=bounds)
-            self.kernel.freeze_parameter("log_Q")
+            # bounds = dict(log_S0=(-15, 15), log_Q=(-15, 15), log_omega0=(-15, 15))
+            self.kernel = terms.ComplexTerm(log_a=-1, log_b=-1000, log_c=-10, log_d=-1000)
+            for i in range(num_terms - 1):
+                self.kernel += terms.ComplexTerm(log_a=-1, log_b=-1000, log_c=-10, log_d=-1000)
             if noise_kernel:
                 noise_level = np.sqrt(self.mean_rate * self.dt) / (self.mean_rate * self.dt)
-                self.kernel += WhiteKernel(noise_level=noise_level, noise_level_bounds=(1e-10, 2*noise_level))
-
-            print(self.kernel)
+                noise_bounds = dict(log_sigma=(-10, np.log(2*noise_level)))
+                self.kernel += terms.JitterTerm(log_sigma=np.log(noise_level), bounds=noise_bounds)
 
         self.gp = celerite.GP(self.kernel, mean=self.mean_rate)
         if use_errors:
