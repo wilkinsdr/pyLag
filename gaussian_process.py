@@ -24,9 +24,21 @@ from .lag_energy_spectrum import *
 class GPLightCurve(LightCurve):
     def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, kernel=None, n_restarts_optimizer=9, run_fit=True, use_errors=True, noise_kernel=False, lognorm=False, remove_gaps=True, remove_nan=False):
         if lc is not None:
-            t = lc.time
-            r = lc.rate
-            e = lc.error
+            if isinstance(lc, list):
+                # if we're passed a list, concatenate them into a single LightCurve
+                concat_lc = LightCurve().concatenate(lc).sort_time()
+                t = concat_lc.time
+                r = concat_lc.rate
+                e = concat_lc.error
+            else:
+                t = lc.time
+                r = lc.rate
+                e = lc.error
+
+        if zero_time:
+            t = np.array(t)
+            t -= t.min()
+
         LightCurve.__init__(self, filename, t, r, e, interp_gaps=False, zero_nan=zero_nan, trim=False)
 
         # need to remove the gaps from the light curve
