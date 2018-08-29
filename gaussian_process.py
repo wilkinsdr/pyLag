@@ -13,6 +13,8 @@ import numpy as np
 
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, RationalQuadratic, WhiteKernel, ConstantKernel as C
+import re
+import emcee
 
 from .lightcurve import *
 from .periodogram import *
@@ -22,7 +24,7 @@ from .lag_energy_spectrum import *
 
 
 class GPLightCurve(LightCurve):
-    def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, kernel=None, n_restarts_optimizer=9, run_fit=True, use_errors=True, noise_kernel=False, lognorm=False, remove_gaps=True, remove_nan=False):
+    def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, kernel=None, n_restarts_optimizer=9, run_fit=True, use_errors=True, noise_kernel=False, lognorm=False, remove_gaps=True, remove_nan=False, zero_time=False):
         if lc is not None:
             if isinstance(lc, list):
                 # if we're passed a list, concatenate them into a single LightCurve
@@ -65,10 +67,16 @@ class GPLightCurve(LightCurve):
             self.gp_regressor = GaussianProcessRegressor(kernel=self.kernel, n_restarts_optimizer=n_restarts_optimizer,
                                                          normalize_y=True, alpha=alpha)
 
+        # get a list of the kernel parameter names
+        r = re.compile('k[0-9]+__.*(?<!_bounds)$')
+        self.par_names = list(filter(r.match, self.gp_regressor.kernel.get_params().keys()))
+
         self.lognorm = lognorm
         if self.lognorm:
             self.error = self.error / self.rate
             self.rate = np.log(self.rate)
+
+        self.sampler = None
 
         if run_fit:
             self.fit()
@@ -103,6 +111,29 @@ class GPLightCurve(LightCurve):
                 return [LightCurve(t=t, r=np.exp(r[:, n]), e=e) for n in range(n_samples)]
             else:
                 return [LightCurve(t=t, r=r[:,n], e=e) for n in range(n_samples)]
+
+    def make_param_dict(self, par_values):
+        return dict(zip(parnames, par_values))
+
+    def get_fit_param(self):
+        return np.array([self.gp_regressor.kernel_.get_params()[p] for p in self.par_names])
+
+    def run_mcmc(self, nsteps=2000, nburn=500):
+        def log_probability(params, y, gp):
+            return gp.log_marginal_likelihood(params)
+
+        initial = self.get_fit_param()
+
+        ndim, nwalkers = len(initial), 32
+        self.sampler = emcee.EnsembleSampler(nwalkers, ndim, log_probability, args=(self.rate, self.gp_regressor))
+
+        print("Running burn-in...")
+        p0 = initial + 1e-8 * np.random.randn(nwalkers, ndim)
+        p0, lp, _ = self.sampler.run_mcmc(p0, nburn)
+
+        print("Running chain...")
+        self.sampler.reset()
+        self.sampler.run_mcmc(p0, nsteps)
 
 
 class GPPeriodogram(Periodogram):
