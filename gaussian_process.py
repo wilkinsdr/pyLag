@@ -68,7 +68,8 @@ class GPLightCurve(LightCurve):
                                                          normalize_y=True, alpha=alpha)
 
         # get a list of the kernel parameter names
-        r = re.compile('k[0-9]+__.*(?<!_bounds)$')
+        #r = re.compile('k[0-9]+__.*(?<!_bounds)$')
+        r = re.compile('(k[0-9]+__)+(.+(?<!_bounds)(?<!_k[0-9]))$')
         self.par_names = list(filter(r.match, self.gp_regressor.kernel.get_params().keys()))
 
         self.lognorm = lognorm
@@ -128,7 +129,7 @@ class GPLightCurve(LightCurve):
         self.sampler = emcee.EnsembleSampler(nwalkers, ndim, log_probability, args=(self.rate, self.gp_regressor))
 
         print("Running burn-in...")
-        p0 = initial + 1e-8 * np.random.randn(nwalkers, ndim)
+        p0 = initial + 1e-5 * np.random.randn(nwalkers, ndim)
         p0, lp, _ = self.sampler.run_mcmc(p0, nburn)
 
         print("Running chain...")
