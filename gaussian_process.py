@@ -56,6 +56,7 @@ class GPLightCurve(LightCurve):
             self.kernel = kernel
         else:
             self.kernel = C(1.0, (1e-3, 1e3)) * RationalQuadratic()
+            #self.kernel = RationalQuadratic()
             if noise_kernel:
                 noise_level = np.sqrt(self.mean_rate * self.dt) / (self.mean_rate * self.dt)
                 self.kernel += WhiteKernel(noise_level=noise_level, noise_level_bounds=(1e-10, 2*noise_level))
@@ -121,7 +122,14 @@ class GPLightCurve(LightCurve):
 
     def run_mcmc(self, nsteps=2000, nburn=500):
         def log_probability(params, y, gp):
-            return gp.log_marginal_likelihood(params)
+            if np.any(np.isinf(params)) or np.any(np.isnan(params)):
+                return -np.inf
+
+            try:
+                p = gp.log_marginal_likelihood(params)
+            except ValueError:
+                p = -np.inf
+            return p
 
         initial = self.get_fit_param()
 
