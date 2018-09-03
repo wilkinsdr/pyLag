@@ -554,8 +554,7 @@ def write_data(data_object, filename, xdata=None, ydata=None, mode='w', fmt='%15
     #data = np.array(data).transpose()
     data = tuple(data)
 
-    with open(filename, mode) as fhandle:
-        np.savetxt(fhandle, data, fmt=fmt, delimiter=delimiter)
+    np.savetxt(filename, data, fmt=fmt, delimiter=delimiter)
 
 
 def close_all_plots():
