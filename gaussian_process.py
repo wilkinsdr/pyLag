@@ -144,6 +144,66 @@ class GPLightCurve(LightCurve):
         self.sampler.reset()
         self.sampler.run_mcmc(p0, nsteps)
 
+    def predict_posterior(self, n_samples=1, t=None):
+        if self.sampler is None:
+            raise AssertionError("Must run_mcmc before making posterior predictions!")
+
+        if t is None:
+            t = np.arange(self.time.min(), self.time.max(), np.min(np.diff(self.time)))
+        t_samples = np.atleast_2d(t).T
+        e = np.zeros(t.shape)
+
+        samples = self.sampler.flatchain
+
+        if n_samples == 1:
+            s = samples[np.random.randint(len(samples))]
+            self.gp_regressor.kernel_.set_params(**self.make_param_dict(s))
+            r = self.gp_regressor.predict(t_samples, return_std=False)
+            if self.lognorm:
+                return LightCurve(t=t, r=np.exp(r), e=e)
+            else:
+                return LightCurve(t=t, r=r, e=e)
+        else:
+            lclist = []
+            for s in samples[np.random.randint(len(samples), size=n_samples)]:
+                self.gp.set_parameter_vector(s)
+                r = self.gp_regressor.predict(t_samples, return_std=False)
+                if self.lognorm:
+                    lclist.append(LightCurve(t=t, r=np.exp(r), e=e))
+                else:
+                    lclist.append(LightCurve(t=t, r=r, e=e))
+            return lclist
+
+    def sample_posterior(self, n_samples=1, t=None):
+        if self.sampler is None:
+            raise AssertionError("Must run_mcmc before sampling the posterior!")
+
+        if t is None:
+            t = np.arange(self.time.min(), self.time.max(), np.min(np.diff(self.time)))
+        t_samples = np.atleast_2d(t).T
+        e = np.zeros(t.shape)
+
+        samples = self.sampler.flatchain
+
+        if n_samples == 1:
+            s = samples[np.random.randint(len(samples))]
+            self.gp_regressor.kernel_.set_params(**self.make_param_dict(s))
+            r = self.gp_regressor.sample_y(t_samples, n_samples=1, random_state=None)
+            if self.lognorm:
+                return LightCurve(t=t, r=np.exp(r.ravel()), e=e)
+            else:
+                return LightCurve(t=t, r=r.ravel(), e=e)
+        else:
+            lclist = []
+            for s in samples[np.random.randint(len(samples), size=n_samples)]:
+                self.gp_regressor.kernel_.set_params(**self.make_param_dict(s))
+                r = self.gp_regressor.sample_y(t_samples, n_samples=1, random_state=None)
+                if self.lognorm:
+                    lclist.append(LightCurve(t=t, r=np.exp(r.ravel()), e=e))
+                else:
+                    lclist.append(LightCurve(t=t, r=r.ravel(), e=e))
+            return lclist
+
 
 class GPPeriodogram(Periodogram):
     def __init__(self, lc=None, gplc=None, n_samples=10, bins=None):
