@@ -552,9 +552,61 @@ def write_data(data_object, filename, xdata=None, ydata=None, mode='w', fmt='%15
         data.append(yd)
 
     #data = np.array(data).transpose()
-    data = tuple(data)
+    #data = tuple(data)
 
-    np.savetxt(filename, data, fmt=fmt, delimiter=delimiter)
+    np.savetxt(filename, list(zip(*data)), fmt=fmt, delimiter=delimiter)
+
+
+def write_multi_data(data_list, filename, mode='w', fmt='%15.10g', delimiter=' '):
+    """
+    pylag.write_multi_data
+
+    Write multiple data products (in a pylag data objects) to disk in a text file.
+
+    The x-axis is taken from the first object then each data series is written as a
+    subsequent column (with its corresponding error, if applicable)
+
+    e.g.
+    >>> pylag.write_multi_data([data1, data2], 'mydata.txt')
+
+    Arguments
+    ---------
+    data_list   : list of pylag plottable data product objects
+    filename    : string
+                  The name of the file to be saved
+    fmt            : string, optional (default='%15.10g')
+                  Python string format specifier to set the formatting of
+                  columns in the file.
+    delimiter    : string, optional (default=' ')
+                  The delimeter to use between columns
+    """
+    # the x-axis comes from the first object in the list
+    xd, _ = data_list[0]._getplotdata()
+    if isinstance(xd, tuple):
+        data_len = len(xd[0])
+        data = [xd[0]]
+        if isinstance(xd[1], (np.ndarray, list)):
+            data.append(xd[1])
+    else:
+        data_len = len(xd)
+        data = [xd]
+
+    # then add columns for each data series (plus errors if applicable)
+    for obj in data_list:
+        _, yd = obj._getplotdata()
+        if isinstance(yd, tuple):
+            if len(yd[0]) != data_len:
+                raise AssertionError('Data series must be the same length and have common x-axis!')
+
+            data.append(yd[0])
+            if isinstance(yd[1], (np.ndarray, list)):
+                data.append(yd[1])
+        else:
+            data.append(yd)
+
+    #data = tuple(data)
+
+    np.savetxt(filename, list(zip(*data)), fmt=fmt, delimiter=delimiter)
 
 
 def close_all_plots():
@@ -680,6 +732,40 @@ class DataSeries(object):
             self.ydata = np.concatenate([self.ydata, y])
         else:
             raise AssertionError('Data format mismatch')
+
+    def __truediv__(self, other):
+        if isinstance(other, DataSeries):
+            if isinstance(self.ydata, tuple):
+                yd1 = self.ydata[0]
+                ye1 = self.ydata[1]
+            elif isinstance(other.ydata, (np.ndarray, list)):
+                yd1 = self.ydata
+                ye1 = np.zeros(len(self.ydata))
+            else:
+                raise AssertionError('Data format mismatch')
+
+            if isinstance(other.ydata, tuple):
+                yd2 = other.ydata[0]
+                ye2 = other.ydata[1]
+            elif isinstance(other.ydata, (np.ndarray, list)):
+                yd2 = other.ydata
+                ye2 = np.zeros(len(other.ydata))
+            else:
+                raise AssertionError('Data format mismatch')
+
+            if len(yd1) != len(yd2):
+                raise AssertionError('Data series must be the same length')
+
+            ratio = yd1 / yd2
+            if isinstance(self.ydata, tuple) or isinstance(other.ydata, tuple):
+                ratio_err = ratio * np.sqrt((ye1 / yd1) ** 2 + (ye2 / yd2) ** 2)
+                ratio = (ratio, ratio_err)
+
+            return DataSeries(self.xdata, ratio, self.xlabel, self.xscale, '%s / %s' % (self.ylabel, other.ylabel), self.yscale)
+        else:
+            return NotImplemented
+
+
 
 
 class Spectrum(object):
