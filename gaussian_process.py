@@ -79,6 +79,7 @@ class GPLightCurve(LightCurve):
             self.rate = np.log(self.rate)
 
         self.sampler = None
+        self.log_mcmc = False
 
         if run_fit:
             self.fit()
@@ -97,7 +98,10 @@ class GPLightCurve(LightCurve):
             e = r * e
         return LightCurve(t=t, r=r, e=e)
 
-    def sample(self, n_samples=1, t=None):
+    def sample(self, n_samples=1, t=None, sample_posterior=False):
+        if sample_posterior:
+            return self.sample_posterior(n_samples, t)
+
         if t is None:
             t = np.arange(self.time.min(), self.time.max(), np.min(np.diff(self.time)))
         t_samples = np.atleast_2d(t).T
@@ -114,24 +118,35 @@ class GPLightCurve(LightCurve):
             else:
                 return [LightCurve(t=t, r=r[:,n], e=e) for n in range(n_samples)]
 
-    def make_param_dict(self, par_values):
+    def make_param_dict(self, par_values, log_par=True):
+        if log_par:
+            par_values = np.exp(np.array(par_values))
         return dict(zip(parnames, par_values))
 
-    def get_fit_param(self):
-        return np.array([self.gp_regressor.kernel_.get_params()[p] for p in self.par_names])
+    def get_fit_param(self, log_par=True):
+        par_array = np.array([self.gp_regressor.kernel_.get_params()[p] for p in self.par_names])
+        if log_par:
+            return np.log(par_array)
+        else:
+            return par_array
 
-    def run_mcmc(self, nsteps=2000, nburn=500):
+    def run_mcmc(self, nsteps=2000, nburn=500, log_par=True):
         def log_probability(params, y, gp):
             if np.any(np.isinf(params)) or np.any(np.isnan(params)):
                 return -np.inf
 
             try:
-                p = gp.log_marginal_likelihood(params)
+                if log_par:
+                    p = gp.log_marginal_likelihood(np.exp(params))
+                else:
+                    p = gp.log_marginal_likelihood(params)
             except ValueError:
                 p = -np.inf
             return p
 
-        initial = self.get_fit_param()
+        self.log_mcmc = log_par
+
+        initial = self.get_fit_param(log_par=log_par)
 
         ndim, nwalkers = len(initial), 32
         self.sampler = emcee.EnsembleSampler(nwalkers, ndim, log_probability, args=(self.rate, self.gp_regressor))
@@ -157,7 +172,7 @@ class GPLightCurve(LightCurve):
 
         if n_samples == 1:
             s = samples[np.random.randint(len(samples))]
-            self.gp_regressor.kernel_.set_params(**self.make_param_dict(s))
+            self.gp_regressor.kernel_.set_params(**self.make_param_dict(s, self.log_mcmc))
             r = self.gp_regressor.predict(t_samples, return_std=False)
             if self.lognorm:
                 return LightCurve(t=t, r=np.exp(r), e=e)
@@ -187,7 +202,7 @@ class GPLightCurve(LightCurve):
 
         if n_samples == 1:
             s = samples[np.random.randint(len(samples))]
-            self.gp_regressor.kernel_.set_params(**self.make_param_dict(s))
+            self.gp_regressor.kernel_.set_params(**self.make_param_dict(s, log_par=self.log_mcmc))
             r = self.gp_regressor.sample_y(t_samples, n_samples=1, random_state=None)
             if self.lognorm:
                 return LightCurve(t=t, r=np.exp(r.ravel()), e=e)
@@ -196,7 +211,7 @@ class GPLightCurve(LightCurve):
         else:
             lclist = []
             for s in samples[np.random.randint(len(samples), size=n_samples)]:
-                self.gp_regressor.kernel_.set_params(**self.make_param_dict(s))
+                self.gp_regressor.kernel_.set_params(**self.make_param_dict(s, log_par=self.log_mcmc))
                 r = self.gp_regressor.sample_y(t_samples, n_samples=1, random_state=None)
                 if self.lognorm:
                     lclist.append(LightCurve(t=t, r=np.exp(r.ravel()), e=e))
@@ -206,7 +221,7 @@ class GPLightCurve(LightCurve):
 
 
 class GPPeriodogram(Periodogram):
-    def __init__(self, lc=None, gplc=None, n_samples=10, bins=None):
+    def __init__(self, lc=None, gplc=None, n_samples=10, bins=None, sample_posterior=False):
         if gplc is not None:
             self.gplc = gplc
         elif lc is not None:
@@ -215,11 +230,11 @@ class GPPeriodogram(Periodogram):
         else:
             raise ValueError("GPPeriodogram requires a light curve!")
 
-        freq, freq_error, per, err = self.calculate(n_samples, bins)
+        freq, freq_error, per, err = self.calculate(n_samples, bins, sample_posterior=sample_posterior)
         Periodogram.__init__(self, f=freq, per=per, err=err, ferr=freq_error)
 
-    def calculate(self, n_samples=10, bins=None):
-        sample_lcs = self.gplc.sample(t=None, n_samples=n_samples)
+    def calculate(self, n_samples=10, bins=None, sample_posterior=False):
+        sample_lcs = self.gplc.sample(t=None, n_samples=n_samples, sample_posterior=sample_posterior)
         if not isinstance(sample_lcs, list):
             sample_lcs = [sample_lcs]
 
@@ -279,18 +294,18 @@ class GPEnergyLCList(EnergyLCList):
             for lc in self.lclist:
                 lc.fit()
 
-    def sample(self, n_samples=1, t=None):
+    def sample(self, n_samples=1, t=None, sample_posterior=False):
         if n_samples == 1:
             sample_lclist = []
             if isinstance(self.lclist[0], list):
                 for en_lclist in self.lclist:
                     sample_lclist.append([])
                     for lc in en_lclist:
-                        sample_lclist[-1].append(lc.sample(n_samples=1, t=t))
+                        sample_lclist[-1].append(lc.sample(n_samples=1, t=t, sample_posterior=sample_posterior))
 
             elif isinstance(self.lclist[0], LightCurve):
                 for lc in self.lclist:
-                    sample_lclist.append(lc.sample(n_samples=1, t=t))
+                    sample_lclist.append(lc.sample(n_samples=1, t=t, sample_posterior=sample_posterior))
 
             return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=sample_lclist)
 
@@ -300,11 +315,11 @@ class GPEnergyLCList(EnergyLCList):
                 for en_lclist in self.lclist:
                     sample_lclist.append([])
                     for lc in en_lclist:
-                        sample_lclist[-1].append(lc.sample(n_samples=1, t=t))
+                        sample_lclist[-1].append(lc.sample(n_samples=1, t=t, sample_posterior=sample_posterior))
 
             elif isinstance(self.lclist[0], LightCurve):
                 for lc in self.lclist:
-                    sample_lclist.append(lc.sample(n_samples=1, t=t))
+                    sample_lclist.append(lc.sample(n_samples=1, t=t, sample_posterior=sample_posterior))
 
             sample_lclist = lclist_separate_segments(sample_lclist)
 
@@ -312,7 +327,7 @@ class GPEnergyLCList(EnergyLCList):
 
 
 class GPLagFrequencySpectrum(LagFrequencySpectrum):
-    def __init__(self, bins, lc1=None, lc2=None, gplc1=None, gplc2=None, n_samples=10, low_mem=False):
+    def __init__(self, bins, lc1=None, lc2=None, gplc1=None, gplc2=None, n_samples=10, low_mem=False, sample_posterior=False):
         if gplc1 is not None:
             self.gplc1 = gplc1
         elif lc1 is not None:
@@ -328,13 +343,13 @@ class GPLagFrequencySpectrum(LagFrequencySpectrum):
             raise ValueError("GPLagFrequencySpectrum requires a pair of light curves!")
 
         if low_mem:
-            self.freq, self.freq_error, self.lag, self.error = self.calculate_seq(bins, n_samples)
+            self.freq, self.freq_error, self.lag, self.error = self.calculate_seq(bins, n_samples, sample_posterior=sample_posterior)
         else:
-            self.freq, self.freq_error, self.lag, self.error = self.calculate_batch(bins, n_samples)
+            self.freq, self.freq_error, self.lag, self.error = self.calculate_batch(bins, n_samples, sample_posterior=sample_posterior)
 
     def calculate_batch(self, bins, n_samples=10):
-        sample_lcs1 = self.gplc1.sample(t=None, n_samples=n_samples)
-        sample_lcs2 = self.gplc2.sample(t=None, n_samples=n_samples)
+        sample_lcs1 = self.gplc1.sample(t=None, n_samples=n_samples, sample_posterior=sample_posterior)
+        sample_lcs2 = self.gplc2.sample(t=None, n_samples=n_samples, sample_posterior=sample_posterior)
         if not isinstance(sample_lcs1, list):
             sample_lcs1 = [sample_lcs1]
         if not isinstance(sample_lcs2, list):
@@ -349,14 +364,14 @@ class GPLagFrequencySpectrum(LagFrequencySpectrum):
 
         return freq, freq_error, lag_avg, lag_std
 
-    def calculate_seq(self, bins, n_samples=10):
+    def calculate_seq(self, bins, n_samples=10, sample_posterior=False):
         freq = bins.bin_cent
         freq_error = bins.bin_end - bins.bin_cent
 
         lag = []
         for n in range(n_samples):
-            sample_lc1 = self.gplc1.sample(t=None, n_samples=1)
-            sample_lc2 = self.gplc2.sample(t=None, n_samples=1)
+            sample_lc1 = self.gplc1.sample(t=None, n_samples=1, sample_posterior=sample_posterior)
+            sample_lc2 = self.gplc2.sample(t=None, n_samples=1, sample_posterior=sample_posterior)
             lag.append(LagFrequencySpectrum(bins, sample_lc1, sample_lc2, calc_error=False).lag)
 
         lag = np.array(lag)
@@ -367,7 +382,7 @@ class GPLagFrequencySpectrum(LagFrequencySpectrum):
 
 
 class GPLagEnergySpectrum(LagEnergySpectrum):
-    def __init__(self, fmin, fmax, lclist=None, gplclist=None, n_samples=10, refband=None, low_mem=False, save_samples=False):
+    def __init__(self, fmin, fmax, lclist=None, gplclist=None, n_samples=10, refband=None, low_mem=False, save_samples=False, sample_posterior=False):
         if gplclist is not None:
             self.gplclist = gplclist
         elif lclist is not None:
@@ -381,12 +396,12 @@ class GPLagEnergySpectrum(LagEnergySpectrum):
         self.lag_samples = None
 
         if low_mem:
-            self.lag, self.error = self.calculate_seq(fmin, fmax, n_samples, refband, save_samples)
+            self.lag, self.error = self.calculate_seq(fmin, fmax, n_samples, refband, save_samples, sample_posterior=sample_posterior)
         else:
-            self.lag, self.error = self.calculate_batch(fmin, fmax, n_samples, refband, save_samples)
+            self.lag, self.error = self.calculate_batch(fmin, fmax, n_samples, refband, save_samples, sample_posterior=sample_posterior)
 
-    def calculate_batch(self, fmin, fmax, n_samples=10, refband=None, save_samples=False):
-        sample_lclists = self.gplclist.sample(t=None, n_samples=n_samples)
+    def calculate_batch(self, fmin, fmax, n_samples=10, refband=None, save_samples=False, sample_posterior=False):
+        sample_lclists = self.gplclist.sample(t=None, n_samples=n_samples, sample_posterior=sample_posterior)
         if not isinstance(sample_lclists, list):
             sample_lclists = [sample_lclists]
 
@@ -400,13 +415,13 @@ class GPLagEnergySpectrum(LagEnergySpectrum):
 
         return lag_avg, lag_std
 
-    def calculate_seq(self, fmin, fmax, n_samples=10, refband=None, save_samples=False):
+    def calculate_seq(self, fmin, fmax, n_samples=10, refband=None, save_samples=False, sample_posterior=False):
         lag = []
         for n in range(n_samples):
             if n % int(n_samples/10) == 0:
                 print('Sample %d/%d' % (n, n_samples))
             try:
-                sample_lclist = self.gplclist.sample(t=None, n_samples=1)
+                sample_lclist = self.gplclist.sample(t=None, n_samples=1, sample_posterior=sample_posterior)
             except:
                 continue
             lag.append(LagEnergySpectrum(fmin, fmax, sample_lclist, refband=refband, calc_error=False).lag)
