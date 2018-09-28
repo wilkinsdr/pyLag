@@ -130,9 +130,30 @@ class GPLightCurve(LightCurve):
         else:
             return par_array
 
+    def get_param_bounds(self, log_par):
+        lower = []
+        upper = []
+
+        for l, u in [self.gp_regressor.kernel_.get_params()['%s_bounds' % p] for p in self.par_names]:
+            lower.append(l)
+            upper.append(u)
+
+        lower = np.array(lower)
+        upper = np.array(upper)
+
+        if log_par:
+            return np.log(lower), np.log(upper)
+        else:
+            return lower, upper
+
     def run_mcmc(self, nsteps=2000, nburn=500, log_par=True):
-        def log_probability(params, y, gp):
+        def log_probability(params, y, gp, lower=None, upper=None):
             if np.any(np.isinf(params)) or np.any(np.isnan(params)):
+                return -np.inf
+
+            if upper is not None and np.any(np.greater(params, upper)):
+                return -np.inf
+            if lower is not None and np.any(np.less(params, lower)):
                 return -np.inf
 
             try:
@@ -147,9 +168,10 @@ class GPLightCurve(LightCurve):
         self.log_mcmc = log_par
 
         initial = self.get_fit_param(log_par=log_par)
+        lower, upper = self.get_param_bounds(log_par=log_par)
 
         ndim, nwalkers = len(initial), 32
-        self.sampler = emcee.EnsembleSampler(nwalkers, ndim, log_probability, args=(self.rate, self.gp_regressor))
+        self.sampler = emcee.EnsembleSampler(nwalkers, ndim, log_probability, args=(self.rate, self.gp_regressor, lower, upper))
 
         print("Running burn-in...")
         p0 = initial + 1e-5 * np.random.randn(nwalkers, ndim)
