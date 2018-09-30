@@ -45,6 +45,13 @@ def broken_pl_plus_const_model(params, x):
     func[x > xbreak] = norm * xbreak ** (slope2 - slope1) * x[x > xbreak] ** -slope2 + const
     return func
 
+def gaussian_model(params, x):
+    norm = params['norm'].value
+    mu = params['mu'].value
+    sigma = params['sigma'].value
+
+    return norm * np.exp((-(x - mu)**2) / (2*sigma**2)) / np.sqrt(2*np.pi*sigma**2)
+
 
 class Fit(object):
     def __init__(self, data, modelfn, params, statistic=chisq):
