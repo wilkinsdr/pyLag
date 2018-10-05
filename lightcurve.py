@@ -1462,6 +1462,26 @@ class EnergyLCList(object):
 
         return Spectrum((en, enerr), (avg_rate, std_rate))
 
+    def sum_lightcurve(self):
+        if isinstance(self.lclist[0], LightCurve):
+            time = self.lclist[0].time
+            dt = time[1] - time[0]
+            sum_rate = np.sum(np.vstack([lc.rate for lc in self.lclist]), axis=0)
+            err = np.sqrt(sum_rate / dt)
+            lc = LightCurve(t=time, r=sum_rate, e=err)
+            lc.__class__ = self.lclist[0].__class__
+            return lc
+        elif isinstance(self.lclist[0], list):
+            rate_list = []
+            time_list = []
+            err_list = []
+            for seg in range(len(self.lclist[0])):
+                time_list.append(self.lclist[0][seg].time)
+                dt = time_list[-1][1] - time_list[-1][0]
+                rate_list.append(np.sum(np.vstack([self.lclist[en][seg].rate for en in range(len(self.lclist))]), axis=0))
+                err_list.append(np.sqrt(rate_list[-1] / dt))
+            return [LightCurve(t=t, r=r, e=e) for t, r, e in zip(time_list, rate_list, err_list)]
+
     def __getitem__(self, index):
         return self.lclist[index]
 
