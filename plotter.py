@@ -268,14 +268,17 @@ class Plot(object):
         # close the old figure (if already plotted)
         if self._fig is not None:
             self.close()
-        # create a new figure window and axes
-        self._fig, self._ax = plt.subplots()
 
         # if specified, set the font
-        if self._font_face is not None:
+        if self._font_face is not None and self._font_size is not None:
+            plt.rc('font', **{'family': self._font_face, 'size': self._font_size})
+        elif self._font_face is not None:
             plt.rc('font', **{'family': self._font_face})
-        if self._font_size is not None:
+        elif self._font_size is not None:
             plt.rc('font', **{'size': self._font_size})
+
+        # create a new figure window and axes
+        self._fig, self._ax = plt.subplots()
 
         # set log or linear scaling
         self._ax.set_xscale(self._xscale)
