@@ -179,7 +179,13 @@ class ENTResponse(object):
         t = self.time * mult
         return ENTResponse(en_bins=self.en_bins, t=t, ent=self.ent, tstart=self.tstart)
 
-    def plot_image(self, vmin=None, vmax=None, mult_scale=True, cmap='hot'):
+    def plot_image(self, vmin=None, vmax=None, mult_scale=True, cmap='hot', font_face=None, font_size=None):
+        if font_face is not None and font_size is not None:
+            plt.rc('font', **{'family': font_face, 'size': font_size})
+        elif font_face is not None:
+            plt.rc('font', **{'family': font_face})
+        elif font_size is not None:
+            plt.rc('font', **{'size': font_size})
         fig, ax = plt.subplots()
 
         if vmin is None:
