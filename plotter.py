@@ -4,6 +4,8 @@ pylag.Plotter
 Plotting and data output classes/functions for pylag data products
 """
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
+import matplotlib.font_manager as font_manager
 import numpy as np
 
 # all_plots is a list of all plot objects that have been created
@@ -148,14 +150,9 @@ class Plot(object):
     """
 
     def __init__(self, data_object=None, xdata=None, ydata=None, xscale='', yscale='', xlabel='',
-                 ylabel='', title='', series_labels=[], lines=False, preset=None, show_plot=True):
+                 ylabel='', title='', series_labels=[], grid='minor', lines=False, preset=None, show_plot=True):
         self._fig = None
         self._ax = None
-
-        self.xdata = []
-        self.xerror = []
-        self.ydata = []
-        self.yerror = []
 
         self._labels = list(series_labels)
 
@@ -175,7 +172,8 @@ class Plot(object):
             self._marker_series = ['+', 'x', 'o', 's']
         self._font_face = None
         self._font_size = None
-        self._grid = 'minor'
+        self._tick_scale = 0.88
+        self._grid = grid
         self._legend_location = 'upper right'
         self._xlim = None
         self._ylim = None
@@ -186,6 +184,11 @@ class Plot(object):
         self._legend = (len(self._labels) > 0)
 
         if data_object is not None:
+            self.xdata = []
+            self.xerror = []
+            self.ydata = []
+            self.yerror = []
+
             if not isinstance(data_object, list):
                 # if we're only given one object, put it in a list
                 data_object = [data_object]
@@ -214,7 +217,12 @@ class Plot(object):
             # read the axis labels from data_object
             self._xlabel, self._xscale, self._ylabel, self._yscale = data_object[0]._getplotaxes()
 
-        else:
+        elif xdata is not None and ydata is not None:
+            self.xdata = []
+            self.xerror = []
+            self.ydata = []
+            self.yerror = []
+
             # if we're not passed an object, use the data series that are passed in
             if not isinstance(xdata, list):
                 xdata = [xdata]
@@ -268,14 +276,6 @@ class Plot(object):
         # close the old figure (if already plotted)
         if self._fig is not None:
             self.close()
-
-        # if specified, set the font
-        if self._font_face is not None and self._font_size is not None:
-            plt.rc('font', **{'family': self._font_face, 'size': self._font_size})
-        elif self._font_face is not None:
-            plt.rc('font', **{'family': self._font_face})
-        elif self._font_size is not None:
-            plt.rc('font', **{'size': self._font_size})
 
         # create a new figure window and axes
         self._fig, self._ax = plt.subplots()
@@ -506,6 +506,104 @@ class QuiverPlot(Plot):
             self._ax.quiver(xd[np.isfinite(yd)][:-1], yd[np.isfinite(yd)][:-1], xd[np.isfinite(yd)][1:]-xd[np.isfinite(yd)][:-1],
                             yd[np.isfinite(yd)][1:]-yd[np.isfinite(yd)][:-1], scale_units='xy', angles='xy', scale=1, color=colour, label=label)
 
+
+class ImagePlot(Plot):
+    def __init__(self, x, y, img, cmap='gray_r', log_scale=True, vmin=None, vmax=None, mult_scale=True, xscale='', yscale='', xlabel='',
+                 ylabel='', title='', grid='none', show_plot=True):
+        self.xdata = x
+        self.ydata = y
+        self.img_data = img
+        self._cmap = cmap
+        self._log_scale = log_scale
+        self._vmin = vmin
+        self._vmax = vmax
+        self._mult_scale = mult_scale
+        Plot.__init__(self, xscale=xscale, yscale=yscale, xlabel=xlabel, ylabel=ylabel, title=title, grid=grid, show_plot=show_plot)
+
+    def _plot_data(self):
+        if self._vmin is None:
+            vmin = self.img_data.min()
+        elif self._mult_scale:
+            vmin = self._vmin * self.img_data.max()
+        else:
+            vmin = self.vmin
+
+        if self._vmin is None:
+            vmax = self.img_data.max()
+        elif self._mult_scale:
+            vmax = self._vmax * self.img_data.max()
+        else:
+            vmax = self._vmax
+
+        if vmin == 0 and self._log_scale:
+            vmin = 1.e-3
+
+        if self._log_scale:
+            norm = colors.LogNorm(vmin=vmin, vmax=vmax, clip=True)
+        else:
+            norm = colors.Normalize(vmin=vmin, vmax=vmax, clip=True)
+
+        img = np.array(self.img_data)
+        img[img < vmin] = vmin
+
+        self._ax.pcolormesh(self.xdata, self.ydata, img, norm=norm, cmap=self._cmap)
+
+    def _get_setter(attr):
+        """
+        setter = pylag.plot._get_setter(attr)
+
+        Returns a setter function for plot attribute attr which updates the
+        member variable and then refreshes the plot.
+
+        A re-usable setter functions for all properties that need the plot to
+        update
+
+        Arguments
+        ---------
+        attr : string
+             : The name of the member variable to be set
+
+        Returns
+        -------
+        setter : function
+                 The setter function
+        """
+
+        def setter(self, value):
+            setattr(self, attr, value)
+            self.plot()
+
+        return setter
+
+    def _get_getter(attr):
+        """
+        getter = pylag.plot._get_getter(attr)
+
+        Returns a getter function for plot attribute attr.
+
+        A re-usable getter functions for all properties
+
+        Arguments
+        ---------
+        attr : string
+             : The name of the member variable to get
+
+        Returns
+        -------
+        getter : function
+                 The get function
+        """
+
+        def getter(self):
+            return getattr(self, attr)
+
+        return getter
+
+    cmap = property(_get_getter('_cmap'), _get_setter('_cmap'))
+    vmin = property(_get_getter('_vmin'), _get_setter('_vmin'))
+    vmax = property(_get_getter('_vmax'), _get_setter('_vmax'))
+    mult_scale = property(_get_getter('_mult_scale'), _get_setter('_mult_scale'))
+    log_scale = property(_get_getter('_log_scale'), _get_setter('_log_scale'))
 
 
 def write_data(data_object, filename, xdata=None, ydata=None, mode='w', fmt='%15.10g', delimiter=' '):

@@ -179,37 +179,8 @@ class ENTResponse(object):
         t = self.time * mult
         return ENTResponse(en_bins=self.en_bins, t=t, ent=self.ent, tstart=self.tstart)
 
-    def plot_image(self, vmin=None, vmax=None, mult_scale=True, cmap='hot', font_face=None, font_size=None):
-        if font_face is not None and font_size is not None:
-            plt.rc('font', **{'family': font_face, 'size': font_size})
-        elif font_face is not None:
-            plt.rc('font', **{'family': font_face})
-        elif font_size is not None:
-            plt.rc('font', **{'size': font_size})
-        fig, ax = plt.subplots()
-
-        if vmin is None:
-            vmin = self.ent.min()
-        elif mult_scale:
-            vmin *= self.ent.max()
-        if vmax is None:
-            vmax = self.ent.max()
-        elif mult_scale:
-            vmax *= self.ent.max()
-        if vmin == 0:
-            vmin = 1.e-3
-
-        if isinstance(self.en_bins, LogBinning):
-            ax.set_yscale('log')
-
-        img_ent = np.array(self.ent)
-        img_ent[img_ent < vmin] = vmin
-
-        ax.pcolormesh(self.time, self.en_bins.bin_cent, img_ent, norm=colors.LogNorm(vmin=vmin, vmax=vmax, clip=True), cmap=cmap)
-        plt.xlabel('Time')
-        plt.ylabel('Energy / keV')
-
-        return fig, ax
+    def plot_image(self, vmin=None, vmax=None, mult_scale=True, cmap='hot', log_scale=True):
+        return ImagePlot(self.time, self.en_bins.bin_cent, self.ent, cmap=cmap, log_scale=log_scale, vmin=vmin, vmax=vmax, mult_scale=mult_scale, xlabel='Time', ylabel='Energy / keV')
 
     def spectrum(self, time=None, index=False, from_start=True):
         if isinstance(time, tuple):
