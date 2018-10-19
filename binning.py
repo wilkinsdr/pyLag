@@ -32,6 +32,13 @@ class Binning(object):
     num       : int
                 The number of bins
     """
+    def __init__(self, bin_start, bin_end, bin_cent, bin_edges, num):
+        self.bin_start = bin_start
+        self.bin_end = bin_end
+        self.bin_cent = bin_cent
+        self.bin_edges = bin_edges
+        self.num = num
+
     def bin_slow(self, x, y):
         """
         binned = pylag.Binning.bin(x, y)
@@ -378,6 +385,38 @@ class Binning(object):
 
     def __len__(self):
         return len(self.bin_start)
+
+    def __mul__(self, other):
+        bin_start = self.bin_start * other
+        bin_end = self.bin_end * other
+        bin_cent = self.bin_cent * other
+        bin_edges = self.bin_edges * other
+        bin_obj = Binning(bin_start, bin_end, bin_cent, bin_edges, self.num)
+        bin_obj.__class__ = self.__class__
+        return bin_obj
+
+    def __imul__(self, other):
+        self.bin_start *= other
+        self.bin_end *= other
+        self.bin_cent *= other
+        self.bin_edges *= other
+        return self
+
+    def __truediv__(self, other):
+        bin_start = self.bin_start / other
+        bin_end = self.bin_end / other
+        bin_cent = self.bin_cent / other
+        bin_edges = self.bin_edges / other
+        bin_obj = Binning(bin_start, bin_end, bin_cent, bin_edges, self.num)
+        bin_obj.__class__ = self.__class__
+        return bin_obj
+
+    def __itruediv__(self, other):
+        self.bin_start /= other
+        self.bin_end /= other
+        self.bin_cent /= other
+        self.bin_edges /= other
+        return self
 
 
 class LogBinning(Binning):
