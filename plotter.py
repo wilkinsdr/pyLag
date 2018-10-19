@@ -321,6 +321,18 @@ class Plot(object):
             self._ax.errorbar(xd[np.isfinite(yd)], yd[np.isfinite(yd)], yerr=yerr[np.isfinite(yd)],
                               xerr=xerr[np.isfinite(yd)], fmt=marker, color=colour, label=label)
 
+    def _set_fonts(self):
+        self._ax.set_xlabel(self._xlabel, fontname=self._font_face, fontsize=self._font_size)
+        self._ax.set_ylabel(self._ylabel, fontname=self._font_face, fontsize=self._font_size)
+
+        ticksize = int(self._tick_scale * self._font_size)
+        for tick in self._ax.get_xticklabels():
+            tick.set_fontname(self._font_face)
+            tick.set_fontsize(ticksize)
+        for tick in self._ax.get_yticklabels():
+            tick.set_fontname(self._font_face)
+            tick.set_fontsize(ticksize)
+
     def show(self, **kwargs):
         """
         pylag.plot.show()
@@ -341,8 +353,16 @@ class Plot(object):
         """
         self._setup_axes()
         self._plot_data(**kwargs)
+        if self._font_face is not None:
+            if self._font_size is None:
+                self._font_size = 10
+            self._set_fonts()
         if self.legend:
-            self._ax.legend(loc=self._legend_location)
+            if self._font_face is not None:
+                font_prop = font_manager.FontProperties(family=self._font_face, size=self._font_size)
+            else:
+                font_prop = None
+            self._ax.legend(loc=self._legend_location, prop=font_prop)
         if self.show_plot:
             self.show()
 
@@ -434,6 +454,7 @@ class Plot(object):
     marker_series = property(_get_getter('_marker_series'), _get_setter('_marker_series'))
     font_face = property(_get_getter('_font_face'), _get_setter('_font_face'))
     font_size = property(_get_getter('_font_size'), _get_setter('_font_size'))
+    tick_scale = property(_get_getter('_tick_scale'), _get_setter('_tick_scale'))
 
 
 class ErrorRegionPlot(Plot):
