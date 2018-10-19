@@ -363,6 +363,7 @@ class Plot(object):
             else:
                 font_prop = None
             self._ax.legend(loc=self._legend_location, prop=font_prop)
+        self._fig.tight_layout()
         if self.show_plot:
             self.show()
 
