@@ -84,7 +84,10 @@ class ENTResponse(object):
         try:
             en0 = hdu.header['EN0']
             Nen = hdu.header['NEN']
-            logbin_en = hdu.header['ENLOG']
+            try:
+                logbin_en = hdu.header['ENLOG']
+            except:
+                logbin_en = False
 
             try:
                 enmax = hdu.header['ENMAX']
