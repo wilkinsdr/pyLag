@@ -24,6 +24,8 @@ class VerticalPropContinuumENT(ENTResponse):
         else:
             raise ValueError("Dimensions of response must be specified!")
 
+        self.logbin_en = isinstance(self.en_bins, LogBinning)
+
         self.t0 = self.time.min()
         self.dt = self.time[1] - self.time[0]
 
