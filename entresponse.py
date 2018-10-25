@@ -185,7 +185,6 @@ class ENTResponse(object):
     def norm(self):
         norm_ent = self.ent / self.ent.sum()
 
-
         return ENTResponse(en_bins=self.en_bins, t=self.time, ent=norm_ent, logbin_en=self.logbin_en, tstart=self.tstart)
 
     def plot_image(self, vmin=None, vmax=None, mult_scale=True, cmap='hot', log_scale=True):
