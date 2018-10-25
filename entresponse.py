@@ -182,6 +182,12 @@ class ENTResponse(object):
         t = self.time * mult
         return ENTResponse(en_bins=self.en_bins, t=t, ent=self.ent, tstart=self.tstart)
 
+    def norm(self):
+        norm_ent = self.ent / self.ent.sum()
+
+
+        return ENTResponse(en_bins=self.en_bins, t=self.time, ent=norm_ent, logbin_en=self.logbin_en, tstart=self.tstart)
+
     def plot_image(self, vmin=None, vmax=None, mult_scale=True, cmap='hot', log_scale=True):
         return ImagePlot(self.time, self.en_bins.bin_cent, self.ent, cmap=cmap, log_scale=log_scale, vmin=vmin, vmax=vmax, mult_scale=mult_scale, xlabel='Time', ylabel='Energy / keV')
 
