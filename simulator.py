@@ -612,7 +612,7 @@ class TopHatResponse(ImpulseResponse):
 
 class SimLagFrequencySpectrum(LagFrequencySpectrum):
     def __init__(self, bins, ent, enband1, enband2, rate, tbin=10, tmax=1E5, sample_errors=True, nsamples=100, plslope=2,
-                 std=0.5):
+                 std=1.):
         self.freq = bins.bin_cent
         self.freq_error = bins.x_error()
 
@@ -648,23 +648,16 @@ class SimLagFrequencySpectrum(LagFrequencySpectrum):
 
 class SimLagEnergySpectrum(LagEnergySpectrum):
     def __init__(self, fmin, fmax, ent, rate, tbin=10, tmax=1E5, sample_errors=True, nsamples=100, plslope=2,
-                 std=0.5, refband=None):
+                 std=1., refband=None):
         self.en = np.array(ent.en_bins.bin_cent)
         self.en_error = ent.en_bins.x_error()
 
-        lclist = ent.norm().simulate_lc_list(tmax, plslope, std, rate, add_noise=False, rebin_time=tbin)
-
-        for l in lclist.lclist:
-            print(l.mean())
-
-        print(lclist.sum_lightcurve().mean())
+        lclist = ent.norm().simulate_lc_list(tmax, plslope, std*rate, rate, add_noise=False, rebin_time=tbin)
 
         if sample_errors:
             lags = []
             for i in range(nsamples):
                 sample_lag, _, _ = self.calculate(lclist.add_noise().lclist, fmin, fmax, refband=refband, energies=self.en, bias=False, calc_error=False)
-                #sample_lag, _, _ = self.calculate(lclist.lclist, fmin, fmax, refband=refband,
-                #                                  energies=self.en, bias=False, calc_error=False)
                 lags.append(sample_lag)
             lags = np.vstack(lags)
             self.lag = np.mean(lags, axis=0)
