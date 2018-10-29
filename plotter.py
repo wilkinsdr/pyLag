@@ -474,7 +474,7 @@ class ErrorRegionPlot(Plot):
         Add each data series to the plot as a shaded error region
         """
         # repeat the colour series as many times as necessary to provide for all the data series
-        colours = (self._colour_series * (len(self.xdata) / len(self._colour_series) + 1))[:len(self.xdata)]
+        colours = (self._colour_series * int(len(self.xdata) / len(self._colour_series) + 1))[:len(self.xdata)]
         # plot each data series in turn
         for xd, yd, yerr, xerr, colour, label in zip(self.xdata, self.ydata, self.yerror, self.xerror, colours,
                                                      self._labels):
