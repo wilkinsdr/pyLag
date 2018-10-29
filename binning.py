@@ -32,12 +32,26 @@ class Binning(object):
     num       : int
                 The number of bins
     """
-    def __init__(self, bin_start, bin_end, bin_cent, bin_edges, num):
-        self.bin_start = bin_start
-        self.bin_end = bin_end
-        self.bin_cent = bin_cent
-        self.bin_edges = bin_edges
-        self.num = num
+    def __init__(self, bin_start=None, bin_end=None, bin_cent=None, bin_edges=None, num=None):
+        self.bin_edges = np.array(bin_edges)
+
+        if bin_edges is not None and bin_start is None and bin_end is None and bin_cent is None:
+            self.bin_start = np.array(self.bin_edges[:-1])
+            self.bin_end = np.array(self.bin_edges[1:])
+        elif bin_start is not None and bin_end is not None and bin_cent is not None:
+            self.bin_start = np.array(bin_start)
+            self.bin_end = np.array(bin_end)
+        else:
+            raise ArgumentError("pylag Binning ERROR: Bins not specified")
+        if bin_cent is not None:
+            self.bin_cent = np.array(bin_cent)
+        else:
+            self.bin_cent = 0.5*(self.bin_start + self.bin_end)
+
+        if num is not None:
+            self.num = num
+        else:
+            self.num = len(self.bin_start)
 
     def bin_slow(self, x, y):
         """

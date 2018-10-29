@@ -266,11 +266,16 @@ class ENTResponse(object):
             fmax = 1./(2.*(self.time[1]-self.time[0]))
         return LagEnergySpectrum(fmin, fmax, lclist=self.energy_lc_list(), calc_error=False)
 
-    def simulate_lc_list(self, tmax, plslope, std, lcmean):
+    def simulate_lc_list(self, tmax, plslope, std, lcmean, add_noise=False, rebin_time=None):
         lclist = []
         lc = SimLightCurve(self.time[1] - self.time[0], tmax, plslope, std, lcmean)
         for ien in range(len(self.en_bins)):
-            lclist.append(self.time_response(index=ien).convolve(lc))
+            enlc = self.time_response(index=ien).convolve(lc)
+            if rebin_time is not None:
+                enlc = enlc.rebin3(rebin_time)
+            if add_noise:
+                enlc = enlc.add_noise()
+            lclist.append(enlc)
         return SimEnergyLCList(enmin=self.en_bins.bin_start, enmax=self.en_bins.bin_end, lclist=lclist)
 
     def write_fits(self, filename):

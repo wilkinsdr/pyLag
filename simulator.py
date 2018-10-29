@@ -6,6 +6,9 @@ Tools for simulating light curves and X-ray timing measurements
 v1.0 - 27/03/2017 - D.R. Wilkins
 """
 from .lightcurve import *
+from .cross_spectrum import *
+from .lag_frequency_spectrum import LagFrequencySpectrum
+from .lag_energy_spectrum import LagEnergySpectrum
 
 import numpy as np
 import scipy.fftpack
@@ -605,3 +608,64 @@ class TopHatResponse(ImpulseResponse):
         r[(t >= tstart) & (t < tend)] = 1
         r = r / r.sum()
         ImpulseResponse.__init__(self, t=t, r=r)
+
+
+class SimLagFrequencySpectrum(LagFrequencySpectrum):
+    def __init__(self, bins, ent, enband1, enband2, rate, tbin=10, tmax=1E5, sample_errors=True, nsamples=100, plslope=2,
+                 std=0.5):
+        self.freq = bins.bin_cent
+        self.freq_error = bins.x_error()
+
+        lc = SimLightCurve(ent.time[1] - ent.time[0], tmax, plslope, std, lcmean=1.)
+
+        fullrate = np.sum(ent.time_response())
+
+        resp1 = ent.time_response(energy=enband1)
+        norm1 = rate * np.sum(resp1) / fullrate
+        lc1 = resp1.convolve(lc)
+        lc1 = lc1.rebin3(tbin)
+        lc1 = lc1 * (norm1 / lc1.mean())
+
+        resp2 = ent.time_response(energy=enband2)
+        norm2 = rate * np.sum(resp2) / fullrate
+        lc2 = resp2.convolve(lc)
+        lc2 = lc2.rebin3(tbin)
+        lc2 = lc2 * (norm2 / lc2.mean())
+
+
+        print("Count rate per energy band: %g, %g" % (lc1.mean(), lc2.mean()))
+
+        if sample_errors:
+            lags = []
+            for i in range(nsamples):
+                cross_spec = CrossSpectrum(lc1.add_noise(), lc2.add_noise()).bin(bins)
+                _, sample_lag = cross_spec.lag_spectrum()
+                lags.append(sample_lag)
+            lags = np.vstack(lags)
+            self.lag = np.mean(lags, axis=0)
+            self.error = np.std(lags, axis=0)
+
+
+class SimLagEnergySpectrum(LagEnergySpectrum):
+    def __init__(self, fmin, fmax, ent, rate, tbin=10, tmax=1E5, sample_errors=True, nsamples=100, plslope=2,
+                 std=0.5, refband=None):
+        self.en = np.array(ent.en_bins.bin_cent)
+        self.en_error = ent.en_bins.x_error()
+
+        lclist = ent.norm().simulate_lc_list(tmax, plslope, std, rate, add_noise=False, rebin_time=tbin)
+
+        for l in lclist.lclist:
+            print(l.mean())
+
+        print(lclist.sum_lightcurve().mean())
+
+        if sample_errors:
+            lags = []
+            for i in range(nsamples):
+                sample_lag, _, _ = self.calculate(lclist.add_noise().lclist, fmin, fmax, refband=refband, energies=self.en, bias=False, calc_error=False)
+                #sample_lag, _, _ = self.calculate(lclist.lclist, fmin, fmax, refband=refband,
+                #                                  energies=self.en, bias=False, calc_error=False)
+                lags.append(sample_lag)
+            lags = np.vstack(lags)
+            self.lag = np.mean(lags, axis=0)
+            self.error = np.std(lags, axis=0)
