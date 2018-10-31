@@ -635,6 +635,9 @@ class SimLagFrequencySpectrum(LagFrequencySpectrum):
 
         print("Count rate per energy band: %g, %g" % (lc1.mean(), lc2.mean()))
 
+        model_cross_spec = CrossSpectrum(lc1, lc2).bin(bins)
+        _, self.model_lag = model_cross_spec.lag_spectrum()
+
         if add_noise and sample_errors:
             lags = []
             for i in range(nsamples):
@@ -647,8 +650,7 @@ class SimLagFrequencySpectrum(LagFrequencySpectrum):
         elif add_noise:
             raise AssertionError("I don't know how to do that yet!")
         else:
-            cross_spec = CrossSpectrum(lc1, lc2).bin(bins)
-            _, self.lag = cross_spec.lag_spectrum()
+            self.lag = self.model_lag
             self.error = np.zeros(self.lag.shape)
 
 
@@ -659,6 +661,9 @@ class SimLagEnergySpectrum(LagEnergySpectrum):
         self.en_error = ent.en_bins.x_error()
 
         lclist = ent.norm().simulate_lc_list(tmax, plslope, std*rate, rate, add_noise=False, rebin_time=tbin)
+
+        self.model_lag, _, _ = self.calculate(lclist.lclist, fmin, fmax, refband=refband, energies=self.en,
+                                        bias=False, calc_error=False)
 
         if add_noise and sample_errors:
             lags = []
@@ -673,7 +678,6 @@ class SimLagEnergySpectrum(LagEnergySpectrum):
             self.lag, self.error, self.coh = self.calculate(lclist.lclist, fmin, fmax, refband=refband, energies=self.en,
                                        bias=bias, calc_error=True)
         else:
-            self.lag, _, _ = self.calculate(lclist.lclist, fmin, fmax, refband=refband, energies=self.en,
-                                              bias=False, calc_error=False)
+            self.lag, self.model_lag
             self.error = np.zeros(self.lag.shape)
             self.coh = None
