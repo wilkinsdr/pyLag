@@ -810,6 +810,15 @@ class LightCurve(object):
         lc.__class__ = self.__class__
         return lc
 
+    def first_deriv(self):
+        """
+        Return the first derivative of the light curve
+        """
+        dt = np.diff(self.time)
+        dr = self.rate[1:] - self.rate[:-1]
+        drdt = dr / dt
+        return LightCurve(t=self.time[:-1], r=drdt, e=np.zeros(dt.shape))
+
     def __add__(self, other):
         """
         Overloaded + operator to add two light curves together and return the
