@@ -611,7 +611,7 @@ class TopHatResponse(ImpulseResponse):
 
 
 class SimLagFrequencySpectrum(LagFrequencySpectrum):
-    def __init__(self, bins, ent, enband1, enband2, rate, tbin=10, tmax=1E5, sample_errors=True, nsamples=100, plslope=2,
+    def __init__(self, bins, ent, enband1, enband2, rate, tbin=10, tmax=1E5, add_noise=True, sample_errors=True, nsamples=100, plslope=2,
                  std=1.):
         self.freq = bins.bin_cent
         self.freq_error = bins.x_error()
@@ -635,7 +635,7 @@ class SimLagFrequencySpectrum(LagFrequencySpectrum):
 
         print("Count rate per energy band: %g, %g" % (lc1.mean(), lc2.mean()))
 
-        if sample_errors:
+        if add_noise and sample_errors:
             lags = []
             for i in range(nsamples):
                 cross_spec = CrossSpectrum(lc1.add_noise(), lc2.add_noise()).bin(bins)
@@ -644,17 +644,23 @@ class SimLagFrequencySpectrum(LagFrequencySpectrum):
             lags = np.vstack(lags)
             self.lag = np.mean(lags, axis=0)
             self.error = np.std(lags, axis=0)
+        elif add_noise:
+            raise AssertionError("I don't know how to do that yet!")
+        else:
+            cross_spec = CrossSpectrum(lc1, lc2).bin(bins)
+            _, self.lag = cross_spec.lag_spectrum()
+            self.error = np.zeros(self.lag.shape)
 
 
 class SimLagEnergySpectrum(LagEnergySpectrum):
-    def __init__(self, fmin, fmax, ent, rate, tbin=10, tmax=1E5, sample_errors=True, nsamples=100, plslope=2,
-                 std=1., refband=None):
+    def __init__(self, fmin, fmax, ent, rate, tbin=10, tmax=1E5, add_noise=True, sample_errors=True, nsamples=100, plslope=2,
+                 std=1., refband=None, bias=True):
         self.en = np.array(ent.en_bins.bin_cent)
         self.en_error = ent.en_bins.x_error()
 
         lclist = ent.norm().simulate_lc_list(tmax, plslope, std*rate, rate, add_noise=False, rebin_time=tbin)
 
-        if sample_errors:
+        if add_noise and sample_errors:
             lags = []
             for i in range(nsamples):
                 sample_lag, _, _ = self.calculate(lclist.add_noise().lclist, fmin, fmax, refband=refband, energies=self.en, bias=False, calc_error=False)
@@ -662,3 +668,12 @@ class SimLagEnergySpectrum(LagEnergySpectrum):
             lags = np.vstack(lags)
             self.lag = np.mean(lags, axis=0)
             self.error = np.std(lags, axis=0)
+            self.coh = None
+        elif add_noise:
+            self.lag, self.error, self.coh = self.calculate(lclist.lclist, fmin, fmax, refband=refband, energies=self.en,
+                                       bias=bias, calc_error=True)
+        else:
+            self.lag, _, _ = self.calculate(lclist.lclist, fmin, fmax, refband=refband, energies=self.en,
+                                              bias=False, calc_error=False)
+            self.error = np.zeros(self.lag.shape)
+            self.coh = None
