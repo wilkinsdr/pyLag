@@ -389,6 +389,12 @@ class Plot(object):
         """
         self._fig.savefig(filename, bbox_inches='tight', **kwargs)
 
+    def paper_format(self):
+        self._font_face = 'Liberation Serif'
+        self._font_size = 18
+        self._tick_scale = 0.88
+        self.plot()
+
     def _get_setter(attr):
         """
         setter = pylag.plot._get_setter(attr)
