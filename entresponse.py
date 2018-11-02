@@ -188,7 +188,7 @@ class ENTResponse(object):
         return ENTResponse(en_bins=self.en_bins, t=self.time, ent=norm_ent, logbin_en=self.logbin_en, tstart=self.tstart)
 
     def plot_image(self, vmin=None, vmax=None, mult_scale=True, cmap='hot', log_scale=True):
-        return ImagePlot(self.time, self.en_bins.bin_cent, self.ent, cmap=cmap, log_scale=log_scale, vmin=vmin, vmax=vmax, mult_scale=mult_scale, xlabel='Time', ylabel='Energy / keV')
+        return ImagePlot(self.time, self.en_bins.bin_cent, self.ent, cmap=cmap, log_scale=log_scale, vmin=vmin, vmax=vmax, mult_scale=mult_scale, xlabel='Time / $GM\,c^{-3}$', ylabel='Energy / keV')
 
     def spectrum(self, time=None, index=False, from_start=True):
         if isinstance(time, tuple):
@@ -266,9 +266,10 @@ class ENTResponse(object):
             fmax = 1./(2.*(self.time[1]-self.time[0]))
         return LagEnergySpectrum(fmin, fmax, lclist=self.energy_lc_list(), calc_error=False)
 
-    def simulate_lc_list(self, tmax, plslope, std, lcmean, add_noise=False, rebin_time=None):
+    def simulate_lc_list(self, tmax, plslope, std, lcmean, add_noise=False, rebin_time=None, lc=None):
         lclist = []
-        lc = SimLightCurve(self.time[1] - self.time[0], tmax, plslope, std, lcmean)
+        if lc is None:
+            lc = SimLightCurve(self.time[1] - self.time[0], tmax, plslope, std, lcmean)
         for ien in range(len(self.en_bins)):
             enlc = self.time_response(index=ien).convolve(lc)
             if rebin_time is not None:
@@ -276,7 +277,7 @@ class ENTResponse(object):
             if add_noise:
                 enlc = enlc.add_noise()
             lclist.append(enlc)
-        return SimEnergyLCList(enmin=self.en_bins.bin_start, enmax=self.en_bins.bin_end, lclist=lclist)
+        return SimEnergyLCList(enmin=self.en_bins.bin_start, enmax=self.en_bins.bin_end, lclist=lclist, base_lc=lc)
 
     def write_fits(self, filename):
         hdu = pyfits.PrimaryHDU()

@@ -78,10 +78,15 @@ class SimLightCurve(LightCurve):
               Force all points in the light curve to have count rate greater
               than zero. Set all points below zero to zero
     """
-    def __init__(self, dt=10., tmax=1000., psd_param=(2), std=0.5, lcmean=1.0, t=None, r=None, e=None, gtzero=True, lognorm=False, psdfn=psd_powerlaw):
+    def __init__(self, dt=10., tmax=1000., psd_param=(2), std=0.5, lcmean=1.0, t=None, r=None, e=None, gtzero=True, lognorm=False, psdfn=psd_powerlaw, oversample=1.):
         if t is None and r is None:
-            t = np.arange(0, tmax, dt)
+            t = np.arange(0, oversample*tmax, dt)
             r = self.calculate(t, psd_param, std, lcmean, gtzero=gtzero, lognorm=lognorm, psdfn=psdfn)
+            if oversample > 1:
+                t = np.arange(0, tmax, dt)
+                itstart = int((oversample - 1.) * tmax / (2*dt))
+                itend = itstart + len(t)
+                r = r[itstart:itend]
         if e is None:
             #e = np.sqrt(r)
             e = np.sqrt(r / dt)
@@ -331,11 +336,13 @@ def resample_enlclist(lclist, resamples=1):
 
 
 class SimEnergyLCList(EnergyLCList):
-    def __init__(self, enmin=None, enmax=None, lclist=None, **kwargs):
+    def __init__(self, enmin=None, enmax=None, lclist=None, base_lc=None, **kwargs):
         if lclist is not None and enmin is not None and enmax is not None:
             self.lclist = lclist
             self.enmin = np.array(enmin)
             self.enmax = np.array(enmax)
+
+        self.base_lc = base_lc
 
         self.en = 0.5*(self.enmin + self.enmax)
         self.en_error = self.en - self.enmin
@@ -612,11 +619,14 @@ class TopHatResponse(ImpulseResponse):
 
 class SimLagFrequencySpectrum(LagFrequencySpectrum):
     def __init__(self, bins, ent, enband1, enband2, rate, tbin=10, tmax=1E5, add_noise=True, sample_errors=True, nsamples=100, plslope=2,
-                 std=1.):
+                 std=1., lc=None, oversample=1.):
         self.freq = bins.bin_cent
         self.freq_error = bins.x_error()
 
-        lc = SimLightCurve(ent.time[1] - ent.time[0], tmax, plslope, std, lcmean=1.)
+        if lc is None:
+            lc = SimLightCurve(ent.time[1] - ent.time[0], tmax, plslope, std, lcmean=1., oversample=oversample)
+
+        self.base_lc = lc
 
         fullrate = np.sum(ent.time_response())
 
@@ -656,11 +666,13 @@ class SimLagFrequencySpectrum(LagFrequencySpectrum):
 
 class SimLagEnergySpectrum(LagEnergySpectrum):
     def __init__(self, fmin, fmax, ent, rate, tbin=10, tmax=1E5, add_noise=True, sample_errors=True, nsamples=100, plslope=2,
-                 std=1., refband=None, bias=True):
+                 std=1., refband=None, bias=True, lc=None):
         self.en = np.array(ent.en_bins.bin_cent)
         self.en_error = ent.en_bins.x_error()
 
-        lclist = ent.norm().simulate_lc_list(tmax, plslope, std*rate, rate, add_noise=False, rebin_time=tbin)
+        lclist = ent.norm().simulate_lc_list(tmax, plslope, std*rate, rate, add_noise=False, rebin_time=tbin, lc=lc)
+
+        self.base_lc = lclist.base_lc
 
         self.model_lag, _, _ = self.calculate(lclist.lclist, fmin, fmax, refband=refband, energies=self.en,
                                         bias=False, calc_error=False)
