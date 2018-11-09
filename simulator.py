@@ -176,7 +176,7 @@ class SimLightCurve(LightCurve):
 
         return r
 
-    def add_noise(self):
+    def add_noise(self, bkg=0.):
         """
         lc = pylag.SimLightCurve.add_noise
 
@@ -196,6 +196,11 @@ class SimLightCurve(LightCurve):
         # draw the counts in each time bin from a Poisson distribution
         # with the mean set according to the original number of counts in the bin
         rnd_counts = np.random.poisson(counts)
+        if bkg > 0:
+            # add then subtract realisations of the background
+            rnd_counts += np.random.poisson(bkg*self.dt, size=len(rnd_counts))
+            rnd_counts -= np.random.poisson(bkg * self.dt, size=len(rnd_counts))
+            rnd_counts[rnd_counts < 0] = 0
         rate = rnd_counts.astype(float) / self.dt
         # sqrt(N) errors again as if we're making a measurement
         error = np.sqrt(self.rate)
@@ -347,18 +352,28 @@ class SimEnergyLCList(EnergyLCList):
         self.en = 0.5*(self.enmin + self.enmax)
         self.en_error = self.en - self.enmin
 
-    def add_noise(self):
+    def add_noise(self, bkg=None):
         new_lclist = []
 
         if isinstance(self.lclist[0], list):
-            for en_lclist in self.lclist:
+            for en_num, en_lclist in enumerate(self.lclist):
                 new_lclist.append([])
                 for lc in en_lclist:
-                    new_lclist[-1].append(lc.add_noise())
+                    if bkg is None:
+                        new_lclist[-1].append(lc.add_noise())
+                    elif isinstance(bkg, (list, np.ndarray)):
+                        new_lclist[-1].append(lc.add_noise(bkg=bkg[en_num]))
+                    elif isinstance(bkg, float):
+                        new_lclist[-1].append(lc.add_noise(bkg=bkg))
 
         elif isinstance(self.lclist[0], LightCurve):
-            for lc in self.lclist:
-                new_lclist.append(lc.add_noise())
+            for en_num, lc in enumerate(self.lclist):
+                if bkg is None:
+                    new_lclist.append(lc.add_noise())
+                elif isinstance(bkg, (list, np.ndarray)):
+                    new_lclist.append(lc.add_noise(bkg=bkg[en_num]))
+                elif isinstance(bkg, float):
+                    new_lclist.append(lc.add_noise(bkg=bkg))
 
         return SimEnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
 
@@ -483,6 +498,38 @@ class ImpulseResponse(LightCurve):
             lag = np.angle(ft) / (2*np.pi*f)
         return freq, lag
 
+    def cross_power(self, fbins=None, psdslope=0.):
+        """
+       freq, cross = pylag.ImpulseResponse.cross_power()
+
+       Returns the cross-power spectrum using a driving light curve with specified psd slope
+
+       Parameters
+       ----------
+       fbins    : Binning, optional (default=None)
+                  If a Binning object is passed, the Fourier transform will be binned
+                  before computing the phase
+
+       psdslope : float, optional (default=0.)
+                  The slope of the power spectrum of the driving light curve
+
+
+       Returns
+       -------
+       freq : ndarray
+              Sample frequencies or the central frequency of each bin
+       lag  : ndarray
+              The time lag associated with each frequency or bin
+       """
+        f, ft = self.ft()
+        cross = f**-psdslope * np.abs(ft)
+        if fbins is not None:
+            cross = fbins.bin(f, cross)
+            freq = fbins.bin_cent
+        else:
+            freq = f
+        return freq, cross
+
     def pad(self, new_tmax):
         """
         padded_resp = pylag.ImpulseResponse.pad()
@@ -505,6 +552,9 @@ class ImpulseResponse(LightCurve):
         resp = ImpulseResponse(t=pad_t, r=pad_r)
         resp.__class__ = self.__class__
         return resp
+
+    def _getplotdata(self):
+        return self.time, self.rate
 
 
 class GaussianResponse(ImpulseResponse):
