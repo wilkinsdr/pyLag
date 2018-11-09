@@ -77,7 +77,7 @@ class CrossSpectrum(object):
            spectrum is calculated from input light curves)
     """
 
-    def __init__(self, lc1=None, lc2=None, f=[], cs=[], norm=True):
+    def __init__(self, lc1=None, lc2=None, f=[], cs=[], ferr=None, norm=True):
         if lc1 is not None and lc2 is not None:
             if not (isinstance(lc1, LightCurve) and isinstance(lc2, LightCurve)):
                 raise ValueError(
@@ -93,6 +93,7 @@ class CrossSpectrum(object):
         else:
             self.freq = np.array(f)
             self.crossft = np.array(cs)
+            self.ferr = ferr
 
     def calculate(self, lc1, lc2, norm=True):
         """
@@ -160,7 +161,7 @@ class CrossSpectrum(object):
         if not isinstance(bins, Binning):
             raise ValueError("pyLag CrossSpectrum bin ERROR: Expected a Binning object")
 
-        return CrossSpectrum(f=bins.bin_cent, cs=bins.bin(self.freq, self.crossft))
+        return CrossSpectrum(f=bins.bin_cent, cs=bins.bin(self.freq, self.crossft), ferr=bins.x_error())
 
     def points_in_bins(self, bins):
         """
@@ -274,6 +275,14 @@ class CrossSpectrum(object):
         avgcross = self.freq_average(fmin, fmax)
         lag = np.angle(avgcross) / (2 * np.pi * np.mean([fmin, fmax]))
         return lag
+
+    def cross_power(self, psdslope=0.):
+        from .plotter import DataSeries
+        if self.ferr is not None:
+            xdata = (self.freq, self.ferr)
+        else:
+            xdata = self.freq
+        return DataSeries(x=xdata, y=np.abs(self.freq**-psdslope * self.crossft), xlabel='Frequency / Hz', xscale='log', ylabel='Cross Power', yscale='log')
 
 
 # --- STACKED DATA PRODUCTS ----------------------------------------------------
