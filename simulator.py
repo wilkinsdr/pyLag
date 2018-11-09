@@ -352,8 +352,17 @@ class SimEnergyLCList(EnergyLCList):
         self.en = 0.5*(self.enmin + self.enmax)
         self.en_error = self.en - self.enmin
 
-    def add_noise(self, bkg=None):
+    def add_noise(self, bkg=None, bkg_per_den=True):
         new_lclist = []
+
+        den = self.enmax - self.enmin
+        if isinstance(bkg, float) and bkg_per_den:
+            ratios = den / np.sum(den)
+            en_bkg = bkg * ratios
+        elif isinstance(bkg, float):
+            en_bkg = bkg * np.ones(den.shape)
+        else:
+            en_bkg = bkg
 
         if isinstance(self.lclist[0], list):
             for en_num, en_lclist in enumerate(self.lclist):
@@ -361,19 +370,15 @@ class SimEnergyLCList(EnergyLCList):
                 for lc in en_lclist:
                     if bkg is None:
                         new_lclist[-1].append(lc.add_noise())
-                    elif isinstance(bkg, (list, np.ndarray)):
-                        new_lclist[-1].append(lc.add_noise(bkg=bkg[en_num]))
-                    elif isinstance(bkg, float):
-                        new_lclist[-1].append(lc.add_noise(bkg=bkg))
+                    else:
+                        new_lclist[-1].append(lc.add_noise(bkg=en_bkg[en_num]))
 
         elif isinstance(self.lclist[0], LightCurve):
             for en_num, lc in enumerate(self.lclist):
                 if bkg is None:
                     new_lclist.append(lc.add_noise())
-                elif isinstance(bkg, (list, np.ndarray)):
-                    new_lclist.append(lc.add_noise(bkg=bkg[en_num]))
-                elif isinstance(bkg, float):
-                    new_lclist.append(lc.add_noise(bkg=bkg))
+                else:
+                    new_lclist.append(lc.add_noise(bkg=en_bkg[en_num]))
 
         return SimEnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
 
