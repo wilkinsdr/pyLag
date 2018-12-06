@@ -698,6 +698,25 @@ class LightCurve(object):
         else:
             return freq[:int(self.length / 2)]
 
+    def autocorr(self):
+        """
+        freq, ft = pylag.LightCurve.ft()
+
+        Returns the discrete Fourier transform (FFT) of the light curve.
+        Only the positive frequencies are returned (N/2 points for light curve length N)
+
+        Return Values
+        -------------
+        lag  : ndarray
+               Lag times
+        corr : ndarray
+               The autocorrelation function
+        """
+        t = (self.time - self.time.min())[:self.length//2]
+        corr = np.correlate(self.rate, self.rate)[self.length//2:]
+        return t, corr
+
+
     def bin_num_freq(self, bins):
         """
         numfreq = pylag.LightCurve.bin_num_freq(bins)
