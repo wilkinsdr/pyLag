@@ -862,6 +862,16 @@ class DataSeries(object):
         else:
             raise AssertionError('Data format mismatch')
 
+    def __mul__(self, other):
+        if isinstance(other, (float, int)):
+            if isinstance(self.ydata, tuple):
+                mul_ydata = (other * self.ydata[0], other * self.ydata[1])
+            else:
+                mul_ydata = other * self.ydata
+            return DataSeries(self.xdata, mul_ydata, self.xlabel, self.xscale, self.ylabel, self.yscale)
+        else:
+            return NotImplemented
+
     def __truediv__(self, other):
         if isinstance(other, DataSeries):
             if isinstance(self.ydata, tuple):
