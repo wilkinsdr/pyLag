@@ -242,7 +242,7 @@ class ENTResponse(object):
 
         return Spectrum(self.en_bins.bin_cent, lag, ylabel='Lag', yscale='linear')
 
-    def lag_frequency_spectrum(self, enband1, enband2, fbins=None, Nf=None):
+    def lag_frequency_spectrum(self, enband1, enband2, fbins=None, Nf=None, tmax=None):
         if fbins is None:
             if Nf is None:
                 raise ValueError("pylag ENTResponse lag_frequency_spectrum ERROR: Either frequency binning object or number of frequency bins required")
@@ -250,8 +250,11 @@ class ENTResponse(object):
             maxfreq = 1./(2.*(self.time[1]-self.time[0]))
             fbins = LogBinning(minfreq, maxfreq, Nf)
 
-        resp1 = self.time_response(enband1)
-        resp2 = self.time_response(enband2)
+        if tmax is None:
+            tmax = 1./fbins.bin_start.min()
+
+        resp1 = self.time_response(enband1).pad(tmax)
+        resp2 = self.time_response(enband2).pad(tmax)
         return LagFrequencySpectrum(fbins, lc1=resp1, lc2=resp2, calc_error=False)
 
     def energy_lc_list(self):
