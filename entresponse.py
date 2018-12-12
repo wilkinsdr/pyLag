@@ -254,6 +254,23 @@ class ENTResponse(object):
         resp2 = self.time_response(enband2)
         return LagFrequencySpectrum(fbins, lc1=resp1, lc2=resp2, calc_error=False)
 
+    def lag_energy_frequency(self, fbins=None, Nf=100, pad=1E6):
+        if Nf is None:
+            raise ValueError(
+                "pylag ENTResponse lag_frequency_spectrum ERROR: Either frequency binning object or number of frequency bins required")
+        if fbins is None:
+            minfreq = 1. / (2. * (pad - self.time.min()))
+            maxfreq = 1. / (2. * (self.time[1] - self.time[0]))
+            fbins = LogBinning(minfreq, maxfreq, Nf)
+        lagfreq = np.zeros((len(fbins), len(self.en_bins)))
+        for i in range(len(self.en_bins)):
+            _, lagfreq[:,i] = self.time_response(index=i).pad(pad).lagfreq(fbins)
+        #return fbins.bin_cent, self.en_bins.bin_cent, lagfreq
+
+        lagfreq[np.isnan(lagfreq)] = 0
+
+        return ImagePlot(fbins.bin_cent, self.en_bins.bin_cent, lagfreq.T, log_scale=False, vmin=lagfreq.min(), vmax=lagfreq.max(), mult_scale=False, xscale='log', yscale='log')
+
     def energy_lc_list(self):
         lclist = []
         for ien in range(len(self.en_bins)):
