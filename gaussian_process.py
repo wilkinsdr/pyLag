@@ -12,7 +12,7 @@ v1.0 09/03/2017 - D.R. Wilkins
 import numpy as np
 
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, RationalQuadratic, WhiteKernel, ConstantKernel as C
+from sklearn.gaussian_process.kernels import RBF, RationalQuadratic, Matern, WhiteKernel, ConstantKernel as C
 import re
 import emcee
 
@@ -24,7 +24,7 @@ from .lag_energy_spectrum import *
 
 
 class GPLightCurve(LightCurve):
-    def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, kernel=None, n_restarts_optimizer=9, run_fit=True, use_errors=True, noise_kernel=False, lognorm=False, remove_gaps=True, remove_nan=False, zero_time=False):
+    def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, kernel='rq', n_restarts_optimizer=9, run_fit=True, use_errors=True, noise_kernel=False, lognorm=False, remove_gaps=True, remove_nan=False, zero_time=False, normalise=True):
         if lc is not None:
             if isinstance(lc, list):
                 # if we're passed a list, concatenate them into a single LightCurve
@@ -52,24 +52,32 @@ class GPLightCurve(LightCurve):
 
         self.mean_rate = self.mean()
 
-        if kernel is not None:
-            self.kernel = kernel
+        if isinstance(kernel, str):
+            if kernel == 'rq':
+                self.kernel = C(1.0, (1e-3, 1e3)) * RationalQuadratic(1.0, 1.0, (1e-10, 1e10), (1e-10, 1e10))
+            elif kernel == 'se':
+                self.kernel = C(1.0, (1e-3, 1e3)) * RBF(1.0, (1e-10, 1e10))
+            elif kernel == 'matern12':
+                self.kernel = C(1.0, (1e-3, 1e3)) * Matern(1.0, (1e-10, 1e10), 0.5)
+            elif kernel == 'matern32':
+                self.kernel = C(1.0, (1e-3, 1e3)) * Matern(1.0, (1e-10, 1e10), 1.5)
+            elif kernel == 'matern52':
+                self.kernel = C(1.0, (1e-3, 1e3)) * Matern(1.0, (1e-10, 1e10), 2.5)
         else:
-            self.kernel = C(1.0, (1e-3, 1e3)) * RationalQuadratic(1.0, 1.0, (1e-10, 1e10), (1e-10, 1e10))
-            #self.kernel = RationalQuadratic()
-            if noise_kernel:
-                noise_level = np.sqrt(self.mean_rate * self.dt) / (self.mean_rate * self.dt)
-                self.kernel += WhiteKernel(noise_level=noise_level, noise_level_bounds=(0.1*noise_level, 2*noise_level))
+            self.kernel = kernel
+
+        if noise_kernel:
+            noise_level = np.sqrt(self.mean_rate * self.dt) / (self.mean_rate * self.dt)
+            self.kernel += WhiteKernel(noise_level=noise_level, noise_level_bounds=(0.1*noise_level, 2*noise_level))
 
         if noise_kernel or not use_errors:
-            self.gp_regressor = GaussianProcessRegressor(kernel=self.kernel, n_restarts_optimizer=n_restarts_optimizer, normalize_y=True)
+            self.gp_regressor = GaussianProcessRegressor(kernel=self.kernel, n_restarts_optimizer=n_restarts_optimizer, normalize_y=normalise)
         else:
             alpha = (self.error / self.rate)**2
             self.gp_regressor = GaussianProcessRegressor(kernel=self.kernel, n_restarts_optimizer=n_restarts_optimizer,
-                                                         normalize_y=True, alpha=alpha)
+                                                         normalize_y=normalise, alpha=alpha)
 
         # get a list of the kernel parameter names
-        #r = re.compile('k[0-9]+__.*(?<!_bounds)$')
         r = re.compile('(k[0-9]+__)+(.+(?<!_bounds)(?<!_k[0-9]))$')
         self.par_names = list(filter(r.match, self.gp_regressor.kernel.get_params().keys()))
 
@@ -121,7 +129,7 @@ class GPLightCurve(LightCurve):
     def make_param_dict(self, par_values, log_par=True):
         if log_par:
             par_values = np.exp(np.array(par_values))
-        return dict(zip(parnames, par_values))
+        return dict(zip(self.par_names, par_values))
 
     def get_fit_param(self, log_par=True):
         par_array = np.array([self.gp_regressor.kernel_.get_params()[p] for p in self.par_names])

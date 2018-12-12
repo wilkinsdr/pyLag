@@ -150,7 +150,7 @@ class Plot(object):
     """
 
     def __init__(self, data_object=None, xdata=None, ydata=None, xscale='', yscale='', xlabel='',
-                 ylabel='', title='', series_labels=[], grid='minor', lines=False, preset=None, show_plot=True):
+                 ylabel='', title='', series_labels=[], grid='minor', lines=False, errorbar=True, preset=None, show_plot=True):
         self._fig = None
         self._ax = None
 
@@ -163,6 +163,8 @@ class Plot(object):
 
         self._xscale = 'linear'
         self._yscale = 'linear'
+
+        self.errorbar = errorbar
 
         # variables to set plot formatting
         self._colour_series = ['k', 'b', 'g', 'r', 'c', 'm']
@@ -318,8 +320,15 @@ class Plot(object):
                 xerr = np.zeros(len(xd))
             if not isinstance(yerr, (np.ndarray, list)):
                 yerr = np.zeros(len(yd))
-            self._ax.errorbar(xd[np.isfinite(yd)], yd[np.isfinite(yd)], yerr=yerr[np.isfinite(yd)],
+            if self.errorbar:
+                self._ax.errorbar(xd[np.isfinite(yd)], yd[np.isfinite(yd)], yerr=yerr[np.isfinite(yd)],
                               xerr=xerr[np.isfinite(yd)], fmt=marker, color=colour, label=label)
+            else:
+                if marker != '-':
+                    mk = marker
+                else:
+                    mk = None
+                self._ax.plot(xd[np.isfinite(yd)], yd[np.isfinite(yd)], marker=mk, color=colour, label=label)
 
     def _set_fonts(self):
         self._ax.set_xlabel(self._xlabel, fontname=self._font_face, fontsize=self._font_size)
@@ -864,6 +873,16 @@ class DataSeries(object):
             self.ydata = np.concatenate([self.ydata, y])
         else:
             raise AssertionError('Data format mismatch')
+
+    def __mul__(self, other):
+        if isinstance(other, (float, int)):
+            if isinstance(self.ydata, tuple):
+                mul_ydata = (other * self.ydata[0], other * self.ydata[1])
+            else:
+                mul_ydata = other * self.ydata
+            return DataSeries(self.xdata, mul_ydata, self.xlabel, self.xscale, self.ylabel, self.yscale)
+        else:
+            return NotImplemented
 
     def __truediv__(self, other):
         if isinstance(other, DataSeries):
