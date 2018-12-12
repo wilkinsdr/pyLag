@@ -574,7 +574,10 @@ class ImagePlot(Plot):
         img = np.array(self.img_data)
         img[img < vmin] = vmin
 
-        self._ax.pcolormesh(self.xdata, self.ydata, img, norm=norm, cmap=self._cmap)
+        self._mesh = self._ax.pcolormesh(self.xdata, self.ydata, img, norm=norm, cmap=self._cmap)
+
+    def colorbar(self):
+        self._fig.colorbar(self._mesh)
 
     def _get_setter(attr):
         """
