@@ -9,6 +9,7 @@ from .lightcurve import *
 from .cross_spectrum import *
 from .lag_frequency_spectrum import LagFrequencySpectrum
 from .lag_energy_spectrum import LagEnergySpectrum
+from .plotter import DataSeries
 
 import numpy as np
 import scipy.fftpack
@@ -702,6 +703,7 @@ class SimLagFrequencySpectrum(LagFrequencySpectrum):
 
         model_cross_spec = CrossSpectrum(lc1, lc2).bin(bins)
         _, self.model_lag = model_cross_spec.lag_spectrum()
+        self.model_lag_frequency_spectrum = DataSeries((self.freq, self.freq_error), self.model_lag, xscale='log', xlabel='Frequency', yscale='linear', ylabel='Lag')
 
         if add_noise and sample_errors:
             lags = []
