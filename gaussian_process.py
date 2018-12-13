@@ -24,7 +24,7 @@ from .lag_energy_spectrum import *
 
 
 class GPLightCurve(LightCurve):
-    def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, kernel='rq', n_restarts_optimizer=9, run_fit=True, use_errors=True, noise_kernel=False, lognorm=False, remove_gaps=True, remove_nan=False, zero_time=False, normalise=True):
+    def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, kernel='rq', n_restarts_optimizer=9, run_fit=True, use_errors=True, noise_kernel=False, max_noise=2., lognorm=False, remove_gaps=True, remove_nan=False, zero_time=False, normalise=True):
         if lc is not None:
             if isinstance(lc, list):
                 # if we're passed a list, concatenate them into a single LightCurve
@@ -68,7 +68,7 @@ class GPLightCurve(LightCurve):
 
         if noise_kernel:
             noise_level = np.sqrt(self.mean_rate * self.dt) / (self.mean_rate * self.dt)
-            self.kernel += WhiteKernel(noise_level=noise_level, noise_level_bounds=(0.1*noise_level, 2*noise_level))
+            self.kernel += WhiteKernel(noise_level=noise_level, noise_level_bounds=(0.1*noise_level, max_noise*noise_level))
 
         if noise_kernel or not use_errors:
             self.gp_regressor = GaussianProcessRegressor(kernel=self.kernel, n_restarts_optimizer=n_restarts_optimizer, normalize_y=normalise)
