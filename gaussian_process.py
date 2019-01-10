@@ -302,6 +302,8 @@ class GPEnergyLCList(EnergyLCList):
 
         self.lclist = []
 
+        self.mcmc_run = False
+
         if isinstance(lclist[0], list):
             for en_lclist in lclist:
                 if concatenate:
@@ -336,6 +338,8 @@ class GPEnergyLCList(EnergyLCList):
             for lc in self.lclist:
                 lc.run_mcmc(nsteps=nsteps, nburn=nburn, log_par=log_par)
 
+        self.mcmc_run = True
+
     def sample(self, n_samples=1, t=None, sample_posterior=False):
         if n_samples == 1:
             sample_lclist = []
@@ -369,7 +373,7 @@ class GPEnergyLCList(EnergyLCList):
 
 
 class GPLagFrequencySpectrum(LagFrequencySpectrum):
-    def __init__(self, bins, lc1=None, lc2=None, gplc1=None, gplc2=None, n_samples=10, low_mem=False, sample_posterior=False):
+    def __init__(self, bins, lc1=None, lc2=None, gplc1=None, gplc2=None, n_samples=10, low_mem=False, sample_posterior=False, nsteps=2000, nburn=500, log_mcmc=True):
         if gplc1 is not None:
             self.gplc1 = gplc1
         elif lc1 is not None:
@@ -383,6 +387,11 @@ class GPLagFrequencySpectrum(LagFrequencySpectrum):
             self.gplc2 = GPLightCurve(lc=lc2, run_fit=True)
         else:
             raise ValueError("GPLagFrequencySpectrum requires a pair of light curves!")
+
+        if sample_posterior and self.gplc1.sampler is None:
+            self.gplc1.run_mcmc(nsteps, nburn, log_par=log_mcmc)
+        if sample_posterior and self.gplc2.sampler is None:
+            self.gplc2.run_mcmc(nsteps, nburn, log_par=log_mcmc)
 
         self.lag_samples = None
 
@@ -433,7 +442,7 @@ class GPLagFrequencySpectrum(LagFrequencySpectrum):
 
 
 class GPLagEnergySpectrum(LagEnergySpectrum):
-    def __init__(self, fmin, fmax, lclist=None, gplclist=None, n_samples=10, refband=None, low_mem=False, save_samples=False, sample_posterior=False):
+    def __init__(self, fmin, fmax, lclist=None, gplclist=None, n_samples=10, refband=None, low_mem=False, save_samples=False, sample_posterior=False, nsteps=2000, nburn=500, log_mcmc=True):
         if gplclist is not None:
             self.gplclist = gplclist
         elif lclist is not None:
@@ -443,6 +452,9 @@ class GPLagEnergySpectrum(LagEnergySpectrum):
 
         self.en = np.array(self.gplclist.en)
         self.en_error = np.array(self.gplclist.en_error)
+
+        if sample_posterior and not self.gplclist.mcmc_run:
+            self.gplclist.run_mcmc(nsteps=nsteps, nburn=nburn, log_par=log_mcmc)
 
         self.lag_samples = None
 
