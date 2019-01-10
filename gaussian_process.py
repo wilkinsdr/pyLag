@@ -24,7 +24,7 @@ from .lag_energy_spectrum import *
 
 
 class GPLightCurve(LightCurve):
-    def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, kernel='rq', n_restarts_optimizer=9, run_fit=True, use_errors=True, noise_kernel=False, lognorm=False, remove_gaps=True, remove_nan=False, zero_time=False, normalise=True):
+    def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, kernel='rq', n_restarts_optimizer=9, run_fit=True, use_errors=True, noise_kernel=False, max_noise=2., lognorm=False, remove_gaps=True, remove_nan=False, zero_time=False, normalise=True):
         if lc is not None:
             if isinstance(lc, list):
                 # if we're passed a list, concatenate them into a single LightCurve
@@ -68,7 +68,7 @@ class GPLightCurve(LightCurve):
 
         if noise_kernel:
             noise_level = np.sqrt(self.mean_rate * self.dt) / (self.mean_rate * self.dt)
-            self.kernel += WhiteKernel(noise_level=noise_level, noise_level_bounds=(0.1*noise_level, 2*noise_level))
+            self.kernel += WhiteKernel(noise_level=noise_level, noise_level_bounds=(0.1*noise_level, max_noise*noise_level))
 
         if noise_kernel or not use_errors:
             self.gp_regressor = GaussianProcessRegressor(kernel=self.kernel, n_restarts_optimizer=n_restarts_optimizer, normalize_y=normalise)
@@ -78,8 +78,10 @@ class GPLightCurve(LightCurve):
                                                          normalize_y=normalise, alpha=alpha)
 
         # get a list of the kernel parameter names
-        r = re.compile('(k[0-9]+__)+(.+(?<!_bounds)(?<!_k[0-9]))$')
-        self.par_names = list(filter(r.match, self.gp_regressor.kernel.get_params().keys()))
+        # r = re.compile('(k[0-9]+__)+(.+(?<!_bounds)(?<!_k[0-9]))$')
+        # self.par_names = list(filter(r.match, self.gp_regressor.kernel.get_params().keys()))
+        r = re.compile('(.*?)_bounds$')
+        self.par_names = [s.replace('_bounds', '') for s in list(filter(r.match, self.gp_regressor.kernel.get_params().keys()))]
 
         self.lognorm = lognorm
         if self.lognorm:
@@ -382,12 +384,14 @@ class GPLagFrequencySpectrum(LagFrequencySpectrum):
         else:
             raise ValueError("GPLagFrequencySpectrum requires a pair of light curves!")
 
+        self.lag_samples = None
+
         if low_mem:
             self.freq, self.freq_error, self.lag, self.error = self.calculate_seq(bins, n_samples, sample_posterior=sample_posterior)
         else:
             self.freq, self.freq_error, self.lag, self.error = self.calculate_batch(bins, n_samples, sample_posterior=sample_posterior)
 
-    def calculate_batch(self, bins, n_samples=10):
+    def calculate_batch(self, bins, n_samples=10, save_samples=False):
         sample_lcs1 = self.gplc1.sample(t=None, n_samples=n_samples, sample_posterior=sample_posterior)
         sample_lcs2 = self.gplc2.sample(t=None, n_samples=n_samples, sample_posterior=sample_posterior)
         if not isinstance(sample_lcs1, list):
@@ -399,12 +403,15 @@ class GPLagFrequencySpectrum(LagFrequencySpectrum):
         freq_error = bins.bin_end - bins.bin_cent
         lag = np.array([LagFrequencySpectrum(bins, lc1, lc2, calc_error=False).lag for (lc1, lc2) in zip(sample_lcs1, sample_lcs2)])
 
+        if save_samples:
+            self.lag_samples = lag
+
         lag_avg = np.mean(lag, axis=0)
         lag_std = np.std(lag, axis=0)
 
         return freq, freq_error, lag_avg, lag_std
 
-    def calculate_seq(self, bins, n_samples=10, sample_posterior=False):
+    def calculate_seq(self, bins, n_samples=10, sample_posterior=False, save_samples=False):
         freq = bins.bin_cent
         freq_error = bins.bin_end - bins.bin_cent
 
@@ -415,6 +422,10 @@ class GPLagFrequencySpectrum(LagFrequencySpectrum):
             lag.append(LagFrequencySpectrum(bins, sample_lc1, sample_lc2, calc_error=False).lag)
 
         lag = np.array(lag)
+
+        if save_samples:
+            self.lag_samples = lag
+
         lag_avg = np.mean(lag, axis=0)
         lag_std = np.std(lag, axis=0)
 
