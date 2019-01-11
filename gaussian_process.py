@@ -329,12 +329,12 @@ class GPEnergyLCList(EnergyLCList):
                 lc.fit()
 
     def run_mcmc(self, nsteps=2000, nburn=500, log_par=True):
-        if isinstance(lclist[0], list):
+        if isinstance(self.lclist[0], list):
             for en_lclist in self.lclist:
                 for lc in en_lclist:
                     lc.run_mcmc(nsteps=nsteps, nburn=nburn, log_par=log_par)
 
-        elif isinstance(lclist[0], LightCurve):
+        elif isinstance(self.lclist[0], LightCurve):
             for lc in self.lclist:
                 lc.run_mcmc(nsteps=nsteps, nburn=nburn, log_par=log_par)
 
