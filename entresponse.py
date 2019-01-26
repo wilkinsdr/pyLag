@@ -257,6 +257,19 @@ class ENTResponse(object):
         resp2 = self.time_response(enband2).pad(tmax)
         return LagFrequencySpectrum(fbins, lc1=resp1, lc2=resp2, calc_error=False)
 
+    def cross_spectrum(self, enband1, enband2, fbins=None, tmax=None):
+        if tmax is None and fbins is not None:
+            tmax = 1./fbins.bin_start.min()
+
+        resp1 = self.time_response(enband1).pad(tmax)
+        resp2 = self.time_response(enband2).pad(tmax)
+        c = CrossSpectrum(lc1=resp1, lc2=resp2)
+
+        if fbins is not None:
+            return c.bin(fbins)
+        else:
+            return c
+
     def lag_energy_frequency(self, fbins=None, Nf=100, pad=1E6):
         if Nf is None:
             raise ValueError(
