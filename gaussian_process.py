@@ -400,7 +400,7 @@ class GPLagFrequencySpectrum(LagFrequencySpectrum):
         else:
             self.freq, self.freq_error, self.lag, self.error = self.calculate_batch(bins, n_samples, sample_posterior=sample_posterior)
 
-    def calculate_batch(self, bins, n_samples=10, save_samples=False):
+    def calculate_batch(self, bins, n_samples=10, sample_posterior=False, save_samples=False):
         sample_lcs1 = self.gplc1.sample(t=None, n_samples=n_samples, sample_posterior=sample_posterior)
         sample_lcs2 = self.gplc2.sample(t=None, n_samples=n_samples, sample_posterior=sample_posterior)
         if not isinstance(sample_lcs1, list):
