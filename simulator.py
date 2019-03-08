@@ -361,7 +361,8 @@ class SimEnergyLCList(EnergyLCList):
             ratios = den / np.sum(den)
             en_bkg = bkg * ratios
         elif isinstance(bkg, float):
-            en_bkg = bkg * np.ones(den.shape)
+            # split the background rate by bin width over the sampled energy range
+            en_bkg = bkg * (self.enmax - self.enmin) / np.sum(self.enmax - self.enmin)
         else:
             en_bkg = bkg
 
