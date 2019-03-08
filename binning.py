@@ -383,6 +383,14 @@ class Binning(object):
         """
         return self.bin_cent - self.bin_start
 
+    def x_width(self):
+        """
+        xw = pylag.Binning.x_width()
+
+        Returns the width of each bin
+        """
+        return self.bin_end - self.bin_start
+
     def delta_x(self):
         """
         delta_x = pylag.Binning.delta_x()
