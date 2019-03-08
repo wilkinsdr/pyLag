@@ -159,6 +159,31 @@ class Binning(object):
         else:
             return self.bin_fast(x, y)
 
+    def binned_statistic(self, x, y, stat='sum'):
+        """
+        binned = pylag.Binning.bin_fast(x, y)
+
+        bin (x,y) data by x values into the bins specified by this object and
+        return the mean value in each bin.
+
+        Uses scipy binned_statistic for faster binning
+
+        Arguments
+        ---------
+        x : ndarray or list
+            The abcissa of input data points that are to be binned
+        y : ndarray or list
+            The ordinate/value of input data points
+
+        Returns
+        -------
+        binned : ndarray
+                 The mean value in each bin
+
+        """
+        binned,_,_ = binned_statistic(x, y, statistic=stat, bins=self.bin_edges)
+        return binned
+
     def points_in_bins(self, x, y):
         """
         points = pylag.Binning.points_in_bins(x, y)
