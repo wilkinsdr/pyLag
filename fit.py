@@ -220,3 +220,7 @@ class Fit(object):
         p = Plot(self._getratioseries(x, params))
         p.marker_series = ['+', '-']
         return p
+
+    def write_fit(self, filename):
+        outdata = [self.data_obj, self._getdataseries(), self._getratioseries()]
+        write_data(outdata, filename)
