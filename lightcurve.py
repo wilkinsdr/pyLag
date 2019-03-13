@@ -1230,6 +1230,44 @@ def extract_sim_lightcurves(lc1, lc2):
 
     return out_lc1, out_lc2
 
+def match_lc_timebins(lc1, lc2):
+    """
+    pylab.match_lc_timebins(a, b)
+
+    extract simultaneous light curve segments by picking out the time bins that match
+
+    Note that this requires the time bins to align exactly between the two light curves
+
+    Arguments
+    ---------
+    lc1 : LightCurve
+          First input light curve
+    lc2 : LightCurve
+          Second input light curve
+
+    Returns
+    -------
+    out_lc1 : LightCurve
+              LightCurve object containing the matched portion of the first
+              light curve
+    out_lc2 : LightCurve
+              LightCurve object containing the matched portion of the second
+              light curve
+    """
+    # find the time bins that
+    tsim = lc1.time[np.isin(lc1.time, lc2.time)]
+    # extract the corresponding rate and error bins
+    rsim1 = lc1.rate[np.isin(lc1.time, tsim)]
+    rsim2 = lc2.rate[np.isin(lc2.time, tsim)]
+    esim1 = lc1.error[np.isin(lc1.time, tsim)]
+    esim2 = lc2.error[np.isin(lc2.time, tsim)]
+
+    out_lc1 = LightCurve(t=tsim, r=rsim1, e=esim1)
+    out_lc1.__class__ = lc1.__class__
+    out_lc2 = LightCurve(t=tsim, r=rsim2, e=esim2)
+    out_lc2.__class__ = lc2.__class__
+    return out_lc1, out_lc2
+
 
 def sum_sim_lightcurves(lc1, lc2):
     lc1s, lc2s = extract_sim_lightcurves(lc1, lc2)
@@ -1564,11 +1602,13 @@ class EnergyLCList(object):
             for en_lclist1, en_lclist2 in zip(self.lclist, other.lclist):
                 lclist.append([])
                 for lc1, lc2 in zip(en_lclist1, en_lclist2):
-                    lc1s, lc2s = extract_sim_lightcurves(lc1, lc2)
+                    #lc1s, lc2s = extract_sim_lightcurves(lc1, lc2)
+                    lc1s, lc2s = match_lc_timebins(lc1, lc2)
                     lclist[-1].append(lc1s + lc2s)
         else:
             for lc1, lc2 in zip(self.lclist, other.lclist):
-                lc1s, lc2s = extract_sim_lightcurves(lc1, lc2)
+                #lc1s, lc2s = extract_sim_lightcurves(lc1, lc2)
+                lc1s, lc2s = match_lc_timebins(lc1, lc2)
                 lclist.append(lc1s + lc2s)
 
         return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=lclist)
@@ -1590,11 +1630,13 @@ class EnergyLCList(object):
             for en_lclist1, en_lclist2 in zip(self.lclist, other.lclist):
                 lclist.append([])
                 for lc1, lc2 in zip(en_lclist1, en_lclist2):
-                    lc1s, lc2s = extract_sim_lightcurves(lc1, lc2)
+                    #lc1s, lc2s = extract_sim_lightcurves(lc1, lc2)
+                    lc1s, lc2s = match_lc_timebins(lc1, lc2)
                     lclist[-1].append(lc1s - lc2s)
         else:
             for lc1, lc2 in zip(self.lclist, other.lclist):
-                lc1s, lc2s = extract_sim_lightcurves(lc1, lc2)
+                #lc1s, lc2s = extract_sim_lightcurves(lc1, lc2)
+                lc1s, lc2s = match_lc_timebins(lc1, lc2)
                 lclist.append(lc1s - lc2s)
 
         return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=lclist)
