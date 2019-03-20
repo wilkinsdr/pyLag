@@ -698,7 +698,7 @@ def write_data(data_object, filename, xdata=None, ydata=None, mode='w', fmt='%15
     np.savetxt(filename, list(zip(*data)), fmt=fmt, delimiter=delimiter)
 
 
-def write_multi_data(data_list, filename, mode='w', fmt='%15.10g', delimiter=' '):
+def write_multi_data(data_list, filename, mode='w', fmt='%15.10g', delimiter=' ', series_labels=None, xlabel='x'):
     """
     pylag.write_multi_data
 
@@ -747,7 +747,20 @@ def write_multi_data(data_list, filename, mode='w', fmt='%15.10g', delimiter=' '
 
     #data = tuple(data)
 
-    np.savetxt(filename, list(zip(*data)), fmt=fmt, delimiter=delimiter)
+    fieldstr = ''
+    if series_labels is not None:
+        fields = [xlabel]
+        xd, _ = data_list[0]._getplotdata()
+        if isinstance(xd, tuple):
+            fields.append('+-')
+        for obj, label in zip(data_list, series_labels):
+            fields.append(label)
+            _, yd = obj._getplotdata()
+            if isinstance(yd, tuple):
+                fields.append('+-')
+        fieldstr = ' '.join(fields)
+
+    np.savetxt(filename, list(zip(*data)), fmt=fmt, delimiter=delimiter, header=fieldstr)
 
 
 def close_all_plots():
