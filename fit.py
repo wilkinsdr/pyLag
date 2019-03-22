@@ -211,6 +211,20 @@ class Fit(object):
         xlabel, xscale, ylabel, yscale = self.data_obj._getplotaxes()
         return DataSeries(x, self.ratio(params), xlabel=xlabel, xscale=xscale, ylabel='Data / Model', yscale='linear')
 
+    def _getfitdataseries(self):
+        # use this function to get a plottable data series of the data points we're actually fitting
+        if self.xerror is not None:
+            x = (self.xdata, self.xerror)
+        else:
+            x = self.xdata
+        if self.xerror is not None:
+            y = (self.ydata, self.yerror)
+        else:
+            y = self.ydata
+
+        return DataSeries(x, y)
+
+
     def plot_fit(self, x=None, params=None):
         p = Plot([self.data_obj, self._getdataseries(x, params)])
         p.marker_series = ['+', '-']
@@ -222,5 +236,5 @@ class Fit(object):
         return p
 
     def write_fit(self, filename):
-        outdata = [self.data_obj, self._getdataseries(), self._getratioseries()]
-        write_data(outdata, filename)
+        outdata = [self._getfitdataseries(), self._getdataseries(), self._getratioseries()]
+        write_multi_data(outdata, filename)
