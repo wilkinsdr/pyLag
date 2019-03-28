@@ -68,9 +68,10 @@ class GPLightCurve(LightCurve):
 
         if noise_kernel:
             if lognorm:
-                noise_level = np.sqrt(self.mean_rate * self.dt) / (self.mean_rate * self.dt)
+                noise_level = np.sqrt(self.mean_rate * self.dt) / (
+                            self.mean_rate * self.dt * np.log(self.mean_rate * self.dt))
             else:
-                noise_level = np.sqrt(self.mean_rate * self.dt) / (self.mean_rate * self.dt * np.log(self.mean_rate * self.dt))
+                noise_level = np.sqrt(self.mean_rate * self.dt) / (self.mean_rate * self.dt)
             if freeze_noise:
                 noise_bounds = (noise_level, noise_level)
             else:
