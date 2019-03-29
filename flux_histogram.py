@@ -45,5 +45,7 @@ class FluxHistogram(object):
         return mu, sigma
 
     def write_hist(self, filename, fmt='%15.10g', delimiter=' '):
-        data = [self.bins, self.freq, self.gaussian_fit]
+        bin_cent = 0.5 * (self.bins[1:] + self.bins[:-1])
+        bin_err = self.bins[1:] - bin_cent
+        data = [bin_cent, bin_err, self.bins[:-1], self.bins[1:], self.freq, self.gaussian_fit]
         np.savetxt(filename, list(zip(*data)), fmt=fmt, delimiter=delimiter)
