@@ -43,3 +43,7 @@ class FluxHistogram(object):
     def fit_gaussian(r):
         mu, sigma = norm.fit(r)
         return mu, sigma
+
+    def write_hist(self, filename, fmt='%15.10g', delimiter=' '):
+        data = [self.bins, self.freq, self.gaussian_fit]
+        np.savetxt(filename, list(zip(*data)), fmt=fmt, delimiter=delimiter)
