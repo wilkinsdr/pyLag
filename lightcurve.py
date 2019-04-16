@@ -94,7 +94,7 @@ class LightCurve(object):
 
     """
 
-    def __init__(self, filename=None, t=[], r=[], e=[], interp_gaps=False, zero_nan=True, trim=False, max_gap=0, add_tstart=False):
+    def __init__(self, filename=None, t=[], r=[], e=[], interp_gaps=False, zero_nan=True, trim=False, max_gap=0, **kwargs):
         self.time = np.array(t)
         if len(r) > 0:
             self.rate = np.array(r)
@@ -107,7 +107,7 @@ class LightCurve(object):
 
         if filename is not None:
             self.filename = filename
-            self.read_fits(filename, add_tstart=add_tstart)
+            self.read_fits(filename, **kwargs)
 
         if len(self.time) > 1:
             self.dt = self.time[1] - self.time[0]
@@ -120,7 +120,7 @@ class LightCurve(object):
         if trim:
             self.trim()
 
-    def read_fits(self, filename, byte_swap=True, add_tstart=False):
+    def read_fits(self, filename, byte_swap=True, add_tstart=False, time_col='TIME', rate_col='RATE', error_col='ERROR', hdu='RATE', inst=None):
         """
         pylag.LightCurve.read_fits(filename)
 
@@ -131,14 +131,21 @@ class LightCurve(object):
         filename : string
                    The path of the FITS file from which the light curve is loaded
         """
+        # shortcut for loading Chandra light curves which helpfully have different HDU and column names!
+        if inst == 'chandra':
+            time_col = 'TIME'
+            rate_col = 'NET_RATE'
+            error_col = 'ERR_RATE'
+            hdu = 'LIGHTCURVE'
+
         try:
             print("Reading light curve from " + filename)
             fitsfile = pyfits.open(filename)
-            tabdata = fitsfile['RATE'].data
+            tabdata = fitsfile[hdu].data
 
-            self.time = np.array(tabdata['TIME'])
-            self.rate = np.array(tabdata['RATE'])
-            self.error = np.array(tabdata['ERROR'])
+            self.time = np.array(tabdata[time_col])
+            self.rate = np.array(tabdata[rate_col])
+            self.error = np.array(tabdata[error_col])
 
             if byte_swap:
                 self._byteswap()
@@ -837,6 +844,34 @@ class LightCurve(object):
         dr = self.rate[1:] - self.rate[:-1]
         drdt = dr / dt
         return LightCurve(t=self.time[:-1], r=drdt, e=np.zeros(dt.shape))
+
+    def resample_noise(self):
+        """
+        lc = pylag.LightCurve.resample_noise
+
+        Add Poisson noise to the light curve and return the noise light curve as a
+        new LightCurve object. For each time bin, the photon counts are drawn from
+        a Poisson distribution with mean according to the current count rate in the
+        bin.
+
+        Return Values
+        -------------
+        lc : SimLightCurve
+             SimLightCurve object containing the new, noisy light curve
+        """
+        # sqrt(N) noise applies to the number of counts, not the rate
+        counts = self.rate * self.dt
+        counts[counts<0] = 0
+        # draw the counts in each time bin from a Poisson distribution
+        # with the mean set according to the original number of counts in the bin
+        rnd_counts = np.random.poisson(counts)
+        rate = rnd_counts.astype(float) / self.dt
+        # sqrt(N) errors again as if we're making a measurement
+        error = np.sqrt(self.rate / self.dt)
+
+        resample_lc = LightCurve(t=self.time, r=rate, e=error)
+        resample_lc.__class__ = self.__class__
+        return resample_lc
 
     def __add__(self, other):
         """
