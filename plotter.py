@@ -966,6 +966,28 @@ class Spectrum(object):
         return Spectrum(en=en_bin, spec=spec_bin, xlabel=self.xlabel, xscale=self.xscale, ylabel=self.ylabel,
                         yscale=self.yscale)
 
+    def __truediv__(self, other):
+        if isinstance(other, Spectrum):
+            if len(self.spec) == len(other.spec):
+                ratio = self.spec / other.spec
+
+                if self.error is not None and other.error is not None:
+                    err = ratio * np.sqrt((self.error/self.spec)**2 + (other.error/other.spec)**2)
+                elif self.error is not None and other.error is None:
+                    err = ratio * (self.error / self.spec)
+                elif other.error is not None and self.error is None:
+                    err = ratio * (other.error / other.spec)
+                else:
+                    err = None
+
+                return Spectrum(en=self.en, spec=ratio, err=err, xlabel=self.xlabel, xscale=self.xscale, ylabel='Ratio',
+                        yscale='linear')
+            else:
+                raise AssertionError("Lengths of spectra do not match")
+        else:
+            return NotImplemented
+
+
     def rebin(self, bins=None, Nbins=None):
         if bins is None:
             bins = LogBinning(self.en.min(), self.en.max(), Nbins)
