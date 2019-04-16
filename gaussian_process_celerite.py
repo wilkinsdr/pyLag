@@ -116,7 +116,7 @@ class GPLightCurve_Celerite(GPLightCurve):
         r = self.fit()
         initial = np.array(r.x)
 
-        ndim, nwalkers = len(initial), 32
+        ndim, nwalkers = len(initial), np.max([32, 2*len(initial)])
         self.sampler = emcee.EnsembleSampler(nwalkers, ndim, log_probability, args=(self.rate, self.gp))
 
         print("Running burn-in...")
