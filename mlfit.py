@@ -236,7 +236,7 @@ class MLCovariance(object):
         return self.cov_matrix.cov_model.get_psd_series(self.fit_result.params, freq)
 
 
-def MLCrossCovariance(MLCovariance):
+class MLCrossCovariance(MLCovariance):
     def __init__(self, lc1, lc2, autocov_model, crosscov_model, params=None, **kwargs):
         self.cov_matrix = CrossCovarianceMatrixModel(autocov_model, crosscov_model, lc1.time, lc2.time, **kwargs)
         self.data = np.hstack([lc1.rate, lc2.rate])
