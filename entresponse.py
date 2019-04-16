@@ -136,6 +136,16 @@ class ENTResponse(object):
 
         return ENTResponse(en_bins=self.en_bins, t=self.time, ent=tot_ent, tstart=self.tstart)
 
+    def continuum_ent(self, tcont, gamma, ref_frac, from_start=True):
+        ti = self.t_index(tcont, from_start)
+
+        cont = self.en_bins.bin_cent ** -gamma
+
+        cont_ent = np.zeros(self.ent.shape)
+        cont_ent[:, ti] = np.sum(self.ent) * cont / (ref_frac * np.sum(cont))
+
+        return ENTResponse(en_bins=self.en_bins, t=self.time, ent=cont_ent, tstart=self.tstart)
+
     def energy_range(self, enmin, enmax):
         enstarti = self.en_index(enmin)
         enendi = self.en_index(enmax)
