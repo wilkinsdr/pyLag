@@ -74,7 +74,7 @@ class LagFrequencySpectrum(object):
            pyLag LightCurve object for the reference or soft band
     """
 
-    def __init__(self, bins, lc1=None, lc2=None, lc1files=None, lc2files=None, interp_gaps=False, calc_error=True):
+    def __init__(self, bins, lc1=None, lc2=None, lc1files=None, lc2files=None, interp_gaps=False, calc_error=True, resample_errors=False, n_samples=10, **kwargs):
         self.freq = bins.bin_cent
         self.freq_error = bins.x_error()
 
@@ -82,10 +82,17 @@ class LagFrequencySpectrum(object):
         self.error = np.array([])
 
         if lc1files is not None:
-            lc1 = get_lclist(lc1files, interp_gaps=interp_gaps)
+            lc1 = get_lclist(lc1files, interp_gaps=interp_gaps, **kwargs)
         if lc2files is not None:
-            lc2 = get_lclist(lc2files, interp_gaps=interp_gaps)
+            lc2 = get_lclist(lc2files, interp_gaps=interp_gaps, **kwargs)
 
+        if resample_errors:
+            self.lag, self.error, self.coh = self.calculate_resample(lc1, lc2, bins, n_samples)
+        else:
+            self.lag, self.error, self.coh = self.calculate(lc1, lc2, bins, calc_error)
+
+    @staticmethod
+    def calculate(lc1, lc2, bins, calc_error=True):
         if isinstance(lc1, list) and isinstance(lc2, list):
             print("Constructing lag-frequency spectrum from %d pairs of light curves" % len(lc1))
             cross_spec = StackedCrossSpectrum(lc1, lc2, bins)
@@ -97,13 +104,40 @@ class LagFrequencySpectrum(object):
             if calc_error:
                 coh = Coherence(lc1, lc2, bins)
 
-        f, self.lag = cross_spec.lag_spectrum()
+        _, lag = cross_spec.lag_spectrum()
         if calc_error:
-            self.error = coh.lag_error()
-            self.coh = coh.coh
+            error = coh.lag_error()
+            coh = coh.coh
         else:
-            self.error = None
-            self.coh = None
+            error = None
+            coh = None
+
+        return lag, error, coh
+
+    @staticmethod
+    def calculate_resample(lc1, lc2, bins, n_samples=10):
+        lags = []
+        for n in range(n_samples):
+            if isinstance(lc1, list) and isinstance(lc2, list):
+                lc1_resample = []
+                lc2_resample = []
+                for lc in lc1:
+                    lc1_resample.append(lc.resample_noise())
+                for lc in lc2:
+                    lc2_resample.append(lc.resample_noise())
+            elif isinstance(lc1, LightCurve) and isinstance(lc2, LightCurve):
+                lc1_resample = lc1.resample_noise()
+                lc2_resample = lc2.resample_noise()
+
+            l, _, _ = LagFrequencySpectrum.calculate(lc1_resample, lc2_resample, bins, calc_error=False)
+            lags.append(l)
+
+        lags = np.array(lags)
+        lag = np.mean(lags, axis=0)
+        error = np.std(lags, axis=0)
+
+        return lag, error, None
+
 
     def _getplotdata(self):
         return (self.freq, self.freq_error), (self.lag, self.error)
