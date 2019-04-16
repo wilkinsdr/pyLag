@@ -432,3 +432,37 @@ class CoherenceSpectrum(object):
 
     def _getplotaxes(self):
         return 'Energy / keV', 'log', 'Coherence', 'linear'
+
+
+class ResampledCoherence(Coherence):
+    def __init__(self, lc1=None, lc2=None, bins=None, fmin=None, fmax=None, bkg1=0., bkg2=0., bias=True, n_samples=10):
+        if bins is not None:
+            self.freq = bins.bin_cent
+            self.freq_error = bins.x_error()
+        elif fmin > 0 and fmax > 0:
+            self.freq = np.mean([fmin, fmax])
+            self.freq_error = None
+
+        cohs = []
+
+        for n in range(n_samples):
+            if isinstance(lc1, list) and isinstance(lc2, list):
+                lc1_resample = []
+                lc2_resample = []
+                for lc in lc1:
+                    lc1_resample.append(lc.resample_noise())
+                for lc in lc2:
+                    lc2_resample.append(lc.resample_noise())
+            elif isinstance(lc1, LightCurve) and isinstance(lc2, LightCurve):
+                lc1_resample = lc1.resample_noise()
+                lc2_resample = lc2.resample_noise()
+
+            coh_obj = Coherence(lc1_resample, lc2_resample, bins, fmin, fmax, bkg1, bkg2, bias)
+            cohs.append(coh_obj.coh)
+
+        cohs = np.array(cohs)
+        self.coh = np.mean(cohs, axis=0)
+        self.error = np.std(cohs, axis=0)
+
+    def _getplotdata(self):
+        return (self.freq, self.freq_error), (self.coh, self.error)
