@@ -130,7 +130,7 @@ class CovarianceMatrixModel(object):
         self.tau_arr = np.arange(-1*self.max_tau, self.max_tau + self.min_tau, self.min_tau)
 
         if freq_arr is None:
-            self.fmin = 1. / (2 * self.max_tau)
+            self.fmin = 1. / (20 * self.max_tau)
             self.fmax = 1. / (2 * self.min_tau)
             self.freq_arr = np.arange(-1*self.fmax, self.fmax, self.fmin)
         else:
