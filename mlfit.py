@@ -1,3 +1,23 @@
+"""
+pylag.mlfit
+
+Implements the method of Zoghbi et al. 2013 to fit correlation functions/covariance matrices
+to light curves in the time domain to estimate power and lag spectra
+
+Classes
+-------
+CorrelationModel : base class for model correlation functions
+- AutoCorrelationModel_plpsd : autocorrelation function for power law PSD
+- CrossCorrelationModel_plpsd_constlag : cross-correlation function for power law PSD and constant lag time at all frequencies
+
+CovarianceMatrixModel : constructs a covariance matrix from a CorrelationModel function for a single light curve
+CrossCovarianceMatrixModel : constructs a cross-covariance matrix from CorrelationModel functions for two light curves
+
+MLCovariance : maximum-likelihood fitting of a covariance matrix to a single light curve (for PSD estimation)
+MLCrossCovariance : maximum-likelihood fitting of a cross-covariance matrix to two light curves (for lag estimation)
+
+v1.0 16/04/2019 - D.R. Wilkins
+"""
 import numpy as np
 import scipy.fftpack
 import scipy.integrate
@@ -6,7 +26,8 @@ import lmfit
 from .binning import *
 from .plotter import *
 
-class CovarianceModel(object):
+
+class CorrelationModel(object):
     def __init__(self, component_name=None):
         self.component_name = component_name
 
@@ -27,11 +48,11 @@ class CovarianceModel(object):
         return corr_arr
 
 
-class AutoCovarianceModel_plpsd(CovarianceModel):
+class AutoCorrelationModel_plpsd(CorrelationModel):
     def get_params(self, norm=1., slope=1.):
         params = lmfit.Parameters()
 
-        params.add('%snorm' % self.prefix, value=norm, min=0., max=1e10)
+        params.add('%snorm' % self.prefix, value=norm, min=1e-10, max=1e10)
         params.add('%sslope' % self.prefix, value=slope, min=0., max=3.)
 
         return params
@@ -70,11 +91,11 @@ class AutoCovarianceModel_plpsd(CovarianceModel):
         return DataSeries(freq_arr, psd, xlabel='Frequency / Hz', ylabel='PSD', xscale='log', yscale='log')
 
 
-class CrossCovarianceModel_plpsd_constlag(CovarianceModel):
+class CrossCorrelationModel_plpsd_constlag(CorrelationModel):
     def get_params(self, norm=1., slope=1., lag=0.):
         params = lmfit.Parameters()
 
-        params.add('%snorm' % self.prefix, value=norm, min=0., max=1e10)
+        params.add('%snorm' % self.prefix, value=norm, min=1e-10, max=1e10)
         params.add('%sslope' % self.prefix, value=slope, min=0., max=3.)
         params.add('%slag' % self.prefix, value=lag, min=-1e4, max=+1e4)
 
@@ -99,8 +120,8 @@ class CrossCovarianceModel_plpsd_constlag(CovarianceModel):
 
 
 class CovarianceMatrixModel(object):
-    def __init__(self, cov_model, time, time2=None, component_name=None, freq_arr=None, eval_args={}):
-        self.cov_model = cov_model(component_name=component_name)
+    def __init__(self, corr_model, time, time2=None, component_name=None, freq_arr=None, eval_args={}):
+        self.corr_model = corr_model(component_name=component_name)
         self.dt_matrix = self.dt_matrix(time, time2)
 
         self.min_tau = np.min(self.dt_matrix[self.dt_matrix > 0])
@@ -125,24 +146,24 @@ class CovarianceMatrixModel(object):
         return t2 - t1
 
     def get_params(self, *args, **kwargs):
-        return self.cov_model.get_params(*args, **kwargs)
+        return self.corr_model.get_params(*args, **kwargs)
 
     def eval(self, params):
-        corr_arr = self.cov_model.eval_points(params, self.tau_arr, freq_arr=self.freq_arr, **self.eval_args)
+        corr_arr = self.corr_model.eval_points(params, self.tau_arr, freq_arr=self.freq_arr, **self.eval_args)
         return np.array([corr_arr[int((tau + self.max_tau) / self.min_tau)] \
                          for tau in self.dt_matrix.reshape(-1)]).reshape(self.dt_matrix.shape)
 
 
 class CrossCovarianceMatrixModel(object):
-    def __init__(self, autocov_model, crosscov_model, time1, time2, autocov1_args={}, autocov2_args={}, crosscov_args={}):
-        self.autocov_matrix1 = CovarianceMatrixModel(autocov_model, time1, component_name='autocov1', eval_args=autocov1_args)
-        self.autocov_matrix2 = CovarianceMatrixModel(autocov_model, time2, component_name='autocov2', eval_args=autocov2_args)
-        self.crosscov_matrix = CovarianceMatrixModel(crosscov_model, time1, time2=time2, component_name='cross_cov', eval_args=crosscov_args)
+    def __init__(self, autocorr_model, crosscorr_model, time1, time2, autocorr1_args={}, autocorr2_args={}, crosscorr_args={}):
+        self.autocov_matrix1 = CovarianceMatrixModel(autocorr_model, time1, component_name='autocorr1', eval_args=autocorr1_args)
+        self.autocov_matrix2 = CovarianceMatrixModel(autocorr_model, time2, component_name='autocorr2', eval_args=autocorr2_args)
+        self.crosscov_matrix = CovarianceMatrixModel(crosscorr_model, time1, time2=time2, component_name='crosscorr', eval_args=crosscorr_args)
 
-    def get_params(self, autocov1_pars={}, autocov2_pars={}, crosscov_pars={}):
-        return self.autocov_matrix1.get_params(**autocov1_pars) \
-               + self.autocov_matrix2.get_params(**autocov1_pars) \
-               + self.crosscov_matrix.get_params(**crosscov_pars)
+    def get_params(self, autocorr1_pars={}, autocorr2_pars={}, crosscorr_pars={}):
+        return self.autocov_matrix1.get_params(**autocorr1_pars) \
+               + self.autocov_matrix2.get_params(**autocorr1_pars) \
+               + self.crosscov_matrix.get_params(**crosscorr_pars)
 
     def eval(self, params):
         ac1 = self.autocov_matrix1.eval(params)
@@ -172,8 +193,6 @@ class MLCovariance(object):
             ci = np.linalg.inv(c)
             _, ld = np.linalg.slogdet(c)
         except:
-            print("WARNING: Failed to invert covariance matrix")
-            print(params)
             return np.nan
 
         l = (-len(self.data) / 2) * np.log(2 * np.pi) - 0.5 * ld - 0.5 * np.matmul(self.data.T, np.matmul(ci, self.data))
@@ -182,17 +201,29 @@ class MLCovariance(object):
     def mlog_likelihood(self, params):
         return -1*self.log_likelihood(params)
 
-    def _dofit(self, params, method='nelder'):
-        minimizer = lmfit.Minimizer(self.mlog_likelihood, params, nan_policy='omit')
+    def _dofit(self, params, method='nelder', write_steps=0):
+        def fit_progress(params, iter, resid):
+            if write_steps > 0:
+                if iter % write_steps == 0:
+                    parstr = ' %10.4g'*len(params)
+                    parvals = [params[p] for p in params]
+                    print(("%5d %15.6g" + parstr) % tuple([iter, resid] + parvals))
+
+        if write_steps > 0:
+            iter_cb = fit_progress
+        else:
+            iter_cb = None
+
+        minimizer = lmfit.Minimizer(self.mlog_likelihood, params, nan_policy='omit', iter_cb=iter_cb)
         fit_result = minimizer.minimize(method=method)
 
         return minimizer, fit_result
 
-    def fit(self, params=None, method='nelder'):
+    def fit(self, params=None, **kwargs):
         if params is None:
             params = self.params
 
-        self.minimizer, self.fit_result = self._dofit(params, method)
+        self.minimizer, self.fit_result = self._dofit(params, **kwargs)
         self.show_fit()
 
         return self.fit_result.residual
