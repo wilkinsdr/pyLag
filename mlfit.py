@@ -193,7 +193,7 @@ class MLCovariance(object):
             ci = np.linalg.inv(c)
             _, ld = np.linalg.slogdet(c)
         except:
-            return np.nan
+            return -1e20
 
         l = (-len(self.data) / 2) * np.log(2 * np.pi) - 0.5 * ld - 0.5 * np.matmul(self.data.T, np.matmul(ci, self.data))
         return l
@@ -201,7 +201,7 @@ class MLCovariance(object):
     def mlog_likelihood(self, params):
         return -1*self.log_likelihood(params)
 
-    def _dofit(self, params, method='nelder', write_steps=0):
+    def _dofit(self, params, method='nelder', write_steps=0, **kwargs):
         def fit_progress(params, iter, resid):
             if write_steps > 0:
                 if iter % write_steps == 0:
@@ -215,7 +215,7 @@ class MLCovariance(object):
             iter_cb = None
 
         minimizer = lmfit.Minimizer(self.mlog_likelihood, params, nan_policy='omit', iter_cb=iter_cb)
-        fit_result = minimizer.minimize(method=method)
+        fit_result = minimizer.minimize(method=method, **kwargs)
 
         return minimizer, fit_result
 
@@ -232,6 +232,16 @@ class MLCovariance(object):
         if self.fit_result is None:
             raise AssertionError("Need to run fit first!")
         lmfit.report_fit(self.fit_result)
+
+    def run_mcmc(self, params=None, burn=300, steps=1000, thin=1):
+        if params is None:
+            if self.fit_result is not None:
+                params = self.fit_result.params
+            else:
+                params = self.params
+
+        mcmc_result = lmfit.minimize(self.log_likelihood, params=params, method='emcee', burn=burn, steps=steps, thin=thin)
+        return mcmc_result
 
     def steppar(self, par, steps, method='nelder'):
         import copy
