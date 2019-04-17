@@ -10,6 +10,8 @@ CorrelationModel : base class for model correlation functions
 - AutoCorrelationModel_plpsd : autocorrelation function for power law PSD
 - CrossCorrelationModel_plpsd_constlag : cross-correlation function for power law PSD and constant lag time at all frequencies
 
+FFTCorrelationModel : class for faster calculation of model correlation functions using FFT
+
 CovarianceMatrixModel : constructs a covariance matrix from a CorrelationModel function for a single light curve
 CrossCovarianceMatrixModel : constructs a cross-covariance matrix from CorrelationModel functions for two light curves
 
@@ -47,6 +49,14 @@ class CorrelationModel(object):
         corr_arr -= np.min(corr_arr)
         return corr_arr
 
+    def get_corr_series(self, params, lags, **kwargs):
+        return DataSeries(x=lags, y=self.eval_points(params, lags, **kwargs), xlabel='Lag / s', ylabel='Correlation')
+
+    def plot_corr(self, params, lags=None, **kwargs):
+        if lags is None:
+            lags = np.arange(-1000, 1000, 10)
+        return Plot(self.get_corr_series(params, lags, **kwargs), lines=True)
+
 
 class AutoCorrelationModel_plpsd(CorrelationModel):
     def get_params(self, norm=1., slope=1.):
@@ -65,7 +75,7 @@ class AutoCorrelationModel_plpsd(CorrelationModel):
             freq_arr = np.arange(-1, 1, 1e-5)
 
         psd = np.zeros(freq_arr.shape)
-        psd[np.abs(freq_arr) > flimit] = norm * np.abs(freq_arr[np.abs(freq_arr) > flimit]) ** -slope
+        psd[np.abs(freq_arr) >= flimit] = norm * np.abs(freq_arr[np.abs(freq_arr) >= flimit]) ** -slope
         psd[np.abs(freq_arr) < flimit] = psd[np.abs(freq_arr) > flimit][0]
 
         integrand = psd * np.cos(2 * np.pi * tau * freq_arr)
@@ -110,13 +120,213 @@ class CrossCorrelationModel_plpsd_constlag(CorrelationModel):
             freq_arr = np.arange(-1, 1, 1e-5)
 
         psd = np.zeros(freq_arr.shape)
-        psd[np.abs(freq_arr) > flimit] = norm * np.abs(freq_arr[np.abs(freq_arr) > flimit]) ** -slope
+        psd[np.abs(freq_arr) >= flimit] = norm * np.abs(freq_arr[np.abs(freq_arr) >= flimit]) ** -slope
         psd[np.abs(freq_arr) < flimit] = psd[np.abs(freq_arr) > flimit][0]
 
         integrand = psd * np.cos(2*np.pi*tau*freq_arr + 2*np.pi*freq_arr*lag)
         autocorr = scipy.integrate.trapz(integrand[np.isfinite(integrand)], freq_arr[np.isfinite(integrand)])
 
         return autocorr
+
+
+class CrossCorrelationModel_plpsd_sigmoidlag(CorrelationModel):
+    def get_params(self, norm=1., slope=1., lag=0., lag_slope=5., lag_logfcut=-3):
+        params = lmfit.Parameters()
+
+        params.add('%snorm' % self.prefix, value=norm, min=1e-10, max=1e10)
+        params.add('%sslope' % self.prefix, value=slope, min=0., max=3.)
+        params.add('%slag' % self.prefix, value=lag, min=-1e4, max=+1e4)
+        params.add('%slag_slope' % self.prefix, value=lag_slope, min=1., max=10.)
+        params.add('%slag_logfcut' % self.prefix, value=lag_logfcut, min=-5, max=-1)
+
+        return params
+
+    def eval(self, params, tau, freq_arr=None, flimit=1e-6):
+        norm = params['%snorm' % self.prefix].value
+        slope = params['%sslope' % self.prefix].value
+        max_lag = params['%slag' % self.prefix].value
+        lag_slope = params['%slag_slope' % self.prefix].value
+        lag_fcut = params['%slag_logfcut' % self.prefix].value
+
+        if freq_arr is None:
+            freq_arr = np.arange(-1, 1, 1e-5)
+
+        psd = np.zeros(freq_arr.shape)
+        lag = np.zeros(freq_arr.shape)
+        psd[np.abs(freq_arr) >= flimit] = norm * np.abs(freq_arr[np.abs(freq_arr) >= flimit]) ** -slope
+        psd[np.abs(freq_arr) < flimit] = psd[np.abs(freq_arr) > flimit][0]
+        lag[np.abs(freq_arr) >= flimit] = max_lag * (1. - 1./(1 + np.exp(-lag_slope * (np.log10(freq_arr[np.abs(freq_arr) >= flimit]) - lag_fcut))))
+        lag[np.abs(freq_arr) < flimit] = lag[np.abs(freq_arr) > flimit][0]
+
+        integrand = psd * np.cos(2*np.pi*tau*freq_arr + 2*np.pi*freq_arr*lag)
+        autocorr = scipy.integrate.trapz(integrand[np.isfinite(integrand)], freq_arr[np.isfinite(integrand)])
+
+        return autocorr
+
+
+class FFTCorrelationModel(CorrelationModel):
+    def eval_ft(self, params, freq):
+        raise AssertionError("I'm supposed to be overridden to define your function's Fourier transform!")
+
+    def eval_points(self, params, lags, freq_arr=None, oversample_len=1, oversample_freq=1, **kwargs):
+        freq_arr = scipy.fftpack.fftfreq(oversample_freq*oversample_len*len(lags), d=np.min(lags[lags>0])/oversample_freq)
+        ft = self.eval_ft(params, freq_arr, **kwargs)
+        corr = scipy.fftpack.ifft(ft).real
+        corr -= corr.min()
+        corr = scipy.fftpack.fftshift(corr)
+
+        fft_lags = scipy.fftpack.fftfreq(len(freq_arr), d=(freq_arr[1]-freq_arr[0]))
+        fft_lags = scipy.fftpack.fftshift(fft_lags)
+
+        if np.array_equal(lags, fft_lags):
+            return corr
+        else:
+            tau0 = fft_lags[0]
+            dtau = fft_lags[1] - fft_lags[0]
+            return np.array([corr[int((tau - tau0)/dtau)] for tau in lags])
+
+
+class FFTAutoCorrelationModel_plpsd(FFTCorrelationModel):
+    def get_params(self, norm=1., slope=1.):
+        params = lmfit.Parameters()
+
+        params.add('%snorm' % self.prefix, value=norm, min=1e-10, max=1e10)
+        params.add('%sslope' % self.prefix, value=slope, min=0., max=3.)
+
+        return params
+
+    def eval_ft(self, params, freq_arr, flimit=1e-6):
+        norm = params['%snorm' % self.prefix].value
+        slope = params['%sslope' % self.prefix].value
+
+        psd = np.zeros(freq_arr.shape)
+        psd[np.abs(freq_arr) >= flimit] = norm * np.abs(freq_arr[np.abs(freq_arr) >= flimit]) ** -slope
+        psd[np.abs(freq_arr) < flimit] = psd[np.abs(freq_arr) > flimit][0]
+
+        return psd
+
+class FFTAutoCorrelationModel_plpsd_binned(FFTCorrelationModel):
+    def get_params(self, norm=1., slope=1., binsize=1.):
+        params = lmfit.Parameters()
+
+        params.add('%snorm' % self.prefix, value=norm, min=1e-10, max=1e10)
+        params.add('%sslope' % self.prefix, value=slope, min=0., max=3.)
+        params.add('%sbinsize' % self.prefix, value=binsize, min=1., max=1000.)
+        params['binsize'].vary = False
+
+        return params
+
+    def eval_ft(self, params, freq_arr, flimit=1e-6):
+        norm = params['%snorm' % self.prefix].value
+        slope = params['%sslope' % self.prefix].value
+        binsize = params['%sbinsize' % self.prefix].value
+
+        psd = np.zeros(freq_arr.shape)
+        psd[np.abs(freq_arr) >= flimit] = norm * np.abs(freq_arr[np.abs(freq_arr) >= flimit]) ** -slope
+        psd[np.abs(freq_arr) < flimit] = psd[np.abs(freq_arr) > flimit][0]
+
+        window = np.zeros(freq_arr.shape)
+        window[0] = 1
+        window[1:] = (np.sin(np.pi * freq_arr[1:] * binsize) / (np.pi * freq_arr[1:] * binsize))**2
+
+        return psd*window
+
+
+class FFTCrossCorrelationModel_plpsd_constlag(FFTCorrelationModel):
+    def get_params(self, norm=1., slope=1., lag=0.):
+        params = lmfit.Parameters()
+
+        params.add('%snorm' % self.prefix, value=norm, min=1e-10, max=1e10)
+        params.add('%sslope' % self.prefix, value=slope, min=0., max=3.)
+        params.add('%slag' % self.prefix, value=lag, min=-1e4, max=+1e4)
+
+        return params
+
+    def eval_ft(self, params, freq_arr, flimit=1e-6):
+        norm = params['%snorm' % self.prefix].value
+        slope = params['%sslope' % self.prefix].value
+        lag = params['%slag' % self.prefix].value
+
+        psd = np.zeros(freq_arr.shape)
+        psd[np.abs(freq_arr) >= flimit] = norm * np.abs(freq_arr[np.abs(freq_arr) >= flimit]) ** -slope
+        psd[np.abs(freq_arr) < flimit] = psd[np.abs(freq_arr) > flimit][0]
+        phase = 2*np.pi*freq_arr*lag
+
+        ft = psd * np.exp(1j * phase)
+        return ft
+
+
+class FFTCrossCorrelationModel_plpsd_cutofflag(FFTCorrelationModel):
+    def get_params(self, norm=1., slope=1., lag=0., lag_fcut=1):
+        params = lmfit.Parameters()
+
+        params.add('%snorm' % self.prefix, value=norm, min=1e-10, max=1e10)
+        params.add('%sslope' % self.prefix, value=slope, min=0., max=3.)
+        params.add('%slag' % self.prefix, value=lag, min=-1e4, max=+1e4)
+        params.add('%slag_fcut' % self.prefix, value=lag_fcut, min=1e-4, max=1)
+        params.add('%sfix_fcut' % self.prefix, value=0, min=0, max=1)
+        params['%sfix_fcut' % self.prefix].vary = False
+
+        return params
+
+    def eval_ft(self, params, freq_arr, flimit=1e-6):
+        norm = params['%snorm' % self.prefix].value
+        slope = params['%sslope' % self.prefix].value
+        max_lag = params['%slag' % self.prefix].value
+        lag_fcut = params['%slag_fcut' % self.prefix].value
+
+        if params['%sfix_fcut' % self.prefix].value == 1:
+            lag_fcut = 1./(2. * max_lag)
+
+        psd = np.zeros(freq_arr.shape)
+        psd[np.abs(freq_arr) >= flimit] = norm * np.abs(freq_arr[np.abs(freq_arr) >= flimit]) ** -slope
+        psd[np.abs(freq_arr) < flimit] = psd[np.abs(freq_arr) > flimit][0]
+        lag = np.zeros(freq_arr.shape)
+        lag[np.abs(freq_arr) <= lag_fcut] = max_lag
+        lag[np.abs(freq_arr) > lag_fcut] = 0
+        phase = 2*np.pi*freq_arr*lag
+
+        ft = psd * np.exp(1j * phase)
+        return ft
+
+
+class FFTCrossCorrelationModel_plpsd_linearcutofflag(FFTCorrelationModel):
+    def get_params(self, norm=1., slope=1., lag=0., lag_fcut=1):
+        params = lmfit.Parameters()
+
+        params.add('%snorm' % self.prefix, value=norm, min=1e-10, max=1e10)
+        params.add('%sslope' % self.prefix, value=slope, min=0., max=3.)
+        params.add('%slag' % self.prefix, value=lag, min=-1e4, max=+1e4)
+        params.add('%slag_fcut' % self.prefix, value=lag_fcut, min=1e-4, max=1)
+        params.add('%slag_fzero' % self.prefix, value=lag_fcut, min=1e-4, max=1)
+        params.add('%sfix_fcut' % self.prefix, value=0, min=0, max=1)
+        params['%sfix_fcut' % self.prefix].vary = False
+
+        return params
+
+    def eval_ft(self, params, freq_arr, flimit=1e-6):
+        norm = params['%snorm' % self.prefix].value
+        slope = params['%sslope' % self.prefix].value
+        max_lag = params['%slag' % self.prefix].value
+        lag_fcut = params['%slag_fcut' % self.prefix].value
+        lag_fzero = params['%slag_fzero' % self.prefix].value
+
+        if params['%sfix_fcut' % self.prefix].value == 1:
+            lag_fcut = 1./(2. * max_lag)
+
+        psd = np.zeros(freq_arr.shape)
+        psd[np.abs(freq_arr) >= flimit] = norm * np.abs(freq_arr[np.abs(freq_arr) >= flimit]) ** -slope
+        psd[np.abs(freq_arr) < flimit] = psd[np.abs(freq_arr) > flimit][0]
+        lag = np.zeros(freq_arr.shape)
+        lag[np.abs(freq_arr) <= lag_fcut] = max_lag
+        lag[np.abs(freq_arr) > lag_fzero] = 0
+        lag[np.logical_and(np.abs(freq_arr) > lag_fcut, np.abs(freq_arr) <= lag_fzero)] \
+            = max_lag * (np.log10(np.abs(freq_arr[np.logical_and(np.abs(freq_arr) > lag_fcut, np.abs(freq_arr) <= lag_fzero)])) \
+                         - np.log10(lag_fzero)) / (np.log10(lag_fcut) - np.log10(lag_fzero))
+        phase = 2*np.pi*freq_arr*lag
+
+        ft = psd * np.exp(1j * phase)
+        return ft
 
 
 class CovarianceMatrixModel(object):
@@ -150,7 +360,7 @@ class CovarianceMatrixModel(object):
 
     def eval(self, params):
         corr_arr = self.corr_model.eval_points(params, self.tau_arr, freq_arr=self.freq_arr, **self.eval_args)
-        return np.array([corr_arr[int((tau + self.max_tau) / self.min_tau)] \
+        return np.array([corr_arr[int((tau + self.max_tau) / self.min_tau)]
                          for tau in self.dt_matrix.reshape(-1)]).reshape(self.dt_matrix.shape)
 
 
@@ -193,7 +403,7 @@ class MLCovariance(object):
             ci = np.linalg.inv(c)
             _, ld = np.linalg.slogdet(c)
         except:
-            return -1e20
+            return np.nan
 
         l = (-len(self.data) / 2) * np.log(2 * np.pi) - 0.5 * ld - 0.5 * np.matmul(self.data.T, np.matmul(ci, self.data))
         return l
