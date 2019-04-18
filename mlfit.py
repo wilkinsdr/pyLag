@@ -97,7 +97,7 @@ class AutoCorrelationModel_plpsd(CorrelationModel):
 
         psd = np.zeros(freq_arr.shape)
         psd[np.abs(freq_arr) > flimit] = norm * np.abs(freq_arr[np.abs(freq_arr) > flimit]) ** -slope
-        psd[np.abs(freq_arr) < flimit] = psd[np.abs(freq_arr) > flimit][0]
+        psd[np.abs(freq_arr) < flimit] = psd[freq_arr > flimit][0]
 
         return DataSeries(freq_arr, psd, xlabel='Frequency / Hz', ylabel='PSD', xscale='log', yscale='log')
 
@@ -122,7 +122,7 @@ class CrossCorrelationModel_plpsd_constlag(CorrelationModel):
 
         psd = np.zeros(freq_arr.shape)
         psd[np.abs(freq_arr) >= flimit] = norm * np.abs(freq_arr[np.abs(freq_arr) >= flimit]) ** -slope
-        psd[np.abs(freq_arr) < flimit] = psd[np.abs(freq_arr) > flimit][0]
+        psd[np.abs(freq_arr) < flimit] = psd[freq_arr > flimit][0]
 
         integrand = psd * np.cos(2*np.pi*tau*freq_arr + 2*np.pi*freq_arr*lag)
         autocorr = scipy.integrate.trapz(integrand[np.isfinite(integrand)], freq_arr[np.isfinite(integrand)])
@@ -207,7 +207,7 @@ class FFTAutoCorrelationModel_plpsd(FFTCorrelationModel):
 
         psd = np.zeros(freq_arr.shape)
         psd[np.abs(freq_arr) >= flimit] = norm * np.abs(freq_arr[np.abs(freq_arr) >= flimit]) ** -slope
-        psd[np.abs(freq_arr) < flimit] = psd[np.abs(freq_arr) > flimit][0]
+        psd[np.abs(freq_arr) < flimit] = psd[freq_arr > flimit][0]
 
         return psd
 
