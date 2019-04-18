@@ -23,6 +23,7 @@ v1.0 16/04/2019 - D.R. Wilkins
 import numpy as np
 import scipy.fftpack
 import scipy.integrate
+import scipy.interpolate
 import lmfit
 
 from .binning import *
@@ -165,11 +166,16 @@ class CrossCorrelationModel_plpsd_sigmoidlag(CorrelationModel):
 
 
 class FFTCorrelationModel(CorrelationModel):
+    def __init__(self, oversample_len=1, oversample_freq=1, *args, **kwargs):
+        self.oversample_len = int(oversample_len)
+        self.oversample_freq = int(oversample_freq)
+        CorrelationModel.__init__(self, *args, **kwargs)
+
     def eval_ft(self, params, freq):
         raise AssertionError("I'm supposed to be overridden to define your function's Fourier transform!")
 
-    def eval_points(self, params, lags, freq_arr=None, oversample_len=1, oversample_freq=1, **kwargs):
-        freq_arr = scipy.fftpack.fftfreq(oversample_freq*oversample_len*len(lags), d=np.min(lags[lags>0])/oversample_freq)
+    def eval_points(self, params, lags, freq_arr=None, **kwargs):
+        freq_arr = scipy.fftpack.fftfreq(self.oversample_freq*self.oversample_len*len(lags), d=np.min(lags[lags>0])/self.oversample_freq)
         ft = self.eval_ft(params, freq_arr, **kwargs)
         corr = scipy.fftpack.ifft(ft).real
         corr -= corr.min()
@@ -230,6 +236,44 @@ class FFTAutoCorrelationModel_plpsd_binned(FFTCorrelationModel):
         window[1:] = (np.sin(np.pi * freq_arr[1:] * binsize) / (np.pi * freq_arr[1:] * binsize))**2
 
         return psd*window
+
+
+class FFTAutoCorrelationModel_binpsd(FFTCorrelationModel):
+    def __init__(self, fbins, log_interp=True, *args, **kwargs):
+        if isinstance(fbins, Binning):
+            self.fbins = fbins.bin_cent
+        elif isinstance(fbins, np.ndarray):
+            self.fbins = fbins
+
+        self.log_interp = log_interp
+
+        FFTCorrelationModel.__init__(self, *args, **kwargs)
+
+
+    def get_params(self, norm=1.):
+        params = lmfit.Parameters()
+
+        for bin_num in range(len(self.fbins)):
+            params.add('%spsd%02d' % (self.prefix, bin_num), value=norm, min=1e-10, max=1e10)
+
+        return params
+
+    def eval_ft(self, params, freq_arr, flimit=1e-6):
+        psd_points = np.array([params[key].value for key in params if key.startswith(self.prefix)])
+
+        if self.log_interp:
+            psd_interp = scipy.interpolate.interp1d(np.log(self.fbins), np.log(psd_points), fill_value='extrapolate')
+        else:
+            psd_interp = scipy.interpolate.interp1d(self.fbins, psd_points, fill_value='extrapolate')
+
+        psd = np.zeros(freq_arr.shape)
+        if self.log_interp:
+            psd[np.abs(freq_arr) >= flimit] = np.exp(psd_interp(np.log(np.abs(freq_arr[np.abs(freq_arr) >= flimit]))))
+        else:
+            psd[np.abs(freq_arr) >= flimit] = psd_interp(np.abs(freq_arr[np.abs(freq_arr) >= flimit]))
+        psd[np.abs(freq_arr) < flimit] = psd[np.abs(freq_arr) > flimit][0]
+
+        return psd
 
 
 class FFTCrossCorrelationModel_plpsd_constlag(FFTCorrelationModel):
@@ -330,8 +374,8 @@ class FFTCrossCorrelationModel_plpsd_linearcutofflag(FFTCorrelationModel):
 
 
 class CovarianceMatrixModel(object):
-    def __init__(self, corr_model, time, time2=None, component_name=None, freq_arr=None, eval_args={}):
-        self.corr_model = corr_model(component_name=component_name)
+    def __init__(self, corr_model, time, time2=None, component_name=None, freq_arr=None, eval_args={}, model_args={}):
+        self.corr_model = corr_model(component_name=component_name, **model_args)
         self.dt_matrix = self.dt_matrix(time, time2)
 
         self.min_tau = np.min(self.dt_matrix[self.dt_matrix > 0])
@@ -366,9 +410,9 @@ class CovarianceMatrixModel(object):
 
 class CrossCovarianceMatrixModel(object):
     def __init__(self, autocorr_model, crosscorr_model, time1, time2, autocorr1_args={}, autocorr2_args={}, crosscorr_args={}):
-        self.autocov_matrix1 = CovarianceMatrixModel(autocorr_model, time1, component_name='autocorr1', eval_args=autocorr1_args)
-        self.autocov_matrix2 = CovarianceMatrixModel(autocorr_model, time2, component_name='autocorr2', eval_args=autocorr2_args)
-        self.crosscov_matrix = CovarianceMatrixModel(crosscorr_model, time1, time2=time2, component_name='crosscorr', eval_args=crosscorr_args)
+        self.autocov_matrix1 = CovarianceMatrixModel(autocorr_model, time1, component_name='autocorr1', model_args=autocorr1_args)
+        self.autocov_matrix2 = CovarianceMatrixModel(autocorr_model, time2, component_name='autocorr2', model_args=autocorr2_args)
+        self.crosscov_matrix = CovarianceMatrixModel(crosscorr_model, time1, time2=time2, component_name='crosscorr', model_args=crosscorr_args)
 
     def get_params(self, autocorr1_pars={}, autocorr2_pars={}, crosscorr_pars={}):
         return self.autocov_matrix1.get_params(**autocorr1_pars) \
