@@ -81,19 +81,14 @@ class SimLightCurve(LightCurve):
     """
     def __init__(self, dt=10., tmax=1000., psd_param=(2), std=0.5, lcmean=1.0, t=None, r=None, e=None, gtzero=True, lognorm=False, psdfn=psd_powerlaw, oversample=1.):
         if t is None and r is None:
-            t = np.arange(0, oversample*tmax, dt)
-            r = self.calculate(t, psd_param, std, lcmean, gtzero=gtzero, lognorm=lognorm, psdfn=psdfn)
-            if oversample > 1:
-                t = np.arange(0, tmax, dt)
-                itstart = int((oversample - 1.) * tmax / (2*dt))
-                itend = itstart + len(t)
-                r = r[itstart:itend]
+            t = np.arange(0, tmax, dt)
+            r = self.calculate(t, psd_param, std, lcmean, gtzero=gtzero, lognorm=lognorm, psdfn=psdfn, oversample=oversample)
         if e is None:
             #e = np.sqrt(r)
             e = np.sqrt(r / dt)
         LightCurve.__init__(self, t=t, r=r, e=e, zero_nan=False)
 
-    def calculate(self, t, psd_param, std, lcmean, plnorm=1., gtzero=True, lognorm=False, psdfn=psd_powerlaw):
+    def calculate(self, t, psd_param, std, lcmean, plnorm=1., gtzero=True, lognorm=False, psdfn=psd_powerlaw, oversample=1):
         """
         pylag.SimLightCurve.calculate(t, plslope, lcmean, std, plnorm=1.)
 
@@ -126,7 +121,7 @@ class SimLightCurve(LightCurve):
                   than zero. Set all points below zero to zero
         """
         # sample frequencies
-        freq = scipy.fftpack.fftfreq(len(t), d=t[1] - t[0])
+        freq = scipy.fftpack.fftfreq(oversample*len(t), d=t[1] - t[0])
         Nf = len(freq)
 
         if not isinstance(psd_param, tuple):
@@ -162,6 +157,11 @@ class SimLightCurve(LightCurve):
         # put the Fourier transform together then invert it to get the light curve
         ft = re + (1j * imag)
         r = np.real(scipy.fftpack.ifft(ft))
+
+        if oversample > 1:
+            itstart = int((oversample - 1.) * t.max() / (2 * (t[1]-t[0])))
+            itend = itstart + len(t)
+            r = r[itstart:itend]
 
         # normalise and shift the light curve to get the desired mean and stdev
         # for lognorm light curves, this is mean and std of log(count rate)
