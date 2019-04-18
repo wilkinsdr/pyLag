@@ -433,6 +433,91 @@ class FFTCrossCorrelationModel_plpsd_linearcutofflag(FFTCorrelationModel):
         return ft
 
 
+class FFTCrossCorrelationModel_binned(FFTCorrelationModel):
+    def __init__(self, fbins, log_psd=True, log_interp=True, *args, **kwargs):
+        if isinstance(fbins, Binning):
+            self.fbins = fbins.bin_cent
+        elif isinstance(fbins, np.ndarray):
+            self.fbins = fbins
+
+        self.log_interp = log_interp
+        self.log_psd = log_psd
+
+        FFTCorrelationModel.__init__(self, *args, **kwargs)
+
+    def get_params(self, init_psd=1., init_lag=0.):
+        params = lmfit.Parameters()
+
+        if self.log_psd:
+            min = -50
+            max = 50
+        else:
+            min = 1e-10
+            max = 1e10
+
+        if isinstance(init_psd, (int, float)):
+            init_psd = init_psd * np.ones(self.fbins.shape)
+
+        if isinstance(init_lag, (int, float)):
+            init_lag = init_lag * np.ones(self.fbins.shape)
+
+        for bin_num, (psd, lag) in enumerate(zip(init_psd, init_lag)):
+            params.add('%spsd%02d' % (self.prefix, bin_num), value=psd, min=min, max=max)
+            params.add('%slag%02d' % (self.prefix, bin_num), value=lag, min=-1000, max=1000)
+
+        return params
+
+    def eval_ft(self, params, freq_arr, flimit=1e-6):
+        psd_points = np.array([params[key].value for key in params if key.startswith('%spsd' % self.prefix)])
+        lag_points = np.array([params[key].value for key in params if key.startswith('%slag' % self.prefix)])
+
+        if self.log_psd:
+            psd_interp = scipy.interpolate.interp1d(np.log(self.fbins), psd_points,
+                                                    fill_value=(psd_points[0], psd_points[-1]))
+        elif self.log_interp:
+            psd_interp = scipy.interpolate.interp1d(np.log(self.fbins), np.log(psd_points),
+                                                    fill_value=(psd_points[0], psd_points[-1]))
+        else:
+            psd_interp = scipy.interpolate.interp1d(self.fbins, psd_points, fill_value=(psd_points[0], psd_points[-1]))
+
+        if self.log_interp or self.log_psd:
+            lag_interp = scipy.interpolate.interp1d(np.log(self.fbins), lag_points,
+                                                    fill_value=(lag_points[0], lag_points[-1]))
+        else:
+            lag_interp = scipy.interpolate.interp1d(self.fbins, lag_points, fill_value=(lag_points[0], lag_points[-1]))
+
+        psd = np.zeros(freq_arr.shape)
+        if self.log_interp or self.log_psd:
+            psd[np.logical_and(np.abs(freq_arr) >= self.fbins.min(), np.abs(freq_arr) <= self.fbins.max())] = \
+                np.exp(psd_interp(np.log(np.abs(freq_arr[np.logical_and(np.abs(freq_arr) >= self.fbins.min(),
+                                                                        np.abs(freq_arr) <= self.fbins.max())]))))
+        else:
+            psd[np.logical_and(np.abs(freq_arr) >= self.fbins.min(),
+                               np.abs(freq_arr) <= self.fbins.max())] = psd_interp(np.abs(
+                freq_arr[np.logical_and(np.abs(freq_arr) >= self.fbins.min(), np.abs(freq_arr) <= self.fbins.max())]))
+
+        if self.log_psd:
+            psd[np.abs(freq_arr) < self.fbins.min()] = np.exp(psd_points[0])
+            psd[np.abs(freq_arr) >= self.fbins.max()] = np.exp(psd_points[-1])
+        else:
+            psd[np.abs(freq_arr) < self.fbins.min()] = psd_points[0]
+            psd[np.abs(freq_arr) >= self.fbins.max()] = psd_points[-1]
+
+        lag = np.zeros(freq_arr.shape)
+        if self.log_interp or self.log_psd:
+            lag[np.logical_and(np.abs(freq_arr) >= self.fbins.min(), np.abs(freq_arr) <= self.fbins.max())] = \
+                lag_interp(np.log(np.abs(freq_arr[np.logical_and(np.abs(freq_arr) >= self.fbins.min(),
+                                                                        np.abs(freq_arr) <= self.fbins.max())])))
+        else:
+            lag[np.logical_and(np.abs(freq_arr) >= self.fbins.min(), np.abs(freq_arr) <= self.fbins.max())] = \
+                lag_interp(np.abs(freq_arr[np.logical_and(np.abs(freq_arr) >= self.fbins.min(), np.abs(freq_arr) <= self.fbins.max())]))
+
+        phase = 2 * np.pi * freq_arr * lag
+
+        ft = psd * np.exp(1j * phase)
+        return ft
+
+
 class CovarianceMatrixModel(object):
     def __init__(self, corr_model, time, time2=None, component_name=None, freq_arr=None, eval_args={}, model_args={}):
         self.corr_model = corr_model(component_name=component_name, **model_args)
@@ -487,9 +572,13 @@ class CrossCovarianceMatrixModel(object):
 
 
 class MLCovariance(object):
-    def __init__(self, lc, autocov_model, params=None, **kwargs):
+    def __init__(self, lc, autocov_model, params=None, normalise_lc=False, **kwargs):
         self.cov_matrix = CovarianceMatrixModel(autocov_model, lc.time, **kwargs)
-        self.data = lc.rate
+
+        if normalise_lc:
+            self.data = lc.rate
+        else:
+            self.data = (lc.rate - np.mean(lc.rate)) / lc.std(lc.rate)
 
         if isinstance(params, lmfit.Parameters):
             self.params = params
