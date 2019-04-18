@@ -278,13 +278,14 @@ class FFTAutoCorrelationModel_plpsd_binned(FFTCorrelationModel):
 
 
 class FFTAutoCorrelationModel_binpsd(FFTCorrelationModel):
-    def __init__(self, fbins, log_interp=True, *args, **kwargs):
+    def __init__(self, fbins, log_psd=True, log_interp=True, *args, **kwargs):
         if isinstance(fbins, Binning):
             self.fbins = fbins.bin_cent
         elif isinstance(fbins, np.ndarray):
             self.fbins = fbins
 
         self.log_interp = log_interp
+        self.log_psd = log_psd
 
         FFTCorrelationModel.__init__(self, *args, **kwargs)
 
@@ -292,25 +293,45 @@ class FFTAutoCorrelationModel_binpsd(FFTCorrelationModel):
     def get_params(self, norm=1.):
         params = lmfit.Parameters()
 
-        for bin_num in range(len(self.fbins)):
-            params.add('%spsd%02d' % (self.prefix, bin_num), value=norm, min=1e-10, max=1e10)
+        if self.log_psd:
+            min = -50
+            max = 50
+        else:
+            min = 1e-10
+            max = 1e10
+
+        if isinstance(norm, (np.ndarray, list)):
+            for bin_num, value in enumerate(norm):
+                params.add('%spsd%02d' % (self.prefix, bin_num), value=value, min=min, max=max)
+        else:
+            for bin_num in range(len(self.fbins)):
+                params.add('%spsd%02d' % (self.prefix, bin_num), value=norm, min=min, max=max)
 
         return params
 
     def eval_ft(self, params, freq_arr, flimit=1e-6):
         psd_points = np.array([params[key].value for key in params if key.startswith(self.prefix)])
 
-        if self.log_interp:
-            psd_interp = scipy.interpolate.interp1d(np.log(self.fbins), np.log(psd_points), fill_value='extrapolate')
+        if self.log_psd:
+            psd_interp = scipy.interpolate.interp1d(np.log(self.fbins), psd_points, fill_value=(psd_points[0], psd_points[-1]))
+        elif self.log_interp:
+            psd_interp = scipy.interpolate.interp1d(np.log(self.fbins), np.log(psd_points), fill_value=(psd_points[0], psd_points[-1]))
         else:
-            psd_interp = scipy.interpolate.interp1d(self.fbins, psd_points, fill_value='extrapolate')
+            psd_interp = scipy.interpolate.interp1d(self.fbins, psd_points, fill_value=(psd_points[0], psd_points[-1]))
 
         psd = np.zeros(freq_arr.shape)
-        if self.log_interp:
-            psd[np.abs(freq_arr) >= flimit] = np.exp(psd_interp(np.log(np.abs(freq_arr[np.abs(freq_arr) >= flimit]))))
+        if self.log_interp or self.log_psd:
+            psd[np.logical_and(np.abs(freq_arr) >= self.fbins.min(), np.abs(freq_arr) <= self.fbins.max())] = \
+                np.exp(psd_interp(np.log(np.abs(freq_arr[np.logical_and(np.abs(freq_arr) >= self.fbins.min(), np.abs(freq_arr) <= self.fbins.max())]))))
         else:
-            psd[np.abs(freq_arr) >= flimit] = psd_interp(np.abs(freq_arr[np.abs(freq_arr) >= flimit]))
-        psd[np.abs(freq_arr) < flimit] = psd[np.abs(freq_arr) > flimit][0]
+            psd[np.logical_and(np.abs(freq_arr) >= self.fbins.min(), np.abs(freq_arr) <= self.fbins.max())] = psd_interp(np.abs(freq_arr[np.logical_and(np.abs(freq_arr) >= self.fbins.min(), np.abs(freq_arr) <= self.fbins.max())]))
+
+        if self.log_psd:
+            psd[np.abs(freq_arr) < self.fbins.min()] = np.exp(psd_points[0])
+            psd[np.abs(freq_arr) >= self.fbins.max()] = np.exp(psd_points[-1])
+        else:
+            psd[np.abs(freq_arr) < self.fbins.min()] = psd_points[0]
+            psd[np.abs(freq_arr) >= self.fbins.max()] = psd_points[-1]
 
         return psd
 
