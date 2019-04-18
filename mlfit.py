@@ -221,6 +221,35 @@ class FFTAutoCorrelationModel_plpsd(FFTCorrelationModel):
 
         return psd
 
+
+class FFTAutoCorrelationModel_brokenplpsd(FFTCorrelationModel):
+    def get_params(self, norm=1., slope=1.):
+        params = lmfit.Parameters()
+
+        params.add('%snorm' % self.prefix, value=norm, min=1e-10, max=1e10)
+        params.add('%sslope1' % self.prefix, value=slope, min=0., max=3.)
+        params.add('%sfbreak' % self.prefix, value=slope, min=1e-6, max=1e-2)
+        params.add('%sslope2' % self.prefix, value=slope, min=0., max=3.)
+
+        return params
+
+    def eval_ft(self, params, freq_arr, flimit=1e-6):
+        norm = params['%snorm' % self.prefix].value
+        slope1 = params['%sslope1' % self.prefix].value
+        fbreak = params['%sfbreak' % self.prefix].value
+        slope2 = params['%sslope2' % self.prefix].value
+
+        psd = np.zeros(freq_arr.shape)
+        psd[np.logical_and(np.abs(freq_arr) >= flimit, np.abs(freq_arr) <= fbreak)] = \
+            norm * np.abs(freq_arr[np.logical_and(np.abs(freq_arr) >= flimit, np.abs(freq_arr) <= fbreak)]) ** -slope1
+
+        psd[np.abs(freq_arr) > fbreak] = norm * fbreak ** (slope2 - slope1) * np.abs(freq_arr[np.abs(freq_arr) > fbreak]) ** -slope2
+
+        psd[np.abs(freq_arr) < flimit] = psd[freq_arr > flimit][0]
+
+        return psd
+
+
 class FFTAutoCorrelationModel_plpsd_binned(FFTCorrelationModel):
     def get_params(self, norm=1., slope=1., binsize=1.):
         params = lmfit.Parameters()
