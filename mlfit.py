@@ -191,6 +191,16 @@ class FFTCorrelationModel(CorrelationModel):
             dtau = fft_lags[1] - fft_lags[0]
             return np.array([corr[int((tau - tau0)/dtau)] for tau in lags])
 
+    def get_psd_series(self, params, lags=None, freq_arr=None, **kwargs):
+        freq_arr = scipy.fftpack.fftfreq(self.oversample_freq * self.oversample_len * len(lags),
+                                         d=np.min(lags[lags > 0]) / self.oversample_freq)
+        ft = self.eval_ft(params, freq_arr, **kwargs)
+        psd = np.abs(ft)
+        return DataSeries(freq_arr[freq_arr>0], psd[freq_arr>0], xlabel='Frequency / Hz', xscale='log', ylabel='PSD', yscale='log')
+
+    def plot_psd(self, params, lags=None, freq_arr=None, **kwargs):
+        return Plot(self.get_psd_series(params, lags, freq_arr, **kwargs), lines=True)
+
 
 class FFTAutoCorrelationModel_plpsd(FFTCorrelationModel):
     def get_params(self, norm=1., slope=1.):
