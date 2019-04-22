@@ -576,9 +576,9 @@ class MLCovariance(object):
         self.cov_matrix = CovarianceMatrixModel(autocov_model, lc.time, **kwargs)
 
         if normalise_lc:
-            self.data = lc.rate
+            self.data = (lc.rate - np.mean(lc.rate)) / np.std(lc.rate)
         else:
-            self.data = (lc.rate - np.mean(lc.rate)) / lc.std(lc.rate)
+            self.data = lc.rate
 
         if isinstance(params, lmfit.Parameters):
             self.params = params
@@ -598,7 +598,7 @@ class MLCovariance(object):
         except:
             return np.nan
 
-        l = (-len(self.data) / 2) * np.log(2 * np.pi) - 0.5 * ld - 0.5 * np.matmul(self.data.T, np.matmul(ci, self.data))
+        l = (-len(self.data) / 2) * np.log(2 * np.pi) - 0.5 * ld - 0.5 * np.matmul(self.data, np.matmul(ci, self.data.T))
         return l
 
     def mlog_likelihood(self, params):
