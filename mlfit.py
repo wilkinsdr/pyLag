@@ -698,12 +698,22 @@ class MLCovariance(object):
         # self.show_fit()
         self.fit_stat, self.fit_params = self._dofit(params, **kwargs)
 
-        return self.fit_stat
+        self.show_fit()
 
     def show_fit(self):
         if self.fit_result is None:
             raise AssertionError("Need to run fit first!")
-        lmfit.report_fit(self.fit_result)
+
+        print()
+        print('%16s  %4s  %16s' % ("Parameter", "Vary", "-log(likelihood)"))
+        print('=' * 40)
+
+        for p in fit_params:
+            print('%16g  %4s  %16g' % (p, ('y' if self.fit_params[p].vary else 'n'), self.fit_params[p].value))
+
+        print()
+        print('-log likelihood: %g' % self.fit_stat)
+        print()
 
     def run_mcmc(self, params=None, burn=300, steps=1000, thin=1):
         if params is None:
