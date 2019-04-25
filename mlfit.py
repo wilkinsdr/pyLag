@@ -705,14 +705,14 @@ class MLCovariance(object):
             raise AssertionError("Need to run fit first!")
 
         print()
-        print('%-16s  %4s  %16s' % ("Parameter", "Vary", "-log(likelihood)"))
+        print('%-16s  %4s  %16s' % ("Parameter", "Vary", "Value"))
         print('=' * 40)
 
         for p in self.fit_params:
             print('%-16s  %4s  %16g' % (p, ('y' if self.fit_params[p].vary else 'n'), self.fit_params[p].value))
 
         print()
-        print('-log likelihood: %g' % self.fit_stat)
+        print('-log(likelihood) = %g' % self.fit_stat)
         print()
 
     def run_mcmc(self, params=None, burn=300, steps=1000, thin=1):
