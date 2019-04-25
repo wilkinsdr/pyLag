@@ -716,9 +716,8 @@ class MLCovariance(object):
         return mcmc_result
 
     def steppar(self, par, steps, method='nelder'):
-        import copy
-        if self.fit_result is not None:
-            step_params = copy.copy(self.fit_result.params)
+        if self.fit_params is not None:
+            step_params = copy.copy(self.fit_params)
         else:
             step_params = copy.copy(self.params)
 
@@ -731,9 +730,9 @@ class MLCovariance(object):
         fit_stats = []
         for val in steps:
             step_params[par].value = val
-            _, result = self._dofit(step_params, method)
-            fit_stats.append(result.residual)
-            print('%16g  %16g' % (val, result.residual))
+            stat, _ = self._dofit(step_params, method)
+            fit_stats.append(stat)
+            print('%16g  %16g' % (val, stat))
 
         print()
 
