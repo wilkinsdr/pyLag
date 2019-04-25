@@ -701,15 +701,15 @@ class MLCovariance(object):
         self.show_fit()
 
     def show_fit(self):
-        if self.fit_result is None:
+        if self.fit_params is None:
             raise AssertionError("Need to run fit first!")
 
         print()
-        print('%16s  %4s  %16s' % ("Parameter", "Vary", "-log(likelihood)"))
+        print('%-16s  %4s  %16s' % ("Parameter", "Vary", "-log(likelihood)"))
         print('=' * 40)
 
-        for p in fit_params:
-            print('%16g  %4s  %16g' % (p, ('y' if self.fit_params[p].vary else 'n'), self.fit_params[p].value))
+        for p in self.fit_params:
+            print('%-16s  %4s  %16g' % (p, ('y' if self.fit_params[p].vary else 'n'), self.fit_params[p].value))
 
         print()
         print('-log likelihood: %g' % self.fit_stat)
