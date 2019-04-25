@@ -467,7 +467,7 @@ class FFTCrossCorrelationModel_binned(FFTCorrelationModel):
 
         FFTCorrelationModel.__init__(self, *args, **kwargs)
 
-    def get_params(self, init_psd=1., init_lag=0.):
+    def get_params(self, init_psd=1., init_slope=2., init_lag=0.):
         params = lmfit.Parameters()
 
         if self.log_psd:
@@ -478,7 +478,9 @@ class FFTCrossCorrelationModel_binned(FFTCorrelationModel):
             max = 1e10
 
         if isinstance(init_psd, (int, float)):
-            init_psd = init_psd * np.ones(self.fbins.shape)
+            init_psd = init_psd * self.fbins ** -init_slope
+            if self.log_psd:
+                init_psd = np.log(init_psd)
 
         if isinstance(init_lag, (int, float)):
             init_lag = init_lag * np.ones(self.fbins.shape)
