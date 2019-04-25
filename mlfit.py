@@ -622,10 +622,9 @@ class MLCovariance(object):
         else:
             self.params = self.cov_matrix.get_params()
 
-        self.minimizer = None
-        self.fit_result = None
         self.fit_params = None
         self.fit_stat = None
+        self.mcmc_result = None
 
     def log_likelihood(self, params, eval_gradient=False, delta=1e-3):
         c = self.cov_matrix.eval(params)
@@ -713,7 +712,52 @@ class MLCovariance(object):
 
         mcmc_result = lmfit.minimize(self.log_likelihood, params=params, method='emcee', burn=burn, steps=steps,
                                      thin=thin)
-        return mcmc_result
+        self.mcmc_result = mcmc_result
+        self.process_mcmc()
+
+    def process_mcmc(self, err_percentile=[15.9, 84.2]):
+        if self.mcmc_result is None:
+            raise AssertionError("Need to run MCMC first!")
+
+        # get the solution corresponding to maximum likelihood from MCMC
+        self.mcmc_result.maxprob_params = copy.copy(self.mcmc_result.params)
+        maxprob_index = np.unravel_index(self.mcmc_result.lnprob.argmax(), self.mcmc_result.lnprob.shape)
+        maxprob_params = self.mcmc_result.chain[maxprob_index]
+        for par, value in zip([p for p in self.mcmc_result.maxprob_params if self.mcmc_result.maxprob_params[p].vary], maxprob_params):
+            self.mcmc_result.maxprob_params[par].value = value
+
+        # calculate the positive and negative errors from the median based on percentiles
+        # [15.9, 84.2] for 1-sigma, [2.28, 97.7] for 2-sigma
+        # calculate the error bars based on both the median and maximum likelihood values
+        for par in [p for p in self.mcmc_result.params if self.mcmc_result.params[p].vary]:
+            quantiles = np.percentile(mcmc_result.flatchain[par], err_percentile)
+
+            self.mcmc_result.params[par].err_plus = quantiles[1] - self.mcmc_result.params[par].value
+            self.mcmc_result.params[par].err_minus = self.mcmc_result.params[par].value - quantiles[0]
+
+            self.mcmc_result.maxprob_params[par].err_plus = quantiles[1] - self.mcmc_result.maxprob_params[par].value
+            self.mcmc_result.maxprob_params[par].err_minus = self.mcmc_result.maxprob_params[par].value - quantiles[0]
+
+    def plot_corner(self, truths='median'):
+        try:
+            import corner
+        except ImportError:
+            raise AssertionError("plot_corner requires package corner to be installed")
+
+        if self.mcmc_result is None:
+            raise AssertionError("Need to run MCMC first!")
+
+        if truths == 'median':
+            truth_values = [self.mcmc_result.params[p].value for p in self.mcmc_result.params if
+                            self.mcmc_result.params[p].vary]
+        elif truths == 'maxprob':
+            try:
+                truth_values = [self.mcmc_result.maxprob_params[p].value for p in self.mcmc_result.maxprob_params if
+                                self.mcmc_result.maxprob_params[p].vary]
+            except AttributeError:
+                raise AssertionError("To plot maximum likelihood truth values, need to run process_mcmc first")
+
+        corner.corner(self.mcmc_result.flatchain, labels=self.mcmc_result.var_names, truths=truth_values)
 
     def steppar(self, par, steps, method='nelder'):
         if self.fit_params is not None:
