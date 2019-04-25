@@ -24,7 +24,10 @@ import numpy as np
 import scipy.fftpack
 import scipy.integrate
 import scipy.interpolate
+import scipy.linalg
+import scipy.optimize
 import lmfit
+import copy
 
 from .binning import *
 from .plotter import *
@@ -49,6 +52,15 @@ class CorrelationModel(object):
         corr_arr = np.array([self.eval(params, tau, **kwargs) for tau in lags])
         corr_arr -= np.min(corr_arr)
         return corr_arr
+
+    def eval_gradient(self, params, lags, delta=1e-3, **kwargs):
+        corr1 = self.eval_points(params, lags, **kwargs)
+        gradient = []
+        for par in [p for p in params if params[p].vary]:
+            new_params = copy.copy(params)
+            new_params[par].value += delta * new_params[par].value
+            gradient.append((self.eval_points(new_params, lags, **kwargs) - corr1) / (delta * new_params[par].value))
+        return np.array(gradient)
 
     def get_corr_series(self, params, lags, **kwargs):
         return DataSeries(x=lags, y=self.eval_points(params, lags, **kwargs), xlabel='Lag / s', ylabel='Correlation')
@@ -92,7 +104,7 @@ class AutoCorrelationModel_plpsd(CorrelationModel):
             freq_arr = freq.bin_cent
         elif isinstance(freq, tuple):
             freq_arr = LogBinning(freq[0], freq[1], freq[2]).bin_cent
-        elif isinstance(freq, (np.ndarray,list)):
+        elif isinstance(freq, (np.ndarray, list)):
             freq_arr = np.array(freq)
 
         psd = np.zeros(freq_arr.shape)
@@ -124,7 +136,7 @@ class CrossCorrelationModel_plpsd_constlag(CorrelationModel):
         psd[np.abs(freq_arr) >= flimit] = norm * np.abs(freq_arr[np.abs(freq_arr) >= flimit]) ** -slope
         psd[np.abs(freq_arr) < flimit] = psd[freq_arr > flimit][0]
 
-        integrand = psd * np.cos(2*np.pi*tau*freq_arr + 2*np.pi*freq_arr*lag)
+        integrand = psd * np.cos(2 * np.pi * tau * freq_arr + 2 * np.pi * freq_arr * lag)
         autocorr = scipy.integrate.trapz(integrand[np.isfinite(integrand)], freq_arr[np.isfinite(integrand)])
 
         return autocorr
@@ -156,10 +168,11 @@ class CrossCorrelationModel_plpsd_sigmoidlag(CorrelationModel):
         lag = np.zeros(freq_arr.shape)
         psd[np.abs(freq_arr) >= flimit] = norm * np.abs(freq_arr[np.abs(freq_arr) >= flimit]) ** -slope
         psd[np.abs(freq_arr) < flimit] = psd[np.abs(freq_arr) > flimit][0]
-        lag[np.abs(freq_arr) >= flimit] = max_lag * (1. - 1./(1 + np.exp(-lag_slope * (np.log10(freq_arr[np.abs(freq_arr) >= flimit]) - lag_fcut))))
+        lag[np.abs(freq_arr) >= flimit] = max_lag * (
+                    1. - 1. / (1 + np.exp(-lag_slope * (np.log10(freq_arr[np.abs(freq_arr) >= flimit]) - lag_fcut))))
         lag[np.abs(freq_arr) < flimit] = lag[np.abs(freq_arr) > flimit][0]
 
-        integrand = psd * np.cos(2*np.pi*tau*freq_arr + 2*np.pi*freq_arr*lag)
+        integrand = psd * np.cos(2 * np.pi * tau * freq_arr + 2 * np.pi * freq_arr * lag)
         autocorr = scipy.integrate.trapz(integrand[np.isfinite(integrand)], freq_arr[np.isfinite(integrand)])
 
         return autocorr
@@ -175,13 +188,14 @@ class FFTCorrelationModel(CorrelationModel):
         raise AssertionError("I'm supposed to be overridden to define your function's Fourier transform!")
 
     def eval_points(self, params, lags, freq_arr=None, **kwargs):
-        freq_arr = scipy.fftpack.fftfreq(self.oversample_freq*self.oversample_len*len(lags), d=np.min(lags[lags>0])/self.oversample_freq)
+        freq_arr = scipy.fftpack.fftfreq(self.oversample_freq * self.oversample_len * len(lags),
+                                         d=np.min(lags[lags > 0]) / self.oversample_freq)
         ft = self.eval_ft(params, freq_arr, **kwargs)
         corr = scipy.fftpack.ifft(ft).real
         corr -= corr.min()
         corr = scipy.fftpack.fftshift(corr)
 
-        fft_lags = scipy.fftpack.fftfreq(len(freq_arr), d=(freq_arr[1]-freq_arr[0]))
+        fft_lags = scipy.fftpack.fftfreq(len(freq_arr), d=(freq_arr[1] - freq_arr[0]))
         fft_lags = scipy.fftpack.fftshift(fft_lags)
 
         if np.array_equal(lags, fft_lags):
@@ -189,14 +203,15 @@ class FFTCorrelationModel(CorrelationModel):
         else:
             tau0 = fft_lags[0]
             dtau = fft_lags[1] - fft_lags[0]
-            return np.array([corr[int((tau - tau0)/dtau)] for tau in lags])
+            return np.array([corr[int((tau - tau0) / dtau)] for tau in lags])
 
     def get_psd_series(self, params, lags=None, freq_arr=None, **kwargs):
         freq_arr = scipy.fftpack.fftfreq(self.oversample_freq * self.oversample_len * len(lags),
                                          d=np.min(lags[lags > 0]) / self.oversample_freq)
         ft = self.eval_ft(params, freq_arr, **kwargs)
         psd = np.abs(ft)
-        return DataSeries(freq_arr[freq_arr>0], psd[freq_arr>0], xlabel='Frequency / Hz', xscale='log', ylabel='PSD', yscale='log')
+        return DataSeries(freq_arr[freq_arr > 0], psd[freq_arr > 0], xlabel='Frequency / Hz', xscale='log',
+                          ylabel='PSD', yscale='log')
 
     def plot_psd(self, params, lags=None, freq_arr=None, **kwargs):
         return Plot(self.get_psd_series(params, lags, freq_arr, **kwargs), lines=True)
@@ -243,7 +258,8 @@ class FFTAutoCorrelationModel_brokenplpsd(FFTCorrelationModel):
         psd[np.logical_and(np.abs(freq_arr) >= flimit, np.abs(freq_arr) <= fbreak)] = \
             norm * np.abs(freq_arr[np.logical_and(np.abs(freq_arr) >= flimit, np.abs(freq_arr) <= fbreak)]) ** -slope1
 
-        psd[np.abs(freq_arr) > fbreak] = norm * fbreak ** (slope2 - slope1) * np.abs(freq_arr[np.abs(freq_arr) > fbreak]) ** -slope2
+        psd[np.abs(freq_arr) > fbreak] = norm * fbreak ** (slope2 - slope1) * np.abs(
+            freq_arr[np.abs(freq_arr) > fbreak]) ** -slope2
 
         psd[np.abs(freq_arr) < flimit] = psd[freq_arr > flimit][0]
 
@@ -272,9 +288,9 @@ class FFTAutoCorrelationModel_plpsd_binned(FFTCorrelationModel):
 
         window = np.zeros(freq_arr.shape)
         window[0] = 1
-        window[1:] = (np.sin(np.pi * freq_arr[1:] * binsize) / (np.pi * freq_arr[1:] * binsize))**2
+        window[1:] = (np.sin(np.pi * freq_arr[1:] * binsize) / (np.pi * freq_arr[1:] * binsize)) ** 2
 
-        return psd*window
+        return psd * window
 
 
 class FFTAutoCorrelationModel_binpsd(FFTCorrelationModel):
@@ -289,8 +305,7 @@ class FFTAutoCorrelationModel_binpsd(FFTCorrelationModel):
 
         FFTCorrelationModel.__init__(self, *args, **kwargs)
 
-
-    def get_params(self, norm=1.):
+    def get_params(self, init_psd=1., init_slope=0.):
         params = lmfit.Parameters()
 
         if self.log_psd:
@@ -300,12 +315,13 @@ class FFTAutoCorrelationModel_binpsd(FFTCorrelationModel):
             min = 1e-10
             max = 1e10
 
-        if isinstance(norm, (np.ndarray, list)):
-            for bin_num, value in enumerate(norm):
-                params.add('%spsd%02d' % (self.prefix, bin_num), value=value, min=min, max=max)
-        else:
-            for bin_num in range(len(self.fbins)):
-                params.add('%spsd%02d' % (self.prefix, bin_num), value=norm, min=min, max=max)
+        if isinstance(init_psd, (int, float)):
+            init_psd = init_psd * self.fbins**-init_slope
+            if self.log_psd:
+                init_psd = np.log(init_psd)
+
+        for bin_num, psd in enumerate(init_psd):
+            params.add('%spsd%02d' % (self.prefix, bin_num), value=psd, min=min, max=max)
 
         return params
 
@@ -313,18 +329,23 @@ class FFTAutoCorrelationModel_binpsd(FFTCorrelationModel):
         psd_points = np.array([params[key].value for key in params if key.startswith(self.prefix)])
 
         if self.log_psd:
-            psd_interp = scipy.interpolate.interp1d(np.log(self.fbins), psd_points, fill_value=(psd_points[0], psd_points[-1]))
+            psd_interp = scipy.interpolate.interp1d(np.log(self.fbins), psd_points,
+                                                    fill_value=(psd_points[0], psd_points[-1]))
         elif self.log_interp:
-            psd_interp = scipy.interpolate.interp1d(np.log(self.fbins), np.log(psd_points), fill_value=(psd_points[0], psd_points[-1]))
+            psd_interp = scipy.interpolate.interp1d(np.log(self.fbins), np.log(psd_points),
+                                                    fill_value=(psd_points[0], psd_points[-1]))
         else:
             psd_interp = scipy.interpolate.interp1d(self.fbins, psd_points, fill_value=(psd_points[0], psd_points[-1]))
 
         psd = np.zeros(freq_arr.shape)
         if self.log_interp or self.log_psd:
             psd[np.logical_and(np.abs(freq_arr) >= self.fbins.min(), np.abs(freq_arr) <= self.fbins.max())] = \
-                np.exp(psd_interp(np.log(np.abs(freq_arr[np.logical_and(np.abs(freq_arr) >= self.fbins.min(), np.abs(freq_arr) <= self.fbins.max())]))))
+                np.exp(psd_interp(np.log(np.abs(freq_arr[np.logical_and(np.abs(freq_arr) >= self.fbins.min(),
+                                                                        np.abs(freq_arr) <= self.fbins.max())]))))
         else:
-            psd[np.logical_and(np.abs(freq_arr) >= self.fbins.min(), np.abs(freq_arr) <= self.fbins.max())] = psd_interp(np.abs(freq_arr[np.logical_and(np.abs(freq_arr) >= self.fbins.min(), np.abs(freq_arr) <= self.fbins.max())]))
+            psd[np.logical_and(np.abs(freq_arr) >= self.fbins.min(),
+                               np.abs(freq_arr) <= self.fbins.max())] = psd_interp(np.abs(
+                freq_arr[np.logical_and(np.abs(freq_arr) >= self.fbins.min(), np.abs(freq_arr) <= self.fbins.max())]))
 
         if self.log_psd:
             psd[np.abs(freq_arr) < self.fbins.min()] = np.exp(psd_points[0])
@@ -354,7 +375,7 @@ class FFTCrossCorrelationModel_plpsd_constlag(FFTCorrelationModel):
         psd = np.zeros(freq_arr.shape)
         psd[np.abs(freq_arr) >= flimit] = norm * np.abs(freq_arr[np.abs(freq_arr) >= flimit]) ** -slope
         psd[np.abs(freq_arr) < flimit] = psd[np.abs(freq_arr) > flimit][0]
-        phase = 2*np.pi*freq_arr*lag
+        phase = 2 * np.pi * freq_arr * lag
 
         ft = psd * np.exp(1j * phase)
         return ft
@@ -380,7 +401,7 @@ class FFTCrossCorrelationModel_plpsd_cutofflag(FFTCorrelationModel):
         lag_fcut = params['%slag_fcut' % self.prefix].value
 
         if params['%sfix_fcut' % self.prefix].value == 1:
-            lag_fcut = 1./(2. * max_lag)
+            lag_fcut = 1. / (2. * max_lag)
 
         psd = np.zeros(freq_arr.shape)
         psd[np.abs(freq_arr) >= flimit] = norm * np.abs(freq_arr[np.abs(freq_arr) >= flimit]) ** -slope
@@ -388,7 +409,7 @@ class FFTCrossCorrelationModel_plpsd_cutofflag(FFTCorrelationModel):
         lag = np.zeros(freq_arr.shape)
         lag[np.abs(freq_arr) <= lag_fcut] = max_lag
         lag[np.abs(freq_arr) > lag_fcut] = 0
-        phase = 2*np.pi*freq_arr*lag
+        phase = 2 * np.pi * freq_arr * lag
 
         ft = psd * np.exp(1j * phase)
         return ft
@@ -416,7 +437,7 @@ class FFTCrossCorrelationModel_plpsd_linearcutofflag(FFTCorrelationModel):
         lag_fzero = params['%slag_fzero' % self.prefix].value
 
         if params['%sfix_fcut' % self.prefix].value == 1:
-            lag_fcut = 1./(2. * max_lag)
+            lag_fcut = 1. / (2. * max_lag)
 
         psd = np.zeros(freq_arr.shape)
         psd[np.abs(freq_arr) >= flimit] = norm * np.abs(freq_arr[np.abs(freq_arr) >= flimit]) ** -slope
@@ -425,9 +446,10 @@ class FFTCrossCorrelationModel_plpsd_linearcutofflag(FFTCorrelationModel):
         lag[np.abs(freq_arr) <= lag_fcut] = max_lag
         lag[np.abs(freq_arr) > lag_fzero] = 0
         lag[np.logical_and(np.abs(freq_arr) > lag_fcut, np.abs(freq_arr) <= lag_fzero)] \
-            = max_lag * (np.log10(np.abs(freq_arr[np.logical_and(np.abs(freq_arr) > lag_fcut, np.abs(freq_arr) <= lag_fzero)])) \
+            = max_lag * (np.log10(
+            np.abs(freq_arr[np.logical_and(np.abs(freq_arr) > lag_fcut, np.abs(freq_arr) <= lag_fzero)])) \
                          - np.log10(lag_fzero)) / (np.log10(lag_fcut) - np.log10(lag_fzero))
-        phase = 2*np.pi*freq_arr*lag
+        phase = 2 * np.pi * freq_arr * lag
 
         ft = psd * np.exp(1j * phase)
         return ft
@@ -507,10 +529,11 @@ class FFTCrossCorrelationModel_binned(FFTCorrelationModel):
         if self.log_interp or self.log_psd:
             lag[np.logical_and(np.abs(freq_arr) >= self.fbins.min(), np.abs(freq_arr) <= self.fbins.max())] = \
                 lag_interp(np.log(np.abs(freq_arr[np.logical_and(np.abs(freq_arr) >= self.fbins.min(),
-                                                                        np.abs(freq_arr) <= self.fbins.max())])))
+                                                                 np.abs(freq_arr) <= self.fbins.max())])))
         else:
             lag[np.logical_and(np.abs(freq_arr) >= self.fbins.min(), np.abs(freq_arr) <= self.fbins.max())] = \
-                lag_interp(np.abs(freq_arr[np.logical_and(np.abs(freq_arr) >= self.fbins.min(), np.abs(freq_arr) <= self.fbins.max())]))
+                lag_interp(np.abs(freq_arr[np.logical_and(np.abs(freq_arr) >= self.fbins.min(),
+                                                          np.abs(freq_arr) <= self.fbins.max())]))
 
         phase = 2 * np.pi * freq_arr * lag
 
@@ -526,12 +549,12 @@ class CovarianceMatrixModel(object):
         self.min_tau = np.min(self.dt_matrix[self.dt_matrix > 0])
         self.max_tau = np.max(self.dt_matrix)
 
-        self.tau_arr = np.arange(-1*self.max_tau, self.max_tau + self.min_tau, self.min_tau)
+        self.tau_arr = np.arange(-1 * self.max_tau, self.max_tau + self.min_tau, self.min_tau)
 
         if freq_arr is None:
             self.fmin = 1. / (20 * self.max_tau)
             self.fmax = 1. / (2 * self.min_tau)
-            self.freq_arr = np.arange(-1*self.fmax, self.fmax, self.fmin)
+            self.freq_arr = np.arange(-1 * self.fmax, self.fmax, self.fmin)
         else:
             self.freq_arr = freq_arr
 
@@ -552,12 +575,24 @@ class CovarianceMatrixModel(object):
         return np.array([corr_arr[int((tau + self.max_tau) / self.min_tau)]
                          for tau in self.dt_matrix.reshape(-1)]).reshape(self.dt_matrix.shape)
 
+    def eval_gradient(self, params, delta=1e-3):
+        gradient_arr = self.corr_model.eval_gradient(params, self.tau_arr, delta=delta, **self.eval_args)
+        gradient_matrix = np.zeros((self.dt_matrix.shape[0], self.dt_matrix.shape[1], len(params)))
+        for p in range(gradient_arr.shape[0]):
+            gradient_matrix[..., p] = np.array([gradient_arr[p, int((tau + self.max_tau) / self.min_tau)]
+                                                for tau in self.dt_matrix.reshape(-1)]).reshape(self.dt_matrix.shape)
+        return gradient_matrix
+
 
 class CrossCovarianceMatrixModel(object):
-    def __init__(self, autocorr_model, crosscorr_model, time1, time2, autocorr1_args={}, autocorr2_args={}, crosscorr_args={}):
-        self.autocov_matrix1 = CovarianceMatrixModel(autocorr_model, time1, component_name='autocorr1', model_args=autocorr1_args)
-        self.autocov_matrix2 = CovarianceMatrixModel(autocorr_model, time2, component_name='autocorr2', model_args=autocorr2_args)
-        self.crosscov_matrix = CovarianceMatrixModel(crosscorr_model, time1, time2=time2, component_name='crosscorr', model_args=crosscorr_args)
+    def __init__(self, autocorr_model, crosscorr_model, time1, time2, autocorr1_args={}, autocorr2_args={},
+                 crosscorr_args={}):
+        self.autocov_matrix1 = CovarianceMatrixModel(autocorr_model, time1, component_name='autocorr1',
+                                                     model_args=autocorr1_args)
+        self.autocov_matrix2 = CovarianceMatrixModel(autocorr_model, time2, component_name='autocorr2',
+                                                     model_args=autocorr2_args)
+        self.crosscov_matrix = CovarianceMatrixModel(crosscorr_model, time1, time2=time2, component_name='crosscorr',
+                                                     model_args=crosscorr_args)
 
     def get_params(self, autocorr1_pars={}, autocorr2_pars={}, crosscorr_pars={}):
         return self.autocov_matrix1.get_params(**autocorr1_pars) \
@@ -575,10 +610,10 @@ class MLCovariance(object):
     def __init__(self, lc, autocov_model, params=None, normalise_lc=False, **kwargs):
         self.cov_matrix = CovarianceMatrixModel(autocov_model, lc.time, **kwargs)
 
-        if normalise_lc:
-            self.data = lc.rate
-        else:
-            self.data = (lc.rate - np.mean(lc.rate)) / lc.std(lc.rate)
+        # if normalise_lc:
+        #     self.data = (lc.rate - np.mean(lc.rate)) / np.std(lc.rate)
+        # else:
+        self.data = lc.rate
 
         if isinstance(params, lmfit.Parameters):
             self.params = params
@@ -589,47 +624,80 @@ class MLCovariance(object):
 
         self.minimizer = None
         self.fit_result = None
+        self.fit_params = None
+        self.fit_stat = None
 
-    def log_likelihood(self, params):
+    def log_likelihood(self, params, eval_gradient=False, delta=1e-3):
         c = self.cov_matrix.eval(params)
+
         try:
-            ci = np.linalg.inv(c)
-            _, ld = np.linalg.slogdet(c)
-        except:
-            return np.nan
+            L = scipy.linalg.cholesky(c, lower=True)
+        except np.linalg.LinAlgError:
+            return (-np.inf, np.zeros(len(params))) if eval_gradient else -np.inf
 
-        l = (-len(self.data) / 2) * np.log(2 * np.pi) - 0.5 * ld - 0.5 * np.matmul(self.data.T, np.matmul(ci, self.data))
-        return l
+        data = self.data
+        if data.ndim == 1:
+            data = data[:, np.newaxis]
 
-    def mlog_likelihood(self, params):
-        return -1*self.log_likelihood(params)
+        alpha = scipy.linalg.cho_solve((L, True), data)
 
-    def _dofit(self, params, method='nelder', write_steps=0, **kwargs):
-        def fit_progress(params, iter, resid):
-            if write_steps > 0:
-                if iter % write_steps == 0:
-                    parstr = ' %10.4g'*len(params)
-                    parvals = [params[p] for p in params]
-                    print(("%5d %15.6g" + parstr) % tuple([iter, resid] + parvals))
+        log_likelihood_dims = -0.5 * np.einsum("ik,ik->k", data, alpha)
+        log_likelihood_dims -= np.log(np.diag(L)).sum()
+        log_likelihood_dims -= c.shape[0] / 2 * np.log(2 * np.pi)
+        log_likelihood = log_likelihood_dims.sum(-1)
 
-        if write_steps > 0:
-            iter_cb = fit_progress
-        else:
-            iter_cb = None
+        if eval_gradient:
+            c_gradient = self.cov_matrix.eval_gradient(params, delta)
+            tmp = np.einsum("ik,jk->ijk", alpha, alpha)
+            tmp -= scipy.linalg.cho_solve((L, True), np.eye(c.shape[0]))[:, :, np.newaxis]
+            gradient_dims = 0.5 * np.einsum("ijl,ijk->kl", tmp, c_gradient)
+            gradient = gradient_dims.sum(-1)
 
-        minimizer = lmfit.Minimizer(self.mlog_likelihood, params, nan_policy='omit', iter_cb=iter_cb)
-        fit_result = minimizer.minimize(method=method, **kwargs)
+        return (log_likelihood, gradient) if eval_gradient else log_likelihood
 
-        return minimizer, fit_result
+    def _dofit(self, params, method='l-bfgs-b', write_steps=0, delta=1e-3, restarts=0, par_shift=0.1, **kwargs):
+        fit_params = copy.copy(params)
+
+        def obj_with_grad(par_arr):
+            for par, value in zip([p for p in params if params[p].vary], par_arr):
+                fit_params[par].value = value
+            l, g = self.log_likelihood(fit_params, eval_gradient=True, delta=delta)
+            return -l, -g
+
+        initial_params = np.array([params[p].value for p in params if params[p].vary])
+        bounds = [(params[p].min, params[p].max) for p in params if params[p].vary]
+
+        fit_par_arr, func_min, convergence = scipy.optimize.fmin_l_bfgs_b(obj_with_grad, initial_params, bounds=bounds)
+
+        if restarts > 0:
+            fit_par_arr = [fit_par_arr]
+            func_min = [func_min]
+
+            for n in range(restarts):
+                initial_params = [np.random.uniform(b[0], b[1]) for b in bounds]
+                this_initial_params = [p + np.random.randn()*np.abs(p)*par_shift for p in fit_par_arr[np.array(func_min).argmin()]]
+                par, fmin, conv = scipy.optimize.fmin_l_bfgs_b(obj_with_grad, this_initial_params, bounds=bounds)
+                fit_par_arr.append(par)
+                func_min.append(fmin)
+
+            func_min = np.array(func_min)
+            fit_par_arr = fit_par_arr[func_min.argmin()]
+            func_min = func_min.min()
+
+        for par, value in zip([p for p in params if params[p].vary], fit_par_arr):
+            fit_params[par].value = value
+
+        return func_min, fit_params
 
     def fit(self, params=None, **kwargs):
         if params is None:
             params = self.params
 
-        self.minimizer, self.fit_result = self._dofit(params, **kwargs)
-        self.show_fit()
+        # self.minimizer, self.fit_result = self._dofit(params, **kwargs)
+        # self.show_fit()
+        self.fit_stat, self.fit_params = self._dofit(params, **kwargs)
 
-        return self.fit_result.residual
+        return self.fit_stat
 
     def show_fit(self):
         if self.fit_result is None:
@@ -643,7 +711,8 @@ class MLCovariance(object):
             else:
                 params = self.params
 
-        mcmc_result = lmfit.minimize(self.log_likelihood, params=params, method='emcee', burn=burn, steps=steps, thin=thin)
+        mcmc_result = lmfit.minimize(self.log_likelihood, params=params, method='emcee', burn=burn, steps=steps,
+                                     thin=thin)
         return mcmc_result
 
     def steppar(self, par, steps, method='nelder'):
@@ -676,7 +745,7 @@ class MLCovariance(object):
         if self.fit_result is None:
             raise AssertionError("Need to run fit first!")
         if freq is None:
-            freq = self.cov_matrix.freq_arr[self.cov_matrix.freq_arr>1e-10]
+            freq = self.cov_matrix.freq_arr[self.cov_matrix.freq_arr > 1e-10]
         return self.cov_matrix.cov_model.get_psd_series(self.fit_result.params, freq)
 
 
