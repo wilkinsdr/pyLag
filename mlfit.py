@@ -218,7 +218,7 @@ class FFTCorrelationModel(CorrelationModel):
 
 
 class FFTAutoCorrelationModel_plpsd(FFTCorrelationModel):
-    def get_params(self, norm=1., slope=1.):
+    def get_params(self, norm=1e-3, slope=1.):
         params = lmfit.Parameters()
 
         params.add('%snorm' % self.prefix, value=norm, min=1e-10, max=1e10)
@@ -544,7 +544,7 @@ class FFTCrossCorrelationModel_binned(FFTCorrelationModel):
 
 
 class CovarianceMatrixModel(object):
-    def __init__(self, corr_model, time, time2=None, noise=None, noise_par=False, component_name=None, freq_arr=None, eval_args={}, model_args={}):
+    def __init__(self, corr_model, time, time2=None, noise=None, component_name=None, freq_arr=None, eval_args={}, model_args={}):
         self.component_name = component_name
 
         if self.component_name is None:
@@ -569,7 +569,7 @@ class CovarianceMatrixModel(object):
 
         self.eval_args = eval_args
 
-        self.noise_par = noise_par
+        self.noise_par = (noise == 'param')
 
         if isinstance(noise, (float, int)):
             noise = noise * np.ones_like(time)
@@ -609,16 +609,16 @@ class CovarianceMatrixModel(object):
 
 
 class CrossCovarianceMatrixModel(object):
-    def __init__(self, autocorr_model, crosscorr_model, time1, time2, noise1=None, noise2=None, noise_par=False, autocorr1_args={}, autocorr2_args={},
+    def __init__(self, autocorr_model, crosscorr_model, time1, time2, noise1=None, noise2=None, autocorr1_args={}, autocorr2_args={},
                  crosscorr_args={}):
         self.autocov_matrix1 = CovarianceMatrixModel(autocorr_model, time1, component_name='autocorr1',
-                                                     model_args=autocorr1_args, noise=noise1, noise_par=noise_par)
+                                                     model_args=autocorr1_args, noise=noise1)
         self.autocov_matrix2 = CovarianceMatrixModel(autocorr_model, time2, component_name='autocorr2',
-                                                     model_args=autocorr2_args, noise=noise2, noise_par=noise_par)
+                                                     model_args=autocorr2_args, noise=noise2)
         self.crosscov_matrix1 = CovarianceMatrixModel(crosscorr_model, time1, time2=time2, component_name='crosscorr',
-                                                     model_args=crosscorr_args)
+                                                     model_args=crosscorr_args, noise=None)
         self.crosscov_matrix2 = CovarianceMatrixModel(crosscorr_model, time2, time2=time1, component_name='crosscorr',
-                                                     model_args=crosscorr_args)
+                                                     model_args=crosscorr_args, noise=None)
 
     def get_params(self, autocorr1_pars={}, autocorr2_pars={}, crosscorr_pars={}):
         return self.autocov_matrix1.get_params(**autocorr1_pars) \
@@ -641,8 +641,13 @@ class CrossCovarianceMatrixModel(object):
 
 
 class MLCovariance(object):
-    def __init__(self, lc, autocov_model, params=None, normalise_lc=False, **kwargs):
-        self.cov_matrix = CovarianceMatrixModel(autocov_model, lc.time, **kwargs)
+    def __init__(self, lc, autocov_model, params=None, noise='mean_error', **kwargs):
+        if noise == 'error':
+            noise = lc.error**2
+        elif noise == 'mean_error':
+            noise = np.mean(lc.rate) / lc.dt
+
+        self.cov_matrix = CovarianceMatrixModel(autocov_model, lc.time, noise=noise, **kwargs)
 
         # if normalise_lc:
         #     self.data = (lc.rate - np.mean(lc.rate)) / np.std(lc.rate)
@@ -749,8 +754,8 @@ class MLCovariance(object):
 
     def run_mcmc(self, params=None, burn=300, steps=1000, thin=1):
         if params is None:
-            if self.fit_result is not None:
-                params = self.fit_result.params
+            if self.fit_params is not None:
+                params = self.fit_params
             else:
                 params = self.params
 
@@ -837,8 +842,17 @@ class MLCovariance(object):
 
 
 class MLCrossCovariance(MLCovariance):
-    def __init__(self, lc1, lc2, autocov_model, crosscov_model, noise_par=False, params=None, **kwargs):
-        self.cov_matrix = CrossCovarianceMatrixModel(autocov_model, crosscov_model, lc1.time, lc2.time, noise_par=noise_par, **kwargs)
+    def __init__(self, lc1, lc2, autocov_model, crosscov_model, noise1='mean_error', noise2='mean_error', params=None, **kwargs):
+        if noise1 == 'error':
+            noise1 = lc2.error**2
+        elif noise1 == 'mean_error':
+            noise1 = np.mean(lc1.rate) / lc1.dt
+        if noise2 == 'error':
+            noise2 = lc2.error**2
+        elif noise2 == 'mean_error':
+            noise2 = np.mean(lc2.rate) / lc2.dt
+
+        self.cov_matrix = CrossCovarianceMatrixModel(autocov_model, crosscov_model, lc1.time, lc2.time, noise1=noise1, noise2=noise2, **kwargs)
         self.data = np.hstack([lc1.rate, lc2.rate])
 
         if isinstance(params, lmfit.Parameters):
