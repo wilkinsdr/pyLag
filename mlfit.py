@@ -844,7 +844,7 @@ class MLCovariance(object):
 class MLCrossCovariance(MLCovariance):
     def __init__(self, lc1, lc2, autocov_model, crosscov_model, noise1='mean_error', noise2='mean_error', params=None, **kwargs):
         if noise1 == 'error':
-            noise1 = lc2.error**2
+            noise1 = lc1.error**2
         elif noise1 == 'mean_error':
             noise1 = np.mean(lc1.rate) / lc1.dt
         if noise2 == 'error':
@@ -864,3 +864,53 @@ class MLCrossCovariance(MLCovariance):
 
         self.minimizer = None
         self.fit_result = None
+
+
+class StackedMLCovariance(MLCovariance):
+    def __init__(self, lclist, autocov_model, noise='mean_error', params=None, **kwargs):
+        if isinstance(params, lmfit.Parameters):
+            self.params = params
+        else:
+            # this is just a prototype covariance matrix for getting the parameter list
+            n1 = 'param' if noise == 'param' else 1.
+            cov_matrix = CovarianceMatrixModel(autocov_model, lclist[0].time, noise1=n1, **kwargs)
+            self.params = cov_matrix.get_params(**params) if isinstance(params, dict) else cov_matrix.get_params()
+
+        # we construct a separate MLCovariance object for each pair of light curves
+        # we fit each one with its own covariance matrix with the same parameters
+        self.ml_covariance = [MLCovariance(lc, autocov_model, params=self.params, noise=noise, **kwargs) for lc in lclist]
+
+        self.minimizer = None
+        self.fit_result = None
+
+    def log_likelihood(self, params, eval_gradient=False, delta=1e-3):
+        # the likelihood is the product of the likelihood for the individual light curve pairs
+        # so the log-likelihood is the sum
+        return np.sum([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance])
+
+
+class StackedMLCrossCovariance(MLCrossCovariance):
+    def __init__(self, lc1list, lc2list, autocov_model, crosscov_model, noise1='mean_error', noise2='mean_error', params=None, **kwargs):
+        if isinstance(params, lmfit.Parameters):
+            self.params = params
+        else:
+            # this is just a prototype covariance matrix for getting the parameter list
+            n1 = 'param' if noise1 == 'param' else 1.
+            n2 = 'param' if noise2 == 'param' else 1.
+            cov_matrix = CrossCovarianceMatrixModel(autocov_model, crosscov_model, lc1list[0].time, lc2list[0].time,
+                                                    noise1=n1, noise2=n2, **kwargs)
+            self.params = cov_matrix.get_params(**params) if isinstance(params, dict) else cov_matrix.get_params()
+
+        # we construct a separate MLCrossCovariance object for each pair of light curves
+        # we fit each one with its own covariance matrix with the same parameters
+        self.ml_cross_covariance = [MLCrossCovariance(lc1, lc2, autocov_model, crosscov_model, noise1=noise1,
+                                                      noise2=noise2, params=self.params, **kwargs)
+                                    for lc1, lc2 in zip(lc1list, lc2list)]
+
+        self.minimizer = None
+        self.fit_result = None
+
+    def log_likelihood(self, params, eval_gradient=False, delta=1e-3):
+        # the likelihood is the product of the likelihood for the individual light curve pairs
+        # so the log-likelihood is the sum
+        return np.sum([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_cross_covariance])
