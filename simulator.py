@@ -121,7 +121,7 @@ class SimLightCurve(LightCurve):
                   than zero. Set all points below zero to zero
         """
         # sample frequencies
-        freq = scipy.fftpack.fftfreq(oversample*len(t), d=t[1] - t[0])
+        freq = scipy.fftpack.fftfreq(int(oversample*len(t)), d=t[1] - t[0])
         Nf = len(freq)
 
         if not isinstance(psd_param, tuple):
