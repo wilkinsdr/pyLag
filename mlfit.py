@@ -647,7 +647,7 @@ class CrossCovarianceMatrixModel(object):
 
 
 class MLCovariance(object):
-    def __init__(self, lc, autocov_model, params=None, noise='mean_error', **kwargs):
+    def __init__(self, lc, autocov_model, noise='mean_error', zero_mean=True, params=None, **kwargs):
         if noise == 'error':
             noise = lc.error**2
         elif noise == 'mean_error':
@@ -655,10 +655,10 @@ class MLCovariance(object):
 
         self.cov_matrix = CovarianceMatrixModel(autocov_model, lc.time, noise=noise, **kwargs)
 
-        # if normalise_lc:
-        #     self.data = (lc.rate - np.mean(lc.rate)) / np.std(lc.rate)
-        # else:
-        self.data = lc.rate
+        if zero_mean:
+            self.data = lc.rate - np.mean(lc.rate)
+        else:
+            self.data = lc.rate
 
         if isinstance(params, lmfit.Parameters):
             self.params = params
@@ -848,7 +848,7 @@ class MLCovariance(object):
 
 
 class MLCrossCovariance(MLCovariance):
-    def __init__(self, lc1, lc2, autocov_model, crosscov_model, noise1='mean_error', noise2='mean_error', params=None, **kwargs):
+    def __init__(self, lc1, lc2, autocov_model, crosscov_model, noise1='mean_error', noise2='mean_error', zero_mean=True, params=None, **kwargs):
         if noise1 == 'error':
             noise1 = lc1.error**2
         elif noise1 == 'mean_error':
@@ -859,7 +859,11 @@ class MLCrossCovariance(MLCovariance):
             noise2 = np.mean(lc2.rate) / lc2.dt
 
         self.cov_matrix = CrossCovarianceMatrixModel(autocov_model, crosscov_model, lc1.time, lc2.time, noise1=noise1, noise2=noise2, **kwargs)
-        self.data = np.hstack([lc1.rate, lc2.rate])
+
+        if zero_mean:
+            self.data = np.hstack([lc1.rate - np.mean(lc1.rate), lc2.rate - np.mean(lc2.rate)])
+        else:
+            self.data = np.hstack([lc1.rate, lc2.rate])
 
         if isinstance(params, lmfit.Parameters):
             self.params = params
