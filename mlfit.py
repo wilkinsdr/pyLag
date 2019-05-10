@@ -383,7 +383,7 @@ class FFTCrossCorrelationModel_plpsd_constlag(FFTCorrelationModel):
         psd[np.abs(freq_arr) < flimit] = psd[np.abs(freq_arr) > flimit][0]
         phase = 2 * np.pi * freq_arr * lag
 
-        ft = psd * np.exp(1j * phase)
+        ft = psd * np.exp(-1j * phase)
         return ft
 
 
@@ -417,7 +417,7 @@ class FFTCrossCorrelationModel_plpsd_cutofflag(FFTCorrelationModel):
         lag[np.abs(freq_arr) > lag_fcut] = 0
         phase = 2 * np.pi * freq_arr * lag
 
-        ft = psd * np.exp(1j * phase)
+        ft = psd * np.exp(-1j * phase)
         return ft
 
 
@@ -457,7 +457,7 @@ class FFTCrossCorrelationModel_plpsd_linearcutofflag(FFTCorrelationModel):
                          - np.log10(lag_fzero)) / (np.log10(lag_fcut) - np.log10(lag_fzero))
         phase = 2 * np.pi * freq_arr * lag
 
-        ft = psd * np.exp(1j * phase)
+        ft = psd * np.exp(-1j * phase)
         return ft
 
 
@@ -545,7 +545,7 @@ class FFTCrossCorrelationModel_binned(FFTCorrelationModel):
 
         phase = 2 * np.pi * freq_arr * lag
 
-        ft = psd * np.exp(1j * phase)
+        ft = psd * np.exp(-1j * phase)
         return ft
 
 
