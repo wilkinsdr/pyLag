@@ -814,7 +814,7 @@ class MLCovariance(object):
 
         corner.corner(self.mcmc_result.flatchain, labels=self.mcmc_result.var_names, truths=truth_values)
 
-    def steppar(self, par, steps, method='nelder'):
+    def steppar(self, par, steps):
         if self.fit_params is not None:
             step_params = copy.copy(self.fit_params)
         else:
@@ -829,7 +829,7 @@ class MLCovariance(object):
         fit_stats = []
         for val in steps:
             step_params[par].value = val
-            stat, _ = self._dofit(step_params, method)
+            stat, _ = self._dofit(step_params)
             fit_stats.append(stat)
             print('%16g  %16g' % (val, stat))
 
