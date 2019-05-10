@@ -34,8 +34,10 @@ from .plotter import *
 
 
 class CorrelationModel(object):
-    def __init__(self, component_name=None):
+    def __init__(self, component_name=None, log_psd=True):
         self.component_name = component_name
+
+        self.log_psd = log_psd # many models will have a normalisation or equivalent. We might want to fit the log
 
         if self.component_name is None:
             self.prefix = ''
@@ -179,7 +181,7 @@ class CrossCorrelationModel_plpsd_sigmoidlag(CorrelationModel):
 
 
 class FFTCorrelationModel(CorrelationModel):
-    def __init__(self, oversample_len=1, oversample_freq=1, *args, **kwargs):
+    def __init__(self, oversample_len=10., oversample_freq=1, *args, **kwargs):
         self.oversample_len = int(oversample_len)
         self.oversample_freq = int(oversample_freq)
         CorrelationModel.__init__(self, *args, **kwargs)
@@ -192,7 +194,7 @@ class FFTCorrelationModel(CorrelationModel):
                                          d=np.min(lags[lags > 0]) / self.oversample_freq)
         ft = self.eval_ft(params, freq_arr, **kwargs)
         corr = scipy.fftpack.ifft(ft).real
-        corr -= corr.min()
+        # corr -= corr.min()
         corr = scipy.fftpack.fftshift(corr)
 
         fft_lags = scipy.fftpack.fftfreq(len(freq_arr), d=(freq_arr[1] - freq_arr[0]))
@@ -218,16 +220,18 @@ class FFTCorrelationModel(CorrelationModel):
 
 
 class FFTAutoCorrelationModel_plpsd(FFTCorrelationModel):
-    def get_params(self, norm=1e-3, slope=1.):
+    def get_params(self, norm=None, slope=1.):
+        if norm is None:
+            norm = -7 if self.log_psd else 1e-3
         params = lmfit.Parameters()
 
-        params.add('%snorm' % self.prefix, value=norm, min=1e-10, max=1e10)
+        params.add('%snorm' % self.prefix, value=norm, min=(-50 if self.log_psd else 1e-10), max=(50 if self.log_psd else 1e10))
         params.add('%sslope' % self.prefix, value=slope, min=0., max=3.)
 
         return params
 
     def eval_ft(self, params, freq_arr, flimit=1e-6):
-        norm = params['%snorm' % self.prefix].value
+        norm = np.exp(params['%snorm' % self.prefix].value) if self.log_psd else params['%snorm' % self.prefix].value
         slope = params['%sslope' % self.prefix].value
 
         psd = np.zeros(freq_arr.shape)
@@ -301,7 +305,7 @@ class FFTAutoCorrelationModel_binpsd(FFTCorrelationModel):
             self.fbins = fbins
 
         self.log_interp = log_interp
-        self.log_psd = log_psd
+        # self.log_psd = log_psd
 
         FFTCorrelationModel.__init__(self, *args, **kwargs)
 
@@ -358,17 +362,19 @@ class FFTAutoCorrelationModel_binpsd(FFTCorrelationModel):
 
 
 class FFTCrossCorrelationModel_plpsd_constlag(FFTCorrelationModel):
-    def get_params(self, norm=1., slope=1., lag=0.):
+    def get_params(self, norm=None, slope=1., lag=0.):
+        if norm is None:
+            norm = -7 if self.log_psd else 1e-3
         params = lmfit.Parameters()
 
-        params.add('%snorm' % self.prefix, value=norm, min=1e-10, max=1e10)
+        params.add('%snorm' % self.prefix, value=norm, min=(-50 if self.log_psd else 1e-10), max=(50 if self.log_psd else 1e10))
         params.add('%sslope' % self.prefix, value=slope, min=0., max=3.)
         params.add('%slag' % self.prefix, value=lag, min=-1e4, max=+1e4)
 
         return params
 
     def eval_ft(self, params, freq_arr, flimit=1e-6):
-        norm = params['%snorm' % self.prefix].value
+        norm = np.exp(params['%snorm' % self.prefix].value) if self.log_psd else params['%snorm' % self.prefix].value
         slope = params['%sslope' % self.prefix].value
         lag = params['%slag' % self.prefix].value
 
@@ -463,7 +469,7 @@ class FFTCrossCorrelationModel_binned(FFTCorrelationModel):
             self.fbins = fbins
 
         self.log_interp = log_interp
-        self.log_psd = log_psd
+        # self.log_psd = log_psd
 
         FFTCorrelationModel.__init__(self, *args, **kwargs)
 
