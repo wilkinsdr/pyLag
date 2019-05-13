@@ -74,7 +74,7 @@ class CorrelationModel(object):
 
 
 class AutoCorrelationModel_plpsd(CorrelationModel):
-    def get_params(self, norm=1., slope=1.):
+    def get_params(self, norm=1., slope=2.):
         params = lmfit.Parameters()
 
         params.add('%snorm' % self.prefix, value=norm, min=1e-10, max=1e10)
@@ -117,7 +117,7 @@ class AutoCorrelationModel_plpsd(CorrelationModel):
 
 
 class CrossCorrelationModel_plpsd_constlag(CorrelationModel):
-    def get_params(self, norm=1., slope=1., lag=0.):
+    def get_params(self, norm=1., slope=2., lag=0.):
         params = lmfit.Parameters()
 
         params.add('%snorm' % self.prefix, value=norm, min=1e-10, max=1e10)
@@ -145,7 +145,7 @@ class CrossCorrelationModel_plpsd_constlag(CorrelationModel):
 
 
 class CrossCorrelationModel_plpsd_sigmoidlag(CorrelationModel):
-    def get_params(self, norm=1., slope=1., lag=0., lag_slope=5., lag_logfcut=-3):
+    def get_params(self, norm=1., slope=2., lag=0., lag_slope=5., lag_logfcut=-3):
         params = lmfit.Parameters()
 
         params.add('%snorm' % self.prefix, value=norm, min=1e-10, max=1e10)
@@ -220,7 +220,7 @@ class FFTCorrelationModel(CorrelationModel):
 
 
 class FFTAutoCorrelationModel_plpsd(FFTCorrelationModel):
-    def get_params(self, norm=None, slope=1.):
+    def get_params(self, norm=None, slope=2.):
         if norm is None:
             norm = -7 if self.log_psd else 1e-3
         params = lmfit.Parameters()
@@ -242,7 +242,7 @@ class FFTAutoCorrelationModel_plpsd(FFTCorrelationModel):
 
 
 class FFTAutoCorrelationModel_brokenplpsd(FFTCorrelationModel):
-    def get_params(self, norm=1., slope=1.):
+    def get_params(self, norm=1., slope=2.):
         params = lmfit.Parameters()
 
         params.add('%snorm' % self.prefix, value=norm, min=1e-10, max=1e10)
@@ -271,7 +271,7 @@ class FFTAutoCorrelationModel_brokenplpsd(FFTCorrelationModel):
 
 
 class FFTAutoCorrelationModel_plpsd_binned(FFTCorrelationModel):
-    def get_params(self, norm=1., slope=1., binsize=1.):
+    def get_params(self, norm=1., slope=2., binsize=1.):
         params = lmfit.Parameters()
 
         params.add('%snorm' % self.prefix, value=norm, min=1e-10, max=1e10)
@@ -362,7 +362,7 @@ class FFTAutoCorrelationModel_binpsd(FFTCorrelationModel):
 
 
 class FFTCrossCorrelationModel_plpsd_constlag(FFTCorrelationModel):
-    def get_params(self, norm=None, slope=1., lag=0.):
+    def get_params(self, norm=None, slope=2., lag=0.):
         if norm is None:
             norm = -7 if self.log_psd else 1e-3
         params = lmfit.Parameters()
@@ -388,7 +388,7 @@ class FFTCrossCorrelationModel_plpsd_constlag(FFTCorrelationModel):
 
 
 class FFTCrossCorrelationModel_plpsd_cutofflag(FFTCorrelationModel):
-    def get_params(self, norm=1., slope=1., lag=0., lag_fcut=1):
+    def get_params(self, norm=1., slope=2., lag=0., lag_fcut=1):
         params = lmfit.Parameters()
 
         params.add('%snorm' % self.prefix, value=norm, min=1e-10, max=1e10)
@@ -422,7 +422,7 @@ class FFTCrossCorrelationModel_plpsd_cutofflag(FFTCorrelationModel):
 
 
 class FFTCrossCorrelationModel_plpsd_linearcutofflag(FFTCorrelationModel):
-    def get_params(self, norm=1., slope=1., lag=0., lag_fcut=1):
+    def get_params(self, norm=1., slope=2., lag=0., lag_fcut=1):
         params = lmfit.Parameters()
 
         params.add('%snorm' % self.prefix, value=norm, min=1e-10, max=1e10)
@@ -883,7 +883,7 @@ class StackedMLCovariance(MLCovariance):
         else:
             # this is just a prototype covariance matrix for getting the parameter list
             n1 = 'param' if noise == 'param' else 1.
-            cov_matrix = CovarianceMatrixModel(autocov_model, lclist[0].time, noise1=n1, **kwargs)
+            cov_matrix = CovarianceMatrixModel(autocov_model, lclist[0].time, noise=n1, **kwargs)
             self.params = cov_matrix.get_params(**params) if isinstance(params, dict) else cov_matrix.get_params()
 
         # we construct a separate MLCovariance object for each pair of light curves
@@ -896,7 +896,12 @@ class StackedMLCovariance(MLCovariance):
     def log_likelihood(self, params, eval_gradient=False, delta=1e-3):
         # the likelihood is the product of the likelihood for the individual light curve pairs
         # so the log-likelihood is the sum
-        return np.sum([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance])
+        if eval_gradient:
+            like_arr = np.array([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance])
+            # separate and sum the likelihoods and the gradients
+            return np.sum(like_arr[:,0]), np.array([grad for grad in like_arr[:,1]]).sum(axis=0)
+        else:
+            return np.sum([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance])
 
 
 class StackedMLCrossCovariance(MLCrossCovariance):
@@ -923,4 +928,8 @@ class StackedMLCrossCovariance(MLCrossCovariance):
     def log_likelihood(self, params, eval_gradient=False, delta=1e-3):
         # the likelihood is the product of the likelihood for the individual light curve pairs
         # so the log-likelihood is the sum
-        return np.sum([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_cross_covariance])
+        if eval_gradient:
+            like_arr = np.array([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_cross_covariance])
+            return np.sum(like_arr[:, 0]), np.array([grad for grad in like_arr[:, 1]]).sum(axis=0)
+        else:
+            return np.sum([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_cross_covariance])
