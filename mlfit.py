@@ -897,11 +897,11 @@ class StackedMLCovariance(MLCovariance):
         # the likelihood is the product of the likelihood for the individual light curve pairs
         # so the log-likelihood is the sum
         if eval_gradient:
-            like_arr = np.array([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance])
+            segment_loglike = [mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance]
             # separate and sum the likelihoods and the gradients
-            like = like_arr[:,0]
-            grad = np.array([grad for grad in like_arr[:,1]])
-            if np.all(np.isfinite(like)) and np.all(np.isfinite(grad)):
+            like = np.array([l[0] for l in segment_loglike])
+            grad = np.array([l[1] for l in segment_loglike])
+            if np.all(np.isfinite(like)):
                 return np.sum(like), grad.sum(axis=0)
             else:
                 return -np.inf, np.zeros(len(params))
@@ -909,7 +909,7 @@ class StackedMLCovariance(MLCovariance):
             return np.sum([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance])
 
 
-class StackedMLCrossCovariance(MLCrossCovariance):
+class StackedMLCrossCovariance(StackedMLCovariance):
     def __init__(self, lc1list, lc2list, autocov_model, crosscov_model, noise1='mean_error', noise2='mean_error', params=None, **kwargs):
         if isinstance(params, lmfit.Parameters):
             self.params = params
@@ -923,23 +923,10 @@ class StackedMLCrossCovariance(MLCrossCovariance):
 
         # we construct a separate MLCrossCovariance object for each pair of light curves
         # we fit each one with its own covariance matrix with the same parameters
-        self.ml_cross_covariance = [MLCrossCovariance(lc1, lc2, autocov_model, crosscov_model, noise1=noise1,
-                                                      noise2=noise2, params=self.params, **kwargs)
-                                    for lc1, lc2 in zip(lc1list, lc2list)]
+        self.ml_covariance = [MLCrossCovariance(lc1, lc2, autocov_model, crosscov_model, noise1=noise1,
+                                                noise2=noise2, params=self.params, **kwargs)
+                              for lc1, lc2 in zip(lc1list, lc2list)]
 
         self.minimizer = None
         self.fit_result = None
 
-    def log_likelihood(self, params, eval_gradient=False, delta=1e-3):
-        # the likelihood is the product of the likelihood for the individual light curve pairs
-        # so the log-likelihood is the sum
-        if eval_gradient:
-            like_arr = np.array([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_cross_covariance])
-            like = like_arr[:, 0]
-            grad = np.array([grad for grad in like_arr[:, 1]])
-            if np.all(np.isfinite(like)) and np.all(np.isfinite(grad)):
-                return np.sum(like), grad.sum(axis=0)
-            else:
-                return -np.inf, np.zeros(len(params))
-        else:
-            return np.sum([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_cross_covariance])
