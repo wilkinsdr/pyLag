@@ -899,7 +899,12 @@ class StackedMLCovariance(MLCovariance):
         if eval_gradient:
             like_arr = np.array([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance])
             # separate and sum the likelihoods and the gradients
-            return np.sum(like_arr[:,0]), np.array([grad for grad in like_arr[:,1]]).sum(axis=0)
+            like = like_arr[:,0]
+            grad = np.array([grad for grad in like_arr[:,1]])
+            if np.all(np.isfinite(like)) and np.all(np.isfinite(grad)):
+                return np.sum(like), grad.sum(axis=0)
+            else:
+                return -np.inf, np.zeros(len(params))
         else:
             return np.sum([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance])
 
@@ -930,6 +935,11 @@ class StackedMLCrossCovariance(MLCrossCovariance):
         # so the log-likelihood is the sum
         if eval_gradient:
             like_arr = np.array([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_cross_covariance])
-            return np.sum(like_arr[:, 0]), np.array([grad for grad in like_arr[:, 1]]).sum(axis=0)
+            like = like_arr[:, 0]
+            grad = np.array([grad for grad in like_arr[:, 1]])
+            if np.all(np.isfinite(like)) and np.all(np.isfinite(grad)):
+                return np.sum(like), grad.sum(axis=0)
+            else:
+                return -np.inf, np.zeros(len(params))
         else:
             return np.sum([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_cross_covariance])
