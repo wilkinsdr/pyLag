@@ -605,13 +605,19 @@ class CovarianceMatrixModel(object):
             matrix += self.noise_matrix
         return matrix
 
-    def eval_gradient(self, params, delta=1e-3):
+    def eval_gradient(self, params, delta=1e-3, with_transpose=False):
         gradient_arr = self.corr_model.eval_gradient(params, self.tau_arr, delta=delta, **self.eval_args)
         gradient_matrix = np.zeros((self.dt_matrix.shape[0], self.dt_matrix.shape[1], len(params)))
+        if with_transpose:
+            gradient_matrix_T = np.zeros((self.dt_matrix.shape[1], self.dt_matrix.shape[0], len(params)))
         for p in range(gradient_arr.shape[0]):
-            gradient_matrix[..., p] = np.array([gradient_arr[p, int((tau + self.max_tau) / self.min_tau)]
+            par_gradient = np.array([gradient_arr[p, int((tau + self.max_tau) / self.min_tau)]
                                                 for tau in self.dt_matrix.reshape(-1)]).reshape(self.dt_matrix.shape)
-        return gradient_matrix
+            gradient_matrix[..., p] = par_gradient
+            if with_transpose:
+                gradient_matrix_T[..., p] = par_gradient.T
+
+        return (gradient_matrix, gradient_matrix_T) if with_transpose else gradient_matrix
 
 
 class CrossCovarianceMatrixModel(object):
@@ -634,16 +640,14 @@ class CrossCovarianceMatrixModel(object):
     def eval(self, params):
         ac1 = self.autocov_matrix1.eval(params)
         ac2 = self.autocov_matrix2.eval(params)
-        cc1 = self.crosscov_matrix1.eval(params)
-        cc2 = self.crosscov_matrix2.eval(params)
-        return np.vstack([np.hstack([ac1, cc2]), np.hstack([cc1, ac2])])
+        cc = self.crosscov_matrix1.eval(params)
+        return np.vstack([np.hstack([ac1, cc.T]), np.hstack([cc, ac2])])
 
     def eval_gradient(self, params, delta=1e-3):
         ac1_grad = self.autocov_matrix1.eval_gradient(params, delta)
         ac2_grad = self.autocov_matrix2.eval_gradient(params, delta)
-        cc1_grad = self.crosscov_matrix1.eval_gradient(params, delta)
-        cc2_grad = self.crosscov_matrix2.eval_gradient(params, delta)
-        return np.vstack([np.hstack([ac1_grad, cc2_grad]), np.hstack([cc1_grad, ac2_grad])])
+        cc_grad, cc_grad_T = self.crosscov_matrix1.eval_gradient(params, delta, with_transpose=True)
+        return np.vstack([np.hstack([ac1_grad, cc_grad_T]), np.hstack([cc_grad, ac2_grad])])
 
 
 class MLCovariance(object):
