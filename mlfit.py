@@ -34,6 +34,14 @@ from .plotter import *
 
 
 class CorrelationModel(object):
+    """
+    pylag.mlfit.CorrelationModel
+
+    Base class for model correlation functions to fit to light curves.
+
+    get_params() method should be overriden to return the parameter list for the model
+    eval() method should be overriden to evaluate the specific model
+    """
     def __init__(self, component_name=None, log_psd=True):
         self.component_name = component_name
 
@@ -45,17 +53,45 @@ class CorrelationModel(object):
             self.prefix = '%s_' % component_name
 
     def get_params(self):
+        """
+        Return a ParameterFit object of the model parameters, initialised to starting values
+        Should be overridden for the specific model
+        """
         raise AssertionError("I'm supposed to be overridden to return your parameters!")
 
     def eval(self, tau):
+        """
+        Return the correlation function evaluated at a specific lag
+        Should be overriden for the specific model
+
+        :param tau: The lag at which to evaluate the correlation function
+        """
         raise AssertionError("I'm supposed to be overridden to define your covariance!")
 
     def eval_points(self, params, lags, **kwargs):
+        """
+        Evaluate the correlation function at a set of lag values
+
+        :param params: ParameterList : Parameter values for which to evaluate the model
+        :param lags: ndarray : Lag points at which to evaluate the correlation function
+        :param kwargs: Arguments ot be passed to eval() method
+
+        :return: ndarray: Correlation function
+        """
         corr_arr = np.array([self.eval(params, tau, **kwargs) for tau in lags])
         corr_arr -= np.min(corr_arr)
         return corr_arr
 
     def eval_gradient(self, params, lags, delta=1e-3, **kwargs):
+        """
+        Evaluate the derivative of the correlation function (at a set of lags) with respect to each parameter
+
+        :param params: ParameterList : Parameter values at which to evaluate the derivatives
+        :param lags: ndarray : Lag points at which to evaluate the derivative
+        :param delta: Fractional step in each parameter in numerical evaluation of derivative
+        :param kwargs: Arguments to be passed to eval() method
+        :return: ndarray : 2-dimensional array contraining the gradient at each lag wrt each parameter
+        """
         corr1 = self.eval_points(params, lags, **kwargs)
         gradient = []
         for par in [p for p in params if params[p].vary]:
@@ -65,9 +101,25 @@ class CorrelationModel(object):
         return np.array(gradient)
 
     def get_corr_series(self, params, lags, **kwargs):
+        """
+        Return a plottable DataSeries object of the evaluated correlation function
+
+        :param params: ParameterList : Parameter values for which to evaluate the model
+        :param lags: ndarray : Lag points at which to evaluate the correlation function
+        :param kwargs: Arguments to be passed to eval() method
+        :return: DataSeries : plottable DataSeries of the correlation function
+        """
         return DataSeries(x=lags, y=self.eval_points(params, lags, **kwargs), xlabel='Lag / s', ylabel='Correlation')
 
     def plot_corr(self, params, lags=None, **kwargs):
+        """
+        Plot the correlation function evaluated at specified parameter values
+        :param params: ParameterList : Parameter values for which to evaluate the model
+        :param lags: ndarray (optional, default=None) : Lag points at which to evaluate the correlation function.
+                        If None, the model is plotted between -1000 and 1000 in steps of 10.
+        :param kwargs: Arguments to be passed to eval() method
+        :return: Plot object
+        """
         if lags is None:
             lags = np.arange(-1000, 1000, 10)
         return Plot(self.get_corr_series(params, lags, **kwargs), lines=True)
@@ -181,42 +233,91 @@ class CrossCorrelationModel_plpsd_sigmoidlag(CorrelationModel):
 
 
 class FFTCorrelationModel(CorrelationModel):
+    """
+    pylag.mlfit.FFTCorrelationModel
+
+    Correlation model evaluated from the fast Fourier transform (i.e. of a power spectrum model)
+
+    Constructor arguments
+    ---------------------
+    oversample_len : int : Factor by which to oversample the length of the light curve in evaluating the FT
+                           (i.e. the lowest frequency bin) to mitigate red noise leak
+    oversample_freq : int : factor by which to oversample the number of frequency bins
+                           (i.e. the maximum frequency)
+    """
     def __init__(self, oversample_len=10., oversample_freq=1, *args, **kwargs):
         self.oversample_len = int(oversample_len)
         self.oversample_freq = int(oversample_freq)
         CorrelationModel.__init__(self, *args, **kwargs)
 
     def eval_ft(self, params, freq):
+        """
+        Return the Fourier transform of the correlation function at a set of frequency points
+        Should be overriden to evaluate the FT of the specific model
+        """
         raise AssertionError("I'm supposed to be overridden to define your function's Fourier transform!")
 
     def eval_points(self, params, lags, freq_arr=None, **kwargs):
-        freq_arr = scipy.fftpack.fftfreq(self.oversample_freq * self.oversample_len * len(lags),
+        """
+        Evaluate the correlation function at a set of lag values
+
+        :param params: ParameterList : Parameter values for which to evaluate the model
+        :param lags: ndarray : Lag points at which to evaluate the correlation function
+        :param freq_arr: ndarray (optional, default=None): Frequency points at which to evaluate theFourier transform
+                            If None, the frequency points are computed from the requested lag points
+        :param kwargs: Arguments ot be passed to eval_ft() method
+
+        :return: ndarray: Correlation function evaluated at the specified frequency points
+        """
+        if freq_arr is None:
+            freq_arr = scipy.fftpack.fftfreq(self.oversample_freq * self.oversample_len * len(lags),
                                          d=np.min(lags[lags > 0]) / self.oversample_freq)
         ft = self.eval_ft(params, freq_arr, **kwargs)
         corr = scipy.fftpack.ifft(ft).real
-        # corr -= corr.min()
+        # corr -= corr.min() # don't need to do this if we're sampling frequency space appropriately
         corr = scipy.fftpack.fftshift(corr)
 
         fft_lags = scipy.fftpack.fftfreq(len(freq_arr), d=(freq_arr[1] - freq_arr[0]))
         fft_lags = scipy.fftpack.fftshift(fft_lags)
 
         if np.array_equal(lags, fft_lags):
+            # if we've been passed a sensible set of lag points, the FFT will have produced these directly
             return corr
         else:
+            # otherwise we need to fish the correct lags out of the FFT return
             tau0 = fft_lags[0]
             dtau = fft_lags[1] - fft_lags[0]
             return np.array([corr[int((tau - tau0) / dtau)] for tau in lags])
 
-    def get_psd_series(self, params, lags=None, freq_arr=None, **kwargs):
-        freq_arr = scipy.fftpack.fftfreq(self.oversample_freq * self.oversample_len * len(lags),
+    def get_psd_series(self, params, freq_arr=None, **kwargs):
+        """
+        Return a plottable data series of the power spectrum
+        :param params: ParameterList : Parameter values for which to evaluate the model
+        :param freq_arr: ndarray (optional, default=None): Frequency points at which to evaluate the PSD
+                            If None, the frequency points are computed from the requested lag points
+        :param kwargs: Arguments ot be passed to eval_ft() method
+
+        :return: DataSeries : plottable data series containing the power spectrum
+        """
+        if freq_arr is None:
+            freq_arr = scipy.fftpack.fftfreq(self.oversample_freq * self.oversample_len * len(lags),
                                          d=np.min(lags[lags > 0]) / self.oversample_freq)
         ft = self.eval_ft(params, freq_arr, **kwargs)
         psd = np.abs(ft)
         return DataSeries(freq_arr[freq_arr > 0], psd[freq_arr > 0], xlabel='Frequency / Hz', xscale='log',
                           ylabel='PSD', yscale='log')
 
-    def plot_psd(self, params, lags=None, freq_arr=None, **kwargs):
-        return Plot(self.get_psd_series(params, lags, freq_arr, **kwargs), lines=True)
+    def plot_psd(self, params, freq_arr=None, **kwargs):
+        """
+        Plot the power spectrum
+        :param params: ParameterList : Parameter values for which to evaluate the model
+        :param freq_arr: ndarray (optional, default=None): Frequency points at which to evaluate the PSD
+                            If None, the frequency points are computed from the requested lag points
+        :param kwargs: Arguments ot be passed to eval_ft() method
+
+        :return: Plot of the power spectrum
+        """
+        return Plot(self.get_psd_series(params, freq_arr, **kwargs), lines=True)
 
 
 class FFTAutoCorrelationModel_plpsd(FFTCorrelationModel):
@@ -550,7 +651,26 @@ class FFTCrossCorrelationModel_binned(FFTCorrelationModel):
 
 
 class CovarianceMatrixModel(object):
-    def __init__(self, corr_model, time, time2=None, noise=None, component_name=None, freq_arr=None, eval_args={}, model_args={}):
+    """
+    pylag.mlfit.CovarianceMatrixModel
+
+    Model covariance matrix for use in maximum likelihood fitting to light curve(s).
+    The covariance matrix contains the correlation function evaluated between each pair of time bins
+
+    Can be used to evaluate either the autocovariance matrix for a single light curve or the cross-covariance
+    submatrix between two light curves (i.e. the cross-correlation function)
+
+    Constructor arguments
+    ---------------------
+    corr_model : CorrelationModel class : the class from which the correlation function will be constructed
+    time: ndarray : the time bins sampled in the light curve
+    time2: ndarray (optional, default=None) : if evaluating the cross-covariance matrix, the time axis of the second light curve
+    noise: float or 'param' : the variance due to (Poisson) noise added to the diagonal of an auto-covariance matrix
+                              if 'param' a model parameter is added to fit the noise level to the data
+    component_name: str (optional, default=None) : the identifier for this model component if multiple components are used)
+                        (i.e. the prefix of the parameter names for this component following component_parameter)
+    """
+    def __init__(self, corr_model, time, time2=None, noise=None, component_name=None, freq_arr=None, tshift=0, eval_args={}, model_args={}):
         self.component_name = component_name
 
         if self.component_name is None:
@@ -559,7 +679,11 @@ class CovarianceMatrixModel(object):
             self.prefix = '%s_' % component_name
 
         self.corr_model = corr_model(component_name=component_name, **model_args)
-        self.dt_matrix = self.dt_matrix(time, time2)
+
+        self.tshift = tshift if isinstance(tshift, (float, int)) else 0
+        self.tshift_par = (tshift == 'param')
+
+        self.dt_matrix = self.dt_matrix(time, time2, self.tshift)
 
         self.min_tau = np.min(self.dt_matrix[self.dt_matrix > 0])
         self.max_tau = np.max(self.dt_matrix)
@@ -577,45 +701,79 @@ class CovarianceMatrixModel(object):
 
         self.noise_par = (noise == 'param')
 
+
         if isinstance(noise, (float, int)):
             noise = noise * np.ones_like(time)
 
         self.noise_matrix = np.diag(noise) if noise is not None else None
 
     @staticmethod
-    def dt_matrix(time1, time2=None):
+    def dt_matrix(time1, time2=None, tshift=0):
         if time2 is None:
             time2 = time1
         t1, t2 = np.meshgrid(time1, time2)
-        return t2 - t1
+        return (t2 - t1) + tshift
 
-    def get_params(self, noise_level=0, *args, **kwargs):
+    def get_params(self, noise_level=0, tshift=0, *args, **kwargs):
         params = self.corr_model.get_params(*args, **kwargs)
         if self.noise_par:
             params.add('%snoiselevel' % self.prefix, value=noise_level, min=-10, max=20)
+        if self.tshift_par:
+            params.add('%stshift' % self.prefix, value=tshift, min=-10000, max=10000)
         return params
 
     def eval(self, params):
-        corr_arr = self.corr_model.eval_points(params, self.tau_arr, freq_arr=self.freq_arr, **self.eval_args)
-        matrix = np.array([corr_arr[int((tau + self.max_tau) / self.min_tau)]
-                         for tau in self.dt_matrix.reshape(-1)]).reshape(self.dt_matrix.shape)
-        if self.noise_par:
-            matrix += np.exp(params['%snoiselevel' % self.prefix].value) * np.eye(matrix.shape[0])
-        elif self.noise_matrix is not None:
-            matrix += self.noise_matrix
+        if self.tshift_par:
+            tshift = params['%stshift' % self.prefix].value
+            # shifted lags at which to evaluate correlation
+            tau_arr = self.tau_arr + tshift
+            # and the corresponding frequency array
+            # fmin = 1. / (20 * self.max_tau)
+            # fmax = 1. / (2 * self.min_tau)
+            # freq_arr = np.arange(-1 * fmax, fmax, fmin)
+            # use these to evaluate the covariance matrix
+            corr_arr = self.corr_model.eval_points(params, tau_arr, freq_arr=None, **self.eval_args)
+            matrix = np.array([corr_arr[int((tau + (self.max_tau + tshift)) / (self.min_tau + tshift))]
+                               for tau in (self.dt_matrix + tshift).reshape(-1)]).reshape(self.dt_matrix.shape)
+        else:
+            corr_arr = self.corr_model.eval_points(params, self.tau_arr, freq_arr=None, **self.eval_args)
+            matrix = np.array([corr_arr[int((tau + self.max_tau) / self.min_tau)]
+                             for tau in self.dt_matrix.reshape(-1)]).reshape(self.dt_matrix.shape)
+            if self.noise_par:
+                matrix += np.exp(params['%snoiselevel' % self.prefix].value) * np.eye(matrix.shape[0])
+            elif self.noise_matrix is not None:
+                matrix += self.noise_matrix
         return matrix
 
     def eval_gradient(self, params, delta=1e-3):
-        gradient_arr = self.corr_model.eval_gradient(params, self.tau_arr, delta=delta, **self.eval_args)
-        gradient_matrix = np.zeros((self.dt_matrix.shape[0], self.dt_matrix.shape[1], len(params)))
-        for p in range(gradient_arr.shape[0]):
-            gradient_matrix[..., p] = np.array([gradient_arr[p, int((tau + self.max_tau) / self.min_tau)]
-                                                for tau in self.dt_matrix.reshape(-1)]).reshape(self.dt_matrix.shape)
+        if self.tshift_par:
+            tshift = params['%stshift' % self.prefix].value
+            # shifted lags at which to evaluate correlation
+            tau_arr = self.tau_arr + tshift
+            # and the corresponding frequency array
+            # fmin = 1. / (20 * self.max_tau)
+            # fmax = 1. / (2 * self.min_tau)
+            # freq_arr = np.arange(-1 * fmax, fmax, fmin)
+            gradient_arr = self.corr_model.eval_gradient(params, tau_arr, delta=delta,
+                                                         **self.eval_args)
+            gradient_matrix = np.zeros((self.dt_matrix.shape[0], self.dt_matrix.shape[1], len(params)))
+            for p in range(gradient_arr.shape[0]):
+                gradient_matrix[..., p] = np.array([gradient_arr[p, int((tau + (self.max_tau + tshift)) / (self.min_tau + tshift))]
+                                                    for tau in (self.dt_matrix + tshift).reshape(-1)]).reshape(self.dt_matrix.shape)
+        else:
+            gradient_arr = self.corr_model.eval_gradient(params, self.tau_arr, delta=delta, **self.eval_args)
+            gradient_matrix = np.zeros((self.dt_matrix.shape[0], self.dt_matrix.shape[1], len(params)))
+            for p in range(gradient_arr.shape[0]):
+                gradient_matrix[..., p] = np.array([gradient_arr[p, int((tau + self.max_tau) / self.min_tau)]
+                                                    for tau in self.dt_matrix.reshape(-1)]).reshape(self.dt_matrix.shape)
         return gradient_matrix
 
 
 class CrossCovarianceMatrixModel(object):
-    def __init__(self, autocorr_model, crosscorr_model, time1, time2, noise1=None, noise2=None, autocorr1_args={}, autocorr2_args={},
+    """
+    pylag.mlfit.CrossCovarianceMatrixModel
+    """
+    def __init__(self, autocorr_model, crosscorr_model, time1, time2, noise1=None, noise2=None, tshift=0, autocorr1_args={}, autocorr2_args={},
                  crosscorr_args={}):
         self.autocov_matrix1 = CovarianceMatrixModel(autocorr_model, time1, component_name='autocorr1',
                                                      model_args=autocorr1_args, noise=noise1)
@@ -848,7 +1006,7 @@ class MLCovariance(object):
 
 
 class MLCrossCovariance(MLCovariance):
-    def __init__(self, lc1, lc2, autocov_model, crosscov_model, noise1='mean_error', noise2='mean_error', zero_mean=True, params=None, **kwargs):
+    def __init__(self, lc1, lc2, autocov_model, crosscov_model, noise1='mean_error', noise2='mean_error', tshift=0, zero_mean=True, params=None, **kwargs):
         if noise1 == 'error':
             noise1 = lc1.error**2
         elif noise1 == 'mean_error':
@@ -858,7 +1016,7 @@ class MLCrossCovariance(MLCovariance):
         elif noise2 == 'mean_error':
             noise2 = np.mean(lc2.rate) / lc2.dt
 
-        self.cov_matrix = CrossCovarianceMatrixModel(autocov_model, crosscov_model, lc1.time, lc2.time, noise1=noise1, noise2=noise2, **kwargs)
+        self.cov_matrix = CrossCovarianceMatrixModel(autocov_model, crosscov_model, lc1.time, lc2.time, noise1=noise1, noise2=noise2, tshift=tshift, **kwargs)
 
         if zero_mean:
             self.data = np.hstack([lc1.rate - np.mean(lc1.rate), lc2.rate - np.mean(lc2.rate)])
