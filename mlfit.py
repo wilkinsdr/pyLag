@@ -760,7 +760,6 @@ class CovarianceMatrixModel(object):
             # freq_arr = np.arange(-1 * fmax, fmax, fmin)
             gradient_arr = self.corr_model.eval_gradient(params, tau_arr, delta=delta,
                                                          **self.eval_args)
-            gradient_matrix = np.zeros((self.dt_matrix.shape[0], self.dt_matrix.shape[1], len(params)))
             for p in range(gradient_arr.shape[0]):
                 par_gradient = np.array([gradient_arr[p, int((tau + (self.max_tau + tshift)) / (self.min_tau + tshift))]
                                                     for tau in (self.dt_matrix + tshift).reshape(-1)]).reshape(self.dt_matrix.shape)
@@ -769,7 +768,6 @@ class CovarianceMatrixModel(object):
                     gradient_matrix_T[..., p] = par_gradient.T
         else:
             gradient_arr = self.corr_model.eval_gradient(params, self.tau_arr, delta=delta, **self.eval_args)
-            gradient_matrix = np.zeros((self.dt_matrix.shape[0], self.dt_matrix.shape[1], len(params)))
             for p in range(gradient_arr.shape[0]):
                 par_gradient = np.array([gradient_arr[p, int((tau + self.max_tau) / self.min_tau)]
                                          for tau in self.dt_matrix.reshape(-1)]).reshape(self.dt_matrix.shape)
