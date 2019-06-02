@@ -41,6 +41,12 @@ class CorrelationModel(object):
 
     get_params() method should be overriden to return the parameter list for the model
     eval() method should be overriden to evaluate the specific model
+
+    Constructor Arguments
+    ---------------------
+    component_name: str (optional, default=None) : the identifier for this model component if multiple components are used)
+                        (i.e. the prefix of the parameter names for this component following component_parameter)
+    log_psd: bool (optional, default=True) : flag to derived model classes to treat the normalisation of the PSD as the log
     """
     def __init__(self, component_name=None, log_psd=True):
         self.component_name = component_name
