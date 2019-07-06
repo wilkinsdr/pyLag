@@ -79,16 +79,16 @@ class SimLightCurve(LightCurve):
               Force all points in the light curve to have count rate greater
               than zero. Set all points below zero to zero
     """
-    def __init__(self, dt=10., tmax=1000., psd_param=(2), std=0.5, lcmean=1.0, t=None, r=None, e=None, gtzero=True, lognorm=False, psdfn=psd_powerlaw, oversample=1.):
+    def __init__(self, dt=10., tmax=1000., psd_param=(2), std=0.5, lcmean=1.0, t=None, r=None, e=None, gtzero=True, lognorm=False, psdfn=psd_powerlaw, oversample=1.,mode=1, seed=None):
         if t is None and r is None:
             t = np.arange(0, tmax, dt)
-            r = self.calculate(t, psd_param, std, lcmean, gtzero=gtzero, lognorm=lognorm, psdfn=psdfn, oversample=oversample)
+            r = self.calculate(t, psd_param, std, lcmean, gtzero=gtzero, lognorm=lognorm, psdfn=psdfn, oversample=oversample, mode=mode, seed=seed)
         if e is None:
             #e = np.sqrt(r)
             e = np.sqrt(r / dt)
         LightCurve.__init__(self, t=t, r=r, e=e, zero_nan=False)
 
-    def calculate(self, t, psd_param, std, lcmean, plnorm=1., gtzero=True, lognorm=False, psdfn=psd_powerlaw, oversample=1):
+    def calculate(self, t, psd_param, std, lcmean, plnorm=1., gtzero=True, lognorm=False, psdfn=psd_powerlaw, oversample=1, mode=1, seed=None):
         """
         pylag.SimLightCurve.calculate(t, plslope, lcmean, std, plnorm=1.)
 
@@ -128,34 +128,57 @@ class SimLightCurve(LightCurve):
             psd_param = tuple([psd_param])
         psd = psdfn(freq, *psd_param)
 
-        re = np.zeros(freq.shape)
-        imag = np.zeros(freq.shape)
+        if seed is not None:
+            np.random.seed(seed)
 
-        # randomly draw the real part of the Fourier transform from a normal distribution
-        # total magnitude of the FT is set by the desired power spectrum
-        re[1:int(Nf/2)] = np.random.randn(len(freq[1:int(Nf/2)])) * psd[1:int(Nf/2)]
-        if Nf % 2 == 0:
-            # if total number of frequency bins is even, we have the Nyquist frequency with no positive counterpart
-            # FT at the Nyquist frequency is real
-            re[int(Nf / 2)] = np.random.randn() * psd[int(Nf / 2)]
-            re[int(Nf/2)+1:] = np.flip(re[1:int(Nf/2)], axis=0)
-        else:
-            re[int(Nf / 2)] = np.random.randn() * psd[int(Nf / 2)]
-            re[int(Nf / 2)+1:] = np.flip(re[1:int(Nf / 2)+1], axis=0)
-        re[0] = plnorm * np.random.randn()
-        # and the imaginary part
-        imag[1:int(Nf/2)] = np.random.randn(len(freq[1:int(Nf/2)])) * psd[1:int(Nf/2)]
-        if Nf % 2 == 0:
-            # the FT at negative frequencies is the complex conjugate of that at positive frequencies
-            # if total number of frequency bins is even, we have the Nyquist frequency with no positive counterpart
-            # FT at the Nyquist frequency is real
-            imag[int(Nf/2)+1:] = -1.*np.flip(imag[1:int(Nf/2)], axis=0)
-        else:
-            imag[int(Nf / 2)] = np.random.randn() * psd[int(Nf / 2)]
-            imag[int(Nf / 2)+1:] = -1.*np.flip(imag[1:int(Nf / 2)+1], axis=0)
+        if mode == 1:
+            re = np.zeros(freq.shape)
+            imag = np.zeros(freq.shape)
 
-        # put the Fourier transform together then invert it to get the light curve
-        ft = re + (1j * imag)
+            # randomly draw the real part of the Fourier transform from a normal distribution
+            # total magnitude of the FT is set by the desired power spectrum
+            re[1:int(Nf/2)] = np.random.randn(len(freq[1:int(Nf/2)])) * psd[1:int(Nf/2)]
+            if Nf % 2 == 0:
+                # if total number of frequency bins is even, we have the Nyquist frequency with no positive counterpart
+                # FT at the Nyquist frequency is real
+                re[int(Nf / 2)] = np.random.randn() * psd[int(Nf / 2)]
+                re[int(Nf/2)+1:] = np.flip(re[1:int(Nf/2)], axis=0)
+            else:
+                re[int(Nf / 2)] = np.random.randn() * psd[int(Nf / 2)]
+                re[int(Nf / 2)+1:] = np.flip(re[1:int(Nf / 2)+1], axis=0)
+            re[0] = plnorm * np.random.randn()
+            # and the imaginary part
+            imag[1:int(Nf/2)] = np.random.randn(len(freq[1:int(Nf/2)])) * psd[1:int(Nf/2)]
+            if Nf % 2 == 0:
+                # the FT at negative frequencies is the complex conjugate of that at positive frequencies
+                # if total number of frequency bins is even, we have the Nyquist frequency with no positive counterpart
+                # FT at the Nyquist frequency is real
+                imag[int(Nf/2)+1:] = -1.*np.flip(imag[1:int(Nf/2)], axis=0)
+            else:
+                imag[int(Nf / 2)] = np.random.randn() * psd[int(Nf / 2)]
+                imag[int(Nf / 2)+1:] = -1.*np.flip(imag[1:int(Nf / 2)+1], axis=0)
+
+            # put the Fourier transform together then invert it to get the light curve
+            ft = re + (1j * imag)
+
+        else:
+            ampl = np.zeros(freq.shape)
+            phase = np.zeros(freq.shape)
+            ampl[1:] = psd[1:]
+            ampl[0] = ampl[1]
+            phase[1:int(Nf/2)] = 2 * np.pi * np.random.rand(Nf)[1:int(Nf/2)]
+            if Nf % 2 == 0:
+                # if total number of frequency bins is even, we have the Nyquist frequency with no positive counterpart
+                # FT at the Nyquist frequency is real
+                phase[int(Nf / 2)] = 0
+                phase[int(Nf / 2) + 1:] = -1 * np.flip(phase[1:int(Nf / 2)], axis=0)
+            else:
+                phase[int(Nf / 2)] = 0
+                phase[int(Nf / 2) + 1:] = -1 * np.flip(phase[1:int(Nf / 2) + 1], axis=0)
+
+            # put the Fourier transform together then invert it to get the light curve
+            ft = ampl * np.exp(1j * phase)
+
         r = np.real(scipy.fftpack.ifft(ft))
 
         if oversample > 1:
@@ -204,7 +227,7 @@ class SimLightCurve(LightCurve):
             rnd_counts[rnd_counts < 0] = 0
         rate = rnd_counts.astype(float) / self.dt
         # sqrt(N) errors again as if we're making a measurement
-        error = np.sqrt(self.rate)
+        error = np.sqrt(self.rate / self.dt)
 
         return SimLightCurve(t=self.time, r=rate, e=error)
 
