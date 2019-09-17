@@ -197,7 +197,7 @@ class ENTResponse(object):
 
         return ENTResponse(en_bins=self.en_bins, t=self.time, ent=norm_ent, logbin_en=self.logbin_en, tstart=self.tstart)
 
-    def plot_image(self, vmin=None, vmax=None, mult_scale=True, cmap='hot', log_scale=True):
+    def plot_image(self, vmin=None, vmax=None, mult_scale=True, cmap='gray_r', log_scale=True):
         return ImagePlot(self.time, self.en_bins.bin_cent, self.ent, cmap=cmap, log_scale=log_scale, vmin=vmin, vmax=vmax, mult_scale=mult_scale, xlabel='Time / $GM\,c^{-3}$', ylabel='Energy / keV')
 
     def spectrum(self, time=None, index=False, from_start=True):
