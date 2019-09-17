@@ -573,7 +573,7 @@ class ImagePlot(Plot):
             vmax = self._vmax
 
         if vmin == 0 and self._log_scale:
-            vmin = 1.e-3
+            vmin = 1.e-3 * vmax
 
         if self._log_scale:
             norm = colors.LogNorm(vmin=vmin, vmax=vmax, clip=True)
