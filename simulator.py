@@ -481,7 +481,7 @@ class ImpulseResponse(LightCurve):
               with the response
         """
         #t = np.arange(lc.time.min() + len(self)*self.dt, lc.time.max()+self.dt, self.dt)
-        t = lc.time[len(self)-1:]
+        t = lc.time[len(self)-1:] + self.time[0]
         r = scipy.signal.convolve(lc.rate, self.rate, mode='valid')
         return SimLightCurve(t=t, r=r)
 
@@ -614,11 +614,11 @@ class GaussianResponse(ImpulseResponse):
               The length, in seconds, of the full response function.
               If None, will be set to 3*sigma after the mean time
     """
-    def __init__(self, mu, sigma, dt=10., tmax=None):
+    def __init__(self, mu, sigma, dt=10., tmax=None, t0=0):
         if tmax is None:
             tmax = mu + 3*sigma
             tmax -= tmax % dt
-        t = np.arange(0, tmax, dt)
+        t = np.arange(t0, tmax, dt)
         r = (1/(sigma*np.sqrt(2*np.pi))) * np.exp(-(t - mu) ** 2 / (2. * sigma ** 2))
         r = r / r.sum()
         ImpulseResponse.__init__(self, t=t, r=r)
@@ -650,11 +650,11 @@ class DeltaResponse(ImpulseResponse):
               The length, in seconds, of the full response function.
               If None, will be set to one time bin after t0
     """
-    def __init__(self, t0, dt=10., tmax=None):
+    def __init__(self, lag, dt=10., tmax=None, t0=0):
         if tmax is None:
-            tmax = t0 + 2*dt
-        t = np.arange(0, tmax, dt)
-        tix = int(t0 / dt)
+            tmax = lag + 2*dt
+        t = np.arange(t0, tmax, dt)
+        tix = int((lag - t0) / dt)
         r = np.zeros(t.shape)
         r[tix] = 1
         ImpulseResponse.__init__(self, t=t, r=r)
@@ -687,10 +687,10 @@ class TopHatResponse(ImpulseResponse):
               The length, in seconds, of the full response function.
               If None, set to one time bin after tend
     """
-    def __init__(self, tstart, tend, dt=10., tmax=None):
+    def __init__(self, tstart, tend, dt=10., tmax=None, t0=0):
         if tmax is None:
             tmax = tend + dt
-        t = np.arange(0, tmax, dt)
+        t = np.arange(t0, tmax, dt)
         r = np.zeros(t.shape)
         r[(t >= tstart) & (t < tend)] = 1
         r = r / r.sum()
