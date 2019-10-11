@@ -751,7 +751,7 @@ class SimLagEnergySpectrum(LagEnergySpectrum):
         self.en = np.array(ent.en_bins.bin_cent)
         self.en_error = ent.en_bins.x_error()
 
-        lclist = ent.norm().simulate_lc_list(tmax, plslope, std*rate, rate, add_noise=False, rebin_time=tbin, lc=lc)
+        lclist = ent.norm().simulate_lc_list(tmax, plslope, std*rate, rate, add_noise=(True if add_noise and not sample_errors else False), rebin_time=tbin, lc=lc)
 
         self.base_lc = lclist.base_lc
 
