@@ -51,7 +51,7 @@ class CorrelationModel(object):
     def __init__(self, component_name=None, log_psd=True):
         self.component_name = component_name
 
-        self.log_psd = log_psd # many models will have a normalisation or equivalent. We might want to fit the log
+        self.log_psd = log_psd  # many models will have a normalisation or equivalent. We might want to fit the log
 
         if self.component_name is None:
             self.prefix = ''
@@ -600,7 +600,7 @@ class FFTCrossCorrelationModel_binned(FFTCorrelationModel):
 
         for bin_num, (psd, lag) in enumerate(zip(init_psd, init_lag)):
             params.add('%spsd%02d' % (self.prefix, bin_num), value=psd, min=min, max=max)
-            params.add('%slag%02d' % (self.prefix, bin_num), value=lag, min=-1000, max=1000)
+            params.add('%slag%02d' % (self.prefix, bin_num), value=lag, min=-10000, max=10000)
 
         return params
 
@@ -752,9 +752,10 @@ class CovarianceMatrixModel(object):
         return matrix
 
     def eval_gradient(self, params, delta=1e-3, with_transpose=False):
-        gradient_matrix = np.zeros((self.dt_matrix.shape[0], self.dt_matrix.shape[1], len(params)))
+        var_params = len([p for p in params if params[p].vary])
+        gradient_matrix = np.zeros((self.dt_matrix.shape[0], self.dt_matrix.shape[1], var_params))
         if with_transpose:
-            gradient_matrix_T = np.zeros((self.dt_matrix.shape[1], self.dt_matrix.shape[0], len(params)))
+            gradient_matrix_T = np.zeros((self.dt_matrix.shape[1], self.dt_matrix.shape[0], var_params))
 
         if self.tshift_par:
             tshift = params['%stshift' % self.prefix].value
@@ -881,6 +882,8 @@ class MLCovariance(object):
 
         initial_params = np.array([params[p].value for p in params if params[p].vary])
         bounds = [(params[p].min, params[p].max) for p in params if params[p].vary]
+
+        print(initial_params, bounds)
 
         fit_par_arr, func_min, convergence = scipy.optimize.fmin_l_bfgs_b(obj_with_grad, initial_params, bounds=bounds)
 
