@@ -349,20 +349,24 @@ class FFTAutoCorrelationModel_plpsd(FFTCorrelationModel):
 
 
 class FFTAutoCorrelationModel_brokenplpsd(FFTCorrelationModel):
-    def get_params(self, norm=1., slope=2.):
+    def get_params(self, norm=None, slope1=2., fbreak=None, slope2=2.):
+        if norm is None:
+            norm = -7 if self.log_psd else 1e-3
+        if fbreak is None:
+            fbreak = -4 if self.log_psd else 1e-4
         params = lmfit.Parameters()
 
-        params.add('%snorm' % self.prefix, value=norm, min=1e-10, max=1e10)
-        params.add('%sslope1' % self.prefix, value=slope, min=0., max=3.)
-        params.add('%sfbreak' % self.prefix, value=slope, min=1e-6, max=1e-2)
-        params.add('%sslope2' % self.prefix, value=slope, min=0., max=3.)
+        params.add('%snorm' % self.prefix, value=norm, min=(-50 if self.log_psd else 1e-10), max=(50 if self.log_psd else 1e10))
+        params.add('%sslope1' % self.prefix, value=slope1, min=0., max=3.)
+        params.add('%sfbreak' % self.prefix, value=fbreak, min=(-5 if self.log_psd else 1e-5), max=(-3 if self.log_psd else 1e-3))
+        params.add('%sslope2' % self.prefix, value=slope2, min=0., max=3.)
 
         return params
 
     def eval_ft(self, params, freq_arr, flimit=1e-6):
-        norm = params['%snorm' % self.prefix].value
+        norm = np.exp(params['%snorm' % self.prefix].value) if self.log_psd else params['%snorm' % self.prefix].value
         slope1 = params['%sslope1' % self.prefix].value
-        fbreak = params['%sfbreak' % self.prefix].value
+        fbreak = 10.**params['%sfbreak' % self.prefix].value if self.log_psd else params['%sfbreak' % self.prefix].value
         slope2 = params['%sslope2' % self.prefix].value
 
         psd = np.zeros(freq_arr.shape)
@@ -711,7 +715,7 @@ class CovarianceMatrixModel(object):
         if isinstance(noise, (float, int)):
             noise = noise * np.ones_like(time)
 
-        self.noise_matrix = np.diag(noise) if noise is not None else None
+        self.noise_matrix = np.diag(noise) if noise is not None and not self.noise_par else None
 
     @staticmethod
     def dt_matrix(time1, time2=None, tshift=0):
