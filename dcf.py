@@ -21,7 +21,7 @@ class DCF(object):
         ulags, udcf = self.calculate_udcf(lc1, lc2)
 
         if isinstance(bins, int):
-            bins = LinearBinning(np.min(ulags), np.max(ulags), bins)
+            bins = LinearBinning(np.min(np.abs(ulags)), np.max(ulags), bins)
 
         self.lag = bins.bin_cent
         self.lag_error = bins.x_error()
@@ -61,3 +61,27 @@ class DCF(object):
 
     def _getplotaxes(self):
         return 'Lag / s', 'linear', 'DCF', 'linear'
+
+
+class StackedDCF(DCF):
+    def __init__(self, lc1list, lc2list,bins=50):
+        ulags = []
+        udcf = []
+        for lc1, lc2 in zip(lc1list, lc2list):
+            l, u = self.calculate_udcf(lc1, lc2)
+            ulags.append(l.flatten())
+            udcf.append(u.flatten())
+
+        ulags = np.hstack(ulags)
+        udcf = np.hstack(udcf)
+
+        ulags = ulags[np.isfinite(udcf)]
+        udcf = udcf[np.isfinite(udcf)]
+
+        if isinstance(bins, int):
+            bins = LinearBinning(np.min(np.abs(ulags)), np.max(ulags), bins)
+
+        self.lag = bins.bin_cent
+        self.lag_error = bins.x_error()
+
+        self.dcf, self.error = self.bin_dcf(ulags, udcf, bins)
