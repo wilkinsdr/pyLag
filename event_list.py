@@ -133,7 +133,7 @@ class EventList(object):
         bin_edges = astropy.stats.bayesian_blocks(self.time, fitness='events', p0=p0)
         tcent = 0.5*(bin_edges[1:] + bin_edges[:-1])
         terr = tcent - bin_edges[:-1]
-        bin_rate = np.array([np.sum(np.logical_and(self.time>=tstart, self.time<tend)) for tstart, tend in zip(bin_edges[:-1], bin_edges[1:])])
+        bin_rate = np.array([np.sum(np.logical_and(self.time>=tstart, self.time<tend)) for tstart, tend in zip(bin_edges[:-1], bin_edges[1:])]).astype(float)
         bin_rate /= (bin_edges[1:] - bin_edges[:-1])
         return VariableBinLightCurve(tcent, terr, bin_rate)
 
