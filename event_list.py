@@ -117,7 +117,7 @@ class EventList(object):
         filt_time = self.time[enfilt]
         filt_pha = self.pha[enfilt]
         filt_x = self.x[enfilt]
-        filt_t = self.y[enfilt]
+        filt_y = self.y[enfilt]
         return EventList(time=filt_time, x=filt_x, y=filt_y, pha=filt_pha)
 
     def filter_time(self, tmin, tmax):
@@ -125,7 +125,7 @@ class EventList(object):
         filt_time = self.time[tfilt]
         filt_pha = self.pha[tfilt]
         filt_x = self.x[tfilt]
-        filt_t = self.y[tfilt]
+        filt_y = self.y[tfilt]
         return EventList(time=filt_time, x=filt_x, y=filt_y, pha=filt_pha)
 
     def bayesian_lightcurve(self, p0=0.01):
