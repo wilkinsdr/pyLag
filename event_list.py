@@ -84,7 +84,6 @@ class EventList(object):
             err = np.sqrt(counts)
             return LightCurve(t=time[:-1], r=counts, e=err)
 
-
     def spectrum(self, phabins=None, Nbins=50):
         if phabins is None:
             phabins = LogBinning(self.pha.min(), self.pha.max(), Nbins)
@@ -97,5 +96,45 @@ class EventList(object):
         img, x_edges, y_edges = np.histogram2d(self.x, self.y, bins=bins)
         plt.imshow(img, norm=col.LogNorm(0.1, 1.1*img.max()), cmap='hot')
         plt.show()
+
+    def plot_image(self, bins=50):
+        img, x_edges, y_edges = np.histogram2d(self.x, self.y, bins=bins)
+        x = 0.5*(x_edges[:-1] + x_edges[1:])
+        y = 0.5 * (y_edges[:-1] + y_edges[1:])
+        plt.pcolormesh(x, y, img, norm=col.LogNorm(0.1, 1.1*img.max()), cmap='hot')
+        plt.show()
+
+    def filter_region_circle(self, x0, y0, r):
+        event_r = np.sqrt((self.x - x0)**2 + (self.y - y0)**2)
+        filt_time = self.time[event_r < r]
+        filt_pha = self.pha[event_r < r]
+        filt_x = self.x[event_r < r]
+        filt_y = self.y[event_r < r]
+        return EventList(time=filt_time, x=filt_x, y=filt_y, pha=filt_pha)
+
+    def filter_energy(self, enmin, enmax):
+        enfilt = np.logical_and(self.pha >= enmin, self.pha < enmax)
+        filt_time = self.time[enfilt]
+        filt_pha = self.pha[enfilt]
+        filt_x = self.x[enfilt]
+        filt_t = self.y[enfilt]
+        return EventList(time=filt_time, x=filt_x, y=filt_y, pha=filt_pha)
+
+    def filter_time(self, tmin, tmax):
+        tfilt = np.logical_and(self.time >= tmin, self.time < tmax)
+        filt_time = self.time[tfilt]
+        filt_pha = self.pha[tfilt]
+        filt_x = self.x[tfilt]
+        filt_t = self.y[tfilt]
+        return EventList(time=filt_time, x=filt_x, y=filt_y, pha=filt_pha)
+
+    def bayesian_lightcurve(self, p0=0.01):
+        import astropy.stats.bayesian_blocks
+        bin_edges = astropy.stats.bayesian_blocks(self.time, fitness='events', p0=p0)
+        tcent = 0.5*(bin_edges[1:] + bin_edges[:-1])
+        terr = tcent - bin_edges[:-1]
+        bin_rate = np.array([np.sum(np.logical_and(self.time>=tstart, self.time<tend)) for tstart, tend in zip(bin_edges[:-1], bin_edges[1:])])
+        bin_rate /= (bin_edges[1:] - bin_edges[:-1])
+        return VariableBinLightCurve(tcent, terr, bin_rate)
 
 
