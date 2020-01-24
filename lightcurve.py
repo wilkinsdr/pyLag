@@ -873,6 +873,13 @@ class LightCurve(object):
         resample_lc.__class__ = self.__class__
         return resample_lc
 
+    def moving_average(self, window_size=3):
+        window = np.ones(int(window_size)) / float(window_size)
+        r_avg = np.convolve(self.rate, window, 'same')
+        lc_avg = LightCurve(t=self.time, r=r_avg, e=np.zeros(self.time.shape))
+        lc_avg.__class__ = self.__class__
+        return lc_avg
+
     def __add__(self, other):
         """
         Overloaded + operator to add two light curves together and return the
@@ -1106,6 +1113,37 @@ class LightCurve(object):
 
     def _getplotaxes(self):
         return 'Time / s', 'linear', 'Count Rate / ct s$^{-1}$', 'linear'
+
+
+class VariableBinLightCurve(LightCurve):
+    """
+    pylag.VariableBinLightCurve
+
+    LightCurve class for storing and plotting light curves with variable bin sizes (encoded as the central time of each
+    bin with symmetric error).
+
+    WARNING: Do not use for computations involving FFTs
+    """
+    def __init__(self, t=[], te=[], r=[], e=[]):
+        self.time = np.array(t)
+        if len(r) > 0:
+            self.rate = np.array(r)
+        else:
+            self.rate = np.zeros(len(t))
+        if len(e) > 0:
+            self.error = np.array(e)
+        else:
+            self.error = np.zeros(len(t))
+        if len(te) > 0:
+            self.time_error = np.array(te)
+        else:
+            self.time_error = np.zeros(len(t))
+
+    def _getplotdata(self):
+        return (self.time, self.time_error), (self.rate, self.error)
+
+    def ft(self, all_freq=False):
+        raise AssertionError("Ouch! Please don't try to FFT me!!")
 
 
 # --- Utility functions --------------------------------------------------------
