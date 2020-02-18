@@ -880,6 +880,19 @@ class LightCurve(object):
         lc_avg.__class__ = self.__class__
         return lc_avg
 
+    def find_nearest(self, other, time_mode='matches'):
+        if isinstance(other, LightCurve):
+            idx = [np.abs(self.time - t).argmin() for t in other.time]
+            if time_mode == 'matches':
+                t = self.time[idx]
+            elif time_mode == 'orig':
+                t = other.time
+            match_lc = LightCurve(t=t, r=self.rate[idx], e=self.error[idx])
+            match_lc.__class__ = self.__class__
+            return match_lc
+        else:
+            return NotImplemented
+
     def __add__(self, other):
         """
         Overloaded + operator to add two light curves together and return the
