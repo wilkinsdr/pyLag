@@ -26,3 +26,36 @@ def get_nustar_lclist(src_files_fpma='nu*A01_sr.lc', bkg_files_fpma='nu*A01_bk.l
         sum_lc.append(a_sim + b_sim)
 
     return sum_lc, sub_lc_fpma, sub_lc_fpmb
+
+
+def orbit_lightcurve(lc, error_mode='counts'):
+    orbit_time = []
+    orbit_time_err = []
+    orbit_rate = []
+    orbit_rate_err = []
+
+    tdiff = np.diff(lc.time)
+    tbin = np.min(tdiff)
+
+    t_points = [lc.time[0]]
+    r_points = [lc.rate[0]]
+    counts = lc.rate[0]
+    for i in range(len(lc) - 1):
+        if tdiff[i] > tbin:
+            orbit_time.append(np.mean(t_points))
+            orbit_time_err.append(np.max(t_points) - np.mean(t_points))
+            orbit_time_interval = np.max(t_points) - np.min(t_points) + tbin
+            orbit_rate.append(counts / orbit_time_interval)
+            if(error_mode == 'counts'):
+                orbit_rate_err.append(np.sqrt(counts) / orbit_time_interval)
+            elif(error_mode == 'std'):
+                orbit_rate_err.append(np.std(r_points))
+            t_points = []
+            r_points = []
+            counts = 0
+        else:
+            t_points.append(lc.time[i + 1])
+            counts += lc.rate[i + 1] * tbin
+
+    orbit_lc = VariableBinLightCurve(t=orbit_time, te=orbit_time_err, r=orbit_rate, e=orbit_rate_err)
+    return orbit_lc
