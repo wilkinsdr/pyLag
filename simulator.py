@@ -583,6 +583,29 @@ class ImpulseResponse(LightCurve):
         resp.__class__ = self.__class__
         return resp
 
+    def pad_start(self, new_tmin):
+        """
+        padded_resp = pylag.ImpulseResponse.pad()
+
+        Pads the end of the response function, linearly ramping to zero, to extend the
+        time axis, for getting to lower frequencies in FFT
+
+        Parameters
+        ----------
+        new_tmax : float
+                   New end to time axis to pad to
+
+        Returns
+        -------
+        padded_resp : ndarray
+                      Padded impulse response function
+        """
+        pad_t = np.arange(new_tmin, self.time.max(), self.time[1]-self.time[0])
+        pad_r = np.pad(self.rate, (len(pad_t) - len(self.time), 0), 'linear_ramp')
+        resp = ImpulseResponse(t=pad_t, r=pad_r)
+        resp.__class__ = self.__class__
+        return resp
+
     def _getplotdata(self):
         return self.time, self.rate
 
