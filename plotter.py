@@ -6,6 +6,7 @@ Plotting and data output classes/functions for pylag data products
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import matplotlib.font_manager as font_manager
+import matplotlib.ticker as ticker
 import numpy as np
 
 # all_plots is a list of all plot objects that have been created
@@ -164,6 +165,9 @@ class Plot(object):
         self._xscale = 'linear'
         self._yscale = 'linear'
 
+        self._xtickformat = None
+        self._ytickformat = None
+
         self.errorbar = errorbar
 
         # variables to set plot formatting
@@ -302,6 +306,17 @@ class Plot(object):
             self._ax.set_xlim(self._xlim)
         if self._ylim is not None:
             self._ax.set_ylim(self._ylim)
+
+        if self._xtickformat == 'scalar':
+            self._ax.xaxis.set_major_formatter(ticker.ScalarFormatter())
+        if self._xtickformat is not None:
+            self._ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda val, _: self._xtickformat % val))
+
+        if self._ytickformat == 'scalar':
+            self._ax.yaxis.set_major_formatter(ticker.ScalarFormatter())
+        elif self._ytickformat is not None:
+            self._ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda val, _: self._ytickformat % val))
+
 
     def _plot_data(self):
         """
@@ -471,6 +486,8 @@ class Plot(object):
     font_face = property(_get_getter('_font_face'), _get_setter('_font_face'))
     font_size = property(_get_getter('_font_size'), _get_setter('_font_size'))
     tick_scale = property(_get_getter('_tick_scale'), _get_setter('_tick_scale'))
+    xtickformat = property(_get_getter('_xtickformat'), _get_setter('_xtickformat'))
+    ytickformat = property(_get_getter('_ytickformat'), _get_setter('_ytickformat'))
 
 
 class ErrorRegionPlot(Plot):
@@ -646,7 +663,7 @@ class ImagePlot(Plot):
     log_scale = property(_get_getter('_log_scale'), _get_setter('_log_scale'))
 
 
-def write_data(data_object, filename, xdata=None, ydata=None, mode='w', fmt='%15.10g', delimiter=' '):
+def write_data(data_object, filename, xdata=None, ydata=None, mode='w', fmt='%15.10g', delimiter=' ', x_mode='error'):
     """
     pylag.write_data
 
@@ -678,12 +695,19 @@ def write_data(data_object, filename, xdata=None, ydata=None, mode='w', fmt='%15
     else:
         xd, yd = xdata, ydata
 
+    data = []
+
     if isinstance(xd, tuple):
-        data = [xd[0]]
-        if isinstance(xd[1], (np.ndarray, list)):
-            data.append(xd[1])
+        if x_mode == 'error':
+            data.append(xd[0])
+            if isinstance(xd[1], (np.ndarray, list)):
+                data.append(xd[1])
+        elif x_mode == 'edges':
+            if isinstance(xd[1], (np.ndarray, list)):
+                data.append(xd[0] - xd[1])
+                data.append(xd[0] + xd[1])
     else:
-        data = [xd]
+        data.append(xd)
 
     if isinstance(yd, tuple):
         data.append(yd[0])
@@ -966,6 +990,16 @@ class Spectrum(object):
         return Spectrum(en=en_bin, spec=spec_bin, xlabel=self.xlabel, xscale=self.xscale, ylabel=self.ylabel,
                         yscale=self.yscale)
 
+    def moving_average(self, window_size=3):
+        window = np.ones(int(window_size)) / float(window_size)
+        spec_avg = np.convolve(self.spec, window, 'same')
+        return Spectrum(en=self.en, spec=spec_avg, xlabel=self.xlabel, xscale=self.xscale, ylabel=self.ylabel,
+                        yscale=self.yscale)
+
+    def abs(self):
+        return Spectrum(en=self.en, spec=np.abs(self.spec), xlabel=self.xlabel, xscale=self.xscale, ylabel=self.ylabel,
+                        yscale=self.yscale)
+
     def __truediv__(self, other):
         if isinstance(other, Spectrum):
             if len(self.spec) == len(other.spec):
@@ -987,6 +1021,26 @@ class Spectrum(object):
         else:
             return NotImplemented
 
+    def __sub__(self, other):
+        if isinstance(other, Spectrum):
+            if len(self.spec) == len(other.spec):
+                sub = self.spec - other.spec
+
+                if self.error is not None and other.error is not None:
+                    err = np.sqrt(self.error**2 + other.error**2)
+                elif self.error is not None and other.error is None:
+                    err = self.error
+                elif other.error is not None and self.error is None:
+                    err = other.error
+                else:
+                    err = None
+
+                return Spectrum(en=self.en, spec=sub, err=err, xlabel=self.xlabel, xscale=self.xscale, ylabel=self.ylabel,
+                        yscale=self.yscale)
+            else:
+                raise AssertionError("Lengths of spectra do not match")
+        else:
+            return NotImplemented
 
     def rebin(self, bins=None, Nbins=None):
         if bins is None:
