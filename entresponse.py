@@ -179,7 +179,7 @@ class ENTResponse(object):
 
         ent = []
         for ien in range(self.ent.shape[0]):
-            ent.append(bins.bin_fast(self.time, self.ent[ien,:]))
+            ent.append(bins.bin(self.time, self.ent[ien,:]))
         return ENTResponse(en_bins=self.en_bins, t=bins.bin_start, ent=np.array(ent), tstart=self.tstart)
 
     def rescale_time(self, mult=None, mass=None):
@@ -192,13 +192,20 @@ class ENTResponse(object):
         t = self.time * mult
         return ENTResponse(en_bins=self.en_bins, t=t, ent=self.ent, tstart=self.tstart)
 
+    def moving_average_energy(self, window_size=3):
+        window = np.ones(int(window_size)) / float(window_size)
+        ent_avg = np.zeros(self.ent.shape)
+        for it in range(self.ent.shape[1]):
+            ent_avg[...,it] = np.convolve(self.ent[...,it], window, 'same')
+        return ENTResponse(en_bins=self.en_bins, t=self.time, ent=ent_avg, tstart=self.tstart)
+
     def norm(self):
         norm_ent = self.ent / self.ent.sum()
 
         return ENTResponse(en_bins=self.en_bins, t=self.time, ent=norm_ent, logbin_en=self.logbin_en, tstart=self.tstart)
 
     def plot_image(self, vmin=None, vmax=None, mult_scale=True, cmap='gray_r', log_scale=True):
-        return ImagePlot(self.time, self.en_bins.bin_cent, self.ent, cmap=cmap, log_scale=log_scale, vmin=vmin, vmax=vmax, mult_scale=mult_scale, xlabel='Time / $GM\,c^{-3}$', ylabel='Energy / keV')
+        return ImagePlot(self.time, self.en_bins.bin_cent, self.ent, cmap=cmap, log_scale=log_scale, vmin=vmin, vmax=vmax, mult_scale=mult_scale, xlabel='Time / GM c$^{-3}$', ylabel='Energy / keV')
 
     def spectrum(self, time=None, index=False, from_start=True):
         if isinstance(time, tuple):
@@ -210,7 +217,7 @@ class ENTResponse(object):
         elif index:
             spec = np.array(self.ent[:, time])
         else:
-            ti = self.t_tindex(time, from_start)
+            ti = self.t_index(time, from_start)
             spec = np.array(self.ent[:, ti])
 
         return Spectrum(self.en_bins.bin_cent, spec)
