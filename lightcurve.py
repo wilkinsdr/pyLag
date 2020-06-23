@@ -120,7 +120,7 @@ class LightCurve(object):
         if trim:
             self.trim()
 
-    def read_fits(self, filename, byte_swap=True, add_tstart=False, time_col='TIME', rate_col='RATE', error_col='ERROR', hdu='RATE', inst=None):
+    def read_fits(self, filename, byte_swap=True, add_tstart=False, time_col='TIME', rate_col='RATE', error_col='ERROR', hdu='RATE', inst=None, bkg=False):
         """
         pylag.LightCurve.read_fits(filename)
 
@@ -158,6 +158,10 @@ class LightCurve(object):
                     self.time += tstart
                 except:
                     raise AssertionError("pyLag LightCurve ERROR: Could not read TSTART from FITS header")
+
+            if bkg:
+                self.bkg_rate = np.array(tabdata['BACKV'])
+                self.bkg_error = np.array(tabdata['BACKE'])
 
             fitsfile.close()
 
@@ -880,6 +884,16 @@ class LightCurve(object):
         lc_avg.__class__ = self.__class__
         return lc_avg
 
+    def resample_moving_average(self, window_size=3, num_resamples=10000):
+        resamples = []
+        for n in range(num_resamples):
+            resamples.append(self.resample_noise().moving_average(window_size))
+        r = self.moving_average(window_size).rate
+        e = np.std(np.array([l.rate for l in resamples]), axis=0)
+        resample_lc = LightCurve(t=self.time, r=r, e=e)
+        resample_lc.__class__ = self.__class__
+        return resample_lc
+
     def find_nearest(self, other, time_mode='matches'):
         if isinstance(other, LightCurve):
             idx = [np.abs(self.time - t).argmin() for t in other.time]
@@ -892,6 +906,16 @@ class LightCurve(object):
             return match_lc
         else:
             return NotImplemented
+
+    def add_bkg(self, to_self=False):
+        rsum = self.rate + self.bkg_rate
+        esum = np.sqrt(self.error**2 + self.bkg_error**2)
+        if to_self:
+            self.rate = rsum
+            self.error = esum
+        else:
+            return LightCurve(t=self.time, r=rsum, e=esum)
+
 
     def __add__(self, other):
         """
@@ -1633,6 +1657,21 @@ class EnergyLCList(object):
                 rate_list.append(np.sum(np.vstack([self.lclist[en][seg].rate for en in range(len(self.lclist))]), axis=0))
                 err_list.append(np.sqrt(rate_list[-1] / dt))
             return [LightCurve(t=t, r=r, e=e) for t, r, e in zip(time_list, rate_list, err_list)]
+
+    def resample_noise(self):
+        new_lclist = []
+
+        if isinstance(self.lclist[0], list):
+            for en_lclist in self.lclist:
+                new_lclist.append([])
+                for lc in en_lclist:
+                    new_lclist[-1].append(lc.resample_noise())
+
+        elif isinstance(self.lclist[0], LightCurve):
+            for lc in self.lclist:
+                new_lclist.append(lc.resample_noise())
+
+        return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
 
     def __getitem__(self, index):
         return self.lclist[index]
