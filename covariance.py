@@ -267,11 +267,13 @@ class CovarianceSpectrum(object):
     """
 
     def __init__(self, fmin, fmax, lclist=None, lcfiles='', interp_gaps=False, refband=None,
-                 bias=True):
+                 bias=True, resample_errors=False, n_samples=100):
         self.en = np.array([])
         self.en_error = np.array([])
         self.cov = np.array([])
         self.error = np.array([])
+
+        self.return_sed = True
 
         if lcfiles != '':
             lclist = EnergyLCList(lcfiles, interp_gaps=interp_gaps)
@@ -279,7 +281,10 @@ class CovarianceSpectrum(object):
         self.en = np.array(lclist.en)
         self.en_error = np.array(lclist.en_error)
 
-        if isinstance(lclist[0], LightCurve):
+        if resample_errors:
+            print("Constructing covariance spectrum from resampled light curves in %d energy bins" % len(lclist))
+            self.cov, self.error = self.calculate_resample(lclist, fmin, fmax, refband, self.en, bias, n_samples)
+        elif isinstance(lclist[0], LightCurve):
             print("Constructing covariance spectrum in %d energy bins" % len(lclist))
             self.cov, self.error = self.calculate(lclist.lclist, fmin, fmax, refband, self.en, bias=bias)
         elif isinstance(lclist[0], list) and isinstance(lclist[0][0], LightCurve):
@@ -438,6 +443,23 @@ class CovarianceSpectrum(object):
 
         return np.array(cov), np.array(error)
 
+    def calculate_resample(self, lclist, fmin, fmax, refband, energies, bias, n_samples):
+        cov = []
+        for n in range(n_samples):
+            this_lclist = lclist.resample_noise()
+            if isinstance(lclist[0], LightCurve):
+                this_cov, _ = self.calculate(this_lclist.lclist, fmin, fmax, refband, energies, bias)
+            elif isinstance(lclist[0], list) and isinstance(lclist[0][0], LightCurve):
+                this_cov, _ = self.calculate_stacked(this_lclist.lclist, fmin, fmax, refband, energies, bias)
+            cov.append(this_cov)
+
+        cov = np.array(cov)
+
+        cov_values = np.mean(cov, axis=0)
+        cov_errors = np.std(cov, axis=0)
+
+        return cov_values, cov_errors
+
     def calculate_sed(self):
         """
         sed, err = pylag.CovarianceSpectrum.calculate_sed()
@@ -537,7 +559,13 @@ class CovarianceSpectrum(object):
         return np.array(enmin) / 1000., np.array(enmax) / 1000., lclist
 
     def _getplotdata(self):
-        return (self.en, self.en_error), (self.sed, self.sed_error)
+        return (self.en, self.en_error), ((self.sed, self.sed_error) if self.return_sed else (self.cov, self.error))
 
     def _getplotaxes(self):
         return 'Energy / keV', 'log', 'Covariance', 'log'
+
+    def writeflx(self, filename):
+        data = [self.en - self.en_error, self.en + self.en_error, self.cov, self.error]
+        np.savetxt(filename, list(zip(*data)), fmt='%15.10g', delimiter=' ')
+
+
