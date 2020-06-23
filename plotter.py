@@ -151,7 +151,7 @@ class Plot(object):
     """
 
     def __init__(self, data_object=None, xdata=None, ydata=None, xscale='', yscale='', xlabel='',
-                 ylabel='', title='', series_labels=[], grid='minor', lines=False, errorbar=True, preset=None, show_plot=True):
+                 ylabel='', title='', series_labels=[], grid='minor', lines=False, errorbar=True, preset=None, figsize=None, show_plot=True):
         self._fig = None
         self._ax = None
 
@@ -169,6 +169,8 @@ class Plot(object):
         self._ytickformat = None
 
         self.errorbar = errorbar
+
+        self._figsize = figsize
 
         # variables to set plot formatting
         self._colour_series = ['k', 'b', 'g', 'r', 'c', 'm']
@@ -284,7 +286,7 @@ class Plot(object):
             self.close()
 
         # create a new figure window and axes
-        self._fig, self._ax = plt.subplots()
+        self._fig, self._ax = plt.subplots(figsize=self._figsize)
 
         # set log or linear scaling
         self._ax.set_xscale(self._xscale)
@@ -488,6 +490,7 @@ class Plot(object):
     tick_scale = property(_get_getter('_tick_scale'), _get_setter('_tick_scale'))
     xtickformat = property(_get_getter('_xtickformat'), _get_setter('_xtickformat'))
     ytickformat = property(_get_getter('_ytickformat'), _get_setter('_ytickformat'))
+    figsize = property(_get_getter('_figsize'), _get_setter('_figsize'))
 
 
 class ErrorRegionPlot(Plot):
