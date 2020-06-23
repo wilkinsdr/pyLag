@@ -283,3 +283,23 @@ class Fit(object):
     def write_fit(self, filename):
         outdata = [self._getfitdataseries(), self._getdataseries(), self._getratioseries()]
         write_multi_data(outdata, filename)
+
+    def run_mcmc(self, burn=100, steps=1000, thin=1, params=None, fit_range=None):
+        if isinstance(fit_range, tuple):
+            xmin, xmax = fit_range
+            xd = self.xdata[np.logical_and(self.xdata >= xmin, self.xdata < xmax)]
+            yd = self.ydata[np.logical_and(self.xdata >= xmin, self.xdata < xmax)]
+            ye = self.yerror[np.logical_and(self.xdata >= xmin, self.xdata < xmax)]
+        elif fit_range is None:
+            xd = self.xdata
+            yd = self.ydata
+            ye = self.yerror
+        else:
+            raise ValueError("pylag Fit perform_fit ERROR: Unexpected value for fit_range")
+
+        if params is None:
+                params = self.fit_result.params if self.fit_result is not None else self.parans
+
+        self.mcmc_result = lmfit.minimize(lambda params : self.statistic(params, xd, yd, ye, self.modelfn), params=params, method='emcee', burn=burn, steps=steps,
+                                     thin=thin)
+
