@@ -797,3 +797,16 @@ class SimLagEnergySpectrum(LagEnergySpectrum):
             self.lag, self.model_lag
             self.error = np.zeros(self.lag.shape)
             self.coh = None
+
+
+def convolve_spectrum(en1, spec1, en2, spec2, enbins):
+    spec = np.zeros_like(enbins.bin_cent)
+
+    for e1, s1 in zip(en1, spec1):
+        for e2, s2 in zip(en2, spec2):
+            en = e1 * e2
+            bin = enbins.bin_index(en)
+            if bin >= 0 and bin < len(spec):
+                spec[bin] += s1 * s2
+
+    return spec
