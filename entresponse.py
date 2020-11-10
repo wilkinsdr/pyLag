@@ -329,7 +329,7 @@ class ENTResponse(object):
             lclist.append(enlc)
         return SimEnergyLCList(enmin=self.en_bins.bin_start, enmax=self.en_bins.bin_end, lclist=lclist, base_lc=lc)
 
-    def convolve_spectrum(self, spectrum, enbins, binspec=None, **kwargs):
+    def convolve_spectrum(self, spectrum, enbins, binspec=None, line_en=6.4, **kwargs):
         spec = spectrum.spectrum(**kwargs)
 
         if binspec is not None:
@@ -337,7 +337,7 @@ class ENTResponse(object):
 
         ent_conv = np.zeros((len(enbins), self.ent.shape[1]))
         for i in range(self.ent.shape[1]):
-            ent_conv[:,i] = convolve_spectrum(spec.en, spec.spec, self.en_bins.bin_cent, self.ent[:,i], enbins)
+            ent_conv[:,i] = convolve_spectrum(spec.en, spec.spec, self.en_bins.bin_cent/line_en, self.ent[:,i], enbins)
         return ENTResponse(en_bins=enbins, t=self.time, ent=ent_conv, tstart=self.tstart)
 
     def write_fits(self, filename):

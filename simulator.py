@@ -14,6 +14,7 @@ from .plotter import DataSeries
 import numpy as np
 import scipy.fftpack
 import scipy.signal
+import scipy.stats
 
 
 def psd_powerlaw(freq, slope1, fbreak=None, slope2=None):
@@ -799,7 +800,7 @@ class SimLagEnergySpectrum(LagEnergySpectrum):
             self.coh = None
 
 
-def convolve_spectrum(en1, spec1, en2, spec2, enbins):
+def convolve_spectrum_slow(en1, spec1, en2, spec2, enbins):
     spec = np.zeros_like(enbins.bin_cent)
 
     for e1, s1 in zip(en1, spec1):
@@ -808,5 +809,14 @@ def convolve_spectrum(en1, spec1, en2, spec2, enbins):
             bin = enbins.bin_index(en)
             if bin >= 0 and bin < len(spec):
                 spec[bin] += s1 * s2
+
+    return spec
+
+
+def convolve_spectrum(en1, spec1, en2, spec2, enbins):
+    en = np.outer(en1, en2).flatten()
+    conv_points = np.outer(spec1, spec2).flatten()
+
+    spec, _, _ = scipy.stats.binned_statistic(en, conv_points, statistic='sum', bins=enbins.bin_edges)
 
     return spec
