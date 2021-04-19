@@ -295,7 +295,7 @@ class PDFSimLightCurve(SimLightCurve):
         ---------
         lc       : LightCurve
                    Input LightCurve from which the count rate PDF is to be estimated
-        nbins	 : int, optional (default=None)
+        Nbins	 : int, optional (default=None)
                    Number of bins to sample. If None, return the same number as in the
                    input light curve
         hist_bin : int, optional (default=100)
@@ -324,10 +324,27 @@ class PDFSimLightCurve(SimLightCurve):
     @staticmethod
     def calculate(lc, Nbins, psd_param, converge=1e-3, **kwargs):
         """
+        sample_rate = pylag.PDFSimLightCurve.calculate(lc, Nbins, psd_param, converge=1e-3, **kwargs)
 
-        :param dt:
-        :param N:
-        :return:
+        Perform the light curve calculation following Emanoulpoulos et al. 2013.
+
+        Arguments
+        ---------
+        lc        : LightCurve
+                    Input LightCurve from which the count rate PDF is to be estimated
+        Nbins	  : int, optional (default=None)
+                    Number of bins to sample. If None, return the same number as in the
+                    input light curve
+        psd_param : tuple, optional (default=(2.))
+                    Parameters for the PSD function for the Timmer and Konnig light curve
+                    calculation (by default, this is psd_powerlaw)
+        **kwargs  : additional agruments are passed to the SimLightCurve constructor
+                    for the Timmer and Konnig light curve calculation
+
+        Return Values
+        -------------
+        sample_rate : ndarray
+                      The sample count rate in each time bin
         """
         # generate a light curve with the desired PSD using the Timmer & Konnig method
         dt = lc.time[1] - lc.time[0]
