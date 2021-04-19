@@ -233,6 +233,26 @@ class SimLightCurve(LightCurve):
         return SimLightCurve(t=self.time, r=rate, e=error)
 
     def add_gaps(self, period, length, gap_value=0):
+        """
+        gap_lc = pylag.SimLightCurve.add_gaps(period, length, gap_value)
+
+        Add regular gaps to the light curve, each of [length] beginning every [period]
+
+        Arguments
+        ---------
+        period	  : float
+                    The time interval between the start of each gap
+                    (as measured on the time axis)
+        length    : float
+                    The length of each gap (measured on time axis)
+        gap_value : float, optional (default=0)
+                    The value to substitute in each gap
+
+        Return Values
+        -------------
+        gap_lc : SimLightCurve
+                 LightCurve with gaps inserted
+        """
         freq = 1. / period
         duty = (period - length) / period
 
@@ -246,6 +266,40 @@ class SimLightCurve(LightCurve):
         error[window < 0] = gap_value
 
         return SimLightCurve(t=self.time, r=rate, e=error)
+
+    def rescale(self, new_mean, new_std, gtzero=True):
+        """
+        scaled_lc = pylag.SimLightCurve.rescale(new_mean, new_std, gtzero=True)
+
+        Rescale the count rate to have the specified mean and standard deviation
+
+        Arguments
+        ---------
+        new_mean : float
+                   Mean count rate of the new light curve
+        new_std  : float
+                    Standard deviation of the new light curve
+        gtzero   : bool, optional (default=True)
+                   Ensure the count rate is positive in each bin and substitute
+                   negative bins with zero
+
+        Return Values
+        -------------
+        scaled_lc : SimLightCurve
+                    The scaled light curve
+        """
+        r = np.array(self.rate)
+        r -= np.mean(r)
+        r *= (new_std / np.std(r))
+        r += new_mean
+
+        if gtzero:
+            r[r < 0] = 0
+
+        # caluclate the error bar in each bin based on Poisson statistics
+        e = np.sqrt(r / (self.time[1] - self.time[0]))
+
+        return SimLightCurve(t=self.time, r=r, e=e)
 
 
 class PDFSimLightCurve(SimLightCurve):
@@ -273,13 +327,17 @@ class PDFSimLightCurve(SimLightCurve):
               Input LightCurve from which the count rate PDF is to be estimated
     plslope : float, optional (default=2.)
               Slope of the power law (P = f^-a) power spectral density
+
+    **kwargs are passed to calculate() method and can be used to pass arguments
+    to the SimLightCurve constructor, used for the Timmer and Konnig portion of
+    the calculation
     """
-    def __init__(self, lc, tmax=None, psd_param=(2)):
+    def __init__(self, lc, tmax=None, psd_param=(2), **kwargs):
         dt = lc.time[1] - lc.time[0]
         N = int(tmax / dt) if tmax is not None else len(lc.rate)
         t = dt * np.arange(N) if tmax is not None else lc.time
 
-        r = self.calculate(lc, N, psd_param)
+        r = self.calculate(lc, N, psd_param, **kwargs)
         e = np.sqrt(r) / np.sqrt(dt)
         LightCurve.__init__(self, t=t, r=r, e=e, zero_nan=False)
 
