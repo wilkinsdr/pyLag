@@ -248,6 +248,126 @@ class SimLightCurve(LightCurve):
         return SimLightCurve(t=self.time, r=rate, e=error)
 
 
+class PDFSimLightCurve(SimLightCurve):
+    """
+    pylag.PDFSimLightCurve
+
+    Class fcor simulating the observation of an X-ray light curve. Emulating both
+    a specified PSD and the probability density function (PDF) of an input
+    light curve, using th emethod of Emmanoulopoulos et al. 2013 (MNRAS 433, 907)
+
+    Once a random time series is generated, it is possible to add random noise by
+    drawing the measured photon count in each time bin from a Poisson distribution
+    using the add_noise() method.
+
+    Constructor: pylag.SimLightCurve(dt=10., tmax=1000., plslope=2.0, std=0.5,
+                                     lcmean=1.0, t=None, r=None, e=None, gtzero=True)
+
+    Constructor Arguments
+    ---------------------
+    dt      : float, optional (default=10.)
+              The time bin size, in seconds, in the generated light curve
+    tmax	: float, optional (default=1000.)
+              The length, in seconds, of the light curve
+    lc      : LightCurve
+              Input LightCurve from which the count rate PDF is to be estimated
+    plslope : float, optional (default=2.)
+              Slope of the power law (P = f^-a) power spectral density
+    """
+    def __init__(self, lc, tmax=None, psd_param=(2)):
+        dt = lc.time[1] - lc.time[0]
+        N = int(tmax / dt) if tmax is not None else len(lc.rate)
+        t = dt * np.arange(N) if tmax is not None else lc.time
+
+        r = self.calculate(lc, N, psd_param)
+        e = np.sqrt(r) / np.sqrt(dt)
+        LightCurve.__init__(self, t=t, r=r, e=e, zero_nan=False)
+
+    @staticmethod
+    def sample_lc_pdf(lc, Nbins=None, hist_bin=100):
+        """
+        sample_lc = pylag.PDFSimLightCurve.sample_lc_pdf(lc, tbins=None, hist_bin=100)
+
+        Draw a sample time series from the estimated probabiltiy density function (PDF)
+        of the count rates in an input light curve.
+
+        Arguments
+        ---------
+        lc       : LightCurve
+                   Input LightCurve from which the count rate PDF is to be estimated
+        nbins	 : int, optional (default=None)
+                   Number of bins to sample. If None, return the same number as in the
+                   input light curve
+        hist_bin : int, optional (default=100)
+                   Number of histogram bins when estimating the PDF
+
+        Return Values
+        -------------
+        sample_lc: SimLightCurve
+                   LightCurve object containing the simulated time series
+        """
+        # obtain the cumulative PDF of the light curve
+        lc_hist, lc_bins = np.histogram(lc.rate, bins=hist_bin, density=True)
+        lc_pdf = lc_hist / float(sum(lc_hist))
+        lc_cum_pdf = np.cumsum(lc_pdf)
+
+        N = Nbins if Nbins is not None else len(lc.rate)
+        dt = lc.time[1] - lc.time[0]
+        t = dt * np.arange(N) if Nbins is not None else lc.time
+
+        # inverse transform sampling to obtain a random series with the same PDF
+        R = np.random.uniform(0, 1, N)
+        pdf_sample = np.array([lc_bins[np.argwhere(lc_cum_pdf > r)[0, 0]] for r in R])
+
+        return SimLightCurve(t=t, r=pdf_sample, e=None)
+
+    @staticmethod
+    def calculate(lc, Nbins, psd_param, converge=1e-3, **kwargs):
+        """
+
+        :param dt:
+        :param N:
+        :return:
+        """
+        # generate a light curve with the desired PSD using the Timmer & Konnig method
+        dt = lc.time[1] - lc.time[0]
+        tc_lightcurve = SimLightCurve(dt, Nbins * dt, psd_param, 1., 0., gtzero=False, **kwargs)
+        _, tc_ft = tc_lightcurve.ft(all_freq=True)
+        # keep the amplitiude of its Fourier transform
+        A_norm = np.abs(tc_ft)
+
+        # sample the PDF of the input light curve
+        sample_lc = PDFSimLightCurve.sample_lc_pdf(lc, Nbins=Nbins)
+
+        niter = 0
+        converged = False
+        while not converged:
+            niter += 1
+
+            # get the phase of the Fou
+            _, sim_ft = sample_lc.ft(all_freq=True)
+            phi_sim = np.angle(sim_ft)
+            # replace the amplitude of the FT with that of the Timmer & Konnig light curve
+            sim_ft = A_norm * np.exp(1j * phi_sim)
+            # get the time series from its FFT (spectral adjustment)
+            r = np.real(scipy.fftpack.ifft(sim_ft))
+            # create new time series from the values of the PDF-sampled light curve
+            # ranked in the order of the spectally-adjusted light curve
+            # (amplitude adjustment)
+            r[np.argsort(r)] = sample_lc.rate[np.argsort(sample_lc.rate)]
+
+            # RMS deviation between this sample and the last
+            # for convergence test
+            rms = np.sqrt(np.mean((r - sample_lc.rate) ** 2 / r ** 2))
+
+            # go round the loop again, but use this ligth curve instead of the sample from the PDF
+            sample_lc.rate = r
+
+            if rms < converge:
+                break
+
+        return sample_lc.rate
+
 def resample_light_curves(lclist, resamples=1):
     """
     new_lclist = pylag.resample_light_curves(lclist, resamples=1)
