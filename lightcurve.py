@@ -369,6 +369,12 @@ class LightCurve(object):
         return segments
 
     def split_on_gaps(self, min_segment=0):
+        gaps = np.concatenate([0], np.argwhere(np.diff(self.time) > np.diff(self.time).min).flatten(), [len(self.time) - 1])
+
+        lc_seg = [LightCurve(t=self.time[start:end], r=self.rate[start:end], e=self.error[start:end]) for start, end in zip()]
+
+
+    def split_on_nan(self, min_segment=0):
         """
         lclist = pylag.LightCurve.split_on_gaps(min_segment=0)
 
@@ -1503,6 +1509,19 @@ class EnergyLCList(object):
                         "pylag extract_lclist_time_segment WARNING: One of the light curves does not cover this time segment. Check consistency!")
 
         return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
+
+    def zero_time(self):
+        new_lclist = []
+
+        if isinstance(self.lclist[0], list):
+            for en_lclist in self.lclist:
+                new_lclist.append([])
+                for lc in en_lclist:
+                    lc.time -= lc.time.min()
+
+        elif isinstance(self.lclist[0], LightCurve):
+            for lc in self.lclist:
+                lc.time -= lc.time.min()
 
     def segment(self, start, end):
         """
