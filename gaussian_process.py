@@ -180,6 +180,7 @@ class GPLightCurve(LightCurve):
                 else:
                     p = gp.log_marginal_likelihood(params)
             except ValueError:
+                print("ValueError for ", p)
                 p = -np.inf
             return p
 
