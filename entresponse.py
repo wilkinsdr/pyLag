@@ -304,17 +304,20 @@ class ENTResponse(object):
 
         return ImagePlot(fbins.bin_cent, self.en_bins.bin_cent, lagfreq.T, log_scale=False, vmin=lagfreq.min(), vmax=lagfreq.max(), mult_scale=False, xscale='log', yscale='log')
 
-    def energy_lc_list(self):
+    def energy_lc_list(self, pad=None):
         lclist = []
         for ien in range(len(self.en_bins)):
-            lclist.append(ImpulseResponse(t=self.time, r=self.ent[ien,:]))
+            if pad is not None:
+                lclist.append(ImpulseResponse(t=self.time, r=self.ent[ien, :]).pad(pad))
+            else:
+                lclist.append(ImpulseResponse(t=self.time, r=self.ent[ien,:]))
         return SimEnergyLCList(enmin=self.en_bins.bin_start, enmax=self.en_bins.bin_end, lclist=lclist)
 
-    def lag_energy_spectrum(self, fmin=None, fmax=None):
+    def lag_energy_spectrum(self, fmin=None, fmax=None, **kwargs):
         if fmin is None:
             fmin = 1./(2.*(self.time.max() - self.time.min()))
             fmax = 1./(2.*(self.time[1]-self.time[0]))
-        return LagEnergySpectrum(fmin, fmax, lclist=self.energy_lc_list(), calc_error=False)
+        return LagEnergySpectrum(fmin, fmax, lclist=self.energy_lc_list(**kwargs), calc_error=False)
 
     def simulate_lc_list(self, tmax, plslope, std, lcmean, add_noise=False, rebin_time=None, lc=None):
         lclist = []
