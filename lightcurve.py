@@ -504,7 +504,7 @@ class LightCurve(object):
             lc.__class__ = self.__class__
             return lc
 
-    def rebin(self, tbin):
+    def rebin_slow(self, tbin):
         """
         rebin_lc = pylag.LightCurve.rebin(tbin)
 
@@ -595,7 +595,7 @@ class LightCurve(object):
         binlc.__class__ = self.__class__
         return binlc
 
-    def rebin3(self, tbin=None, time=None):
+    def rebin(self, tbin=None, time=None):
         """
         rebin_lc = pylag.LightCurve.rebin3(tbin)
 
