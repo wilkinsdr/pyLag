@@ -22,6 +22,8 @@ Getting Started
 2) `import pylag`
 3) Make some cool discoveries!
 
+Introductory information and tutorials demonstrating the use of pyLag's functionality are available in the GitHub wiki.
+
 Keeping Up to Date
 ------------------
 pyLag gets updated regularly to provide new functionality (usually by adding new classes to do new types of calculation, or adding functions to existing classes). There are also occasional bug-fixes to existing functions, though only if absolutely necessary will an update change a way a function fundamentally operates. All changes are documented in the git log.
