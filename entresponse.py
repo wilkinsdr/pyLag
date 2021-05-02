@@ -326,7 +326,7 @@ class ENTResponse(object):
         for ien in range(len(self.en_bins)):
             enlc = self.time_response(index=ien).convolve(lc)
             if rebin_time is not None:
-                enlc = enlc.rebin3(rebin_time)
+                enlc = enlc.rebin(rebin_time)
             if add_noise:
                 enlc = enlc.add_noise()
             lclist.append(enlc)
