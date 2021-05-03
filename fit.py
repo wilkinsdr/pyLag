@@ -102,7 +102,7 @@ class Fit(object):
         if params is not None:
             self.params = params
         else:
-            self.params = self.model.params
+            self.params = self.model.get_params()
         self.statistic = statistic
 
         self.minimizer = None
@@ -139,6 +139,14 @@ class Fit(object):
             self.yerror = self.yerror[np.logical_not(np.isnan(self.yerror))]
 
     def _dofit(self, params, fit_range=None):
+        """
+        Internal function for running the minimizer. Returns the fit results so that we can do
+        something with them (e.g. for steppar)
+
+        :param params: Starting parameter
+        :param fit_range: Range of x values to include in the fit (if None, use all)
+        :return:
+        """
         if isinstance(fit_range, tuple):
             xmin, xmax = fit_range
             xd = self.xdata[np.logical_and(self.xdata >= xmin, self.xdata < xmax)]
