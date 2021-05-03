@@ -190,7 +190,7 @@ class ENTResponse(object):
         if mass is not None:
             mult = 6.67E-11 * mass * 2E30 / (3E8)**3
         t = self.time * mult
-        return ENTResponse(en_bins=self.en_bins, t=t, ent=self.ent, tstart=self.tstart)
+        return ENTResponse(en_bins=self.en_bins, t=t, ent=self.ent, tstart=self.tstart*mult)
 
     def moving_average_energy(self, window_size=3):
         window = np.ones(int(window_size)) / float(window_size)
