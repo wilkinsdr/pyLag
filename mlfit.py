@@ -936,7 +936,7 @@ class MLCovariance(object):
         print('-log(likelihood) = %g' % self.fit_stat)
         print()
 
-    def run_mcmc(self, params=None, burn=300, steps=1000, thin=1, walkers=50):
+    def run_mcmc(self, params=None, burn=300, steps=1000, thin=1, walkers=50, **kwargs):
         if params is None:
             if self.fit_params is not None:
                 params = self.fit_params
@@ -944,7 +944,7 @@ class MLCovariance(object):
                 params = self.params
 
         mcmc_result = lmfit.minimize(self.log_likelihood, params=params, method='emcee', burn=burn, steps=steps,
-                                     thin=thin, nwalkers=walkers, nan_policy='propagate')
+                                     thin=thin, nwalkers=walkers, nan_policy='propagate', **kwargs)
         self.mcmc_result = mcmc_result
         self.process_mcmc()
 
