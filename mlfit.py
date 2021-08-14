@@ -794,14 +794,14 @@ class CrossCovarianceMatrixModel(object):
     pylag.mlfit.CrossCovarianceMatrixModel
     """
     def __init__(self, autocorr_model, crosscorr_model, time1, time2, noise1=None, noise2=None, tshift=0, autocorr1_args={}, autocorr2_args={},
-                 crosscorr_args={}):
-        self.autocov_matrix1 = CovarianceMatrixModel(autocorr_model, time1, component_name='autocorr1',
+                 crosscorr_args={}, prefix=""):
+        self.autocov_matrix1 = CovarianceMatrixModel(autocorr_model, time1, component_name='%sautocorr1' % prefix,
                                                      model_args=autocorr1_args, noise=noise1)
-        self.autocov_matrix2 = CovarianceMatrixModel(autocorr_model, time2, component_name='autocorr2',
+        self.autocov_matrix2 = CovarianceMatrixModel(autocorr_model, time2, component_name='%sautocorr2' % prefix,
                                                      model_args=autocorr2_args, noise=noise2)
-        self.crosscov_matrix1 = CovarianceMatrixModel(crosscorr_model, time1, time2=time2, component_name='crosscorr',
+        self.crosscov_matrix1 = CovarianceMatrixModel(crosscorr_model, time1, time2=time2, component_name='%scrosscorr' % prefix,
                                                      model_args=crosscorr_args, noise=None)
-        self.crosscov_matrix2 = CovarianceMatrixModel(crosscorr_model, time2, time2=time1, component_name='crosscorr',
+        self.crosscov_matrix2 = CovarianceMatrixModel(crosscorr_model, time2, time2=time1, component_name='%scrosscorr' % prefix,
                                                      model_args=crosscorr_args, noise=None)
 
     def get_params(self, autocorr1_pars={}, autocorr2_pars={}, crosscorr_pars={}):
