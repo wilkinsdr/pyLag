@@ -944,7 +944,7 @@ class MLCovariance(object):
                 params = self.params
 
         mcmc_result = lmfit.minimize(self.log_likelihood, params=params, method='emcee', burn=burn, steps=steps,
-                                     thin=thin, nwalkers=walkers)
+                                     thin=thin, nwalkers=walkers, nan_policy='propagate')
         self.mcmc_result = mcmc_result
         self.process_mcmc()
 
