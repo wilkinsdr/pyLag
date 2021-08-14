@@ -6,6 +6,7 @@ Implement maximum likelihood determination of time lags among a series of light 
 v1.0 13/08/2021 - D.R. Wilkins
 """
 import lmfit
+import numpy as np
 
 from .mlfit import *
 
@@ -155,7 +156,9 @@ class LensMLCovariance(MLCovariance):
             else:
                 return -np.inf, np.zeros(len(params))
         else:
-            return np.sum([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance_a] + \
+            loglike = np.sum([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance_a] + \
                               [mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance_b] + \
                               [mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance_ab] + \
                               [mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance_ref])
+
+            return loglike if np.isfinite(loglike) else -np.inf
