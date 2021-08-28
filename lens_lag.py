@@ -156,9 +156,18 @@ class LensMLCovariance(MLCovariance):
             else:
                 return -np.inf, np.zeros(len(params))
         else:
-            loglike = np.sum([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance_a] + \
+            like = np.sum([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance_a] + \
                               [mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance_b] + \
                               [mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance_ab] + \
                               [mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance_ref])
 
-            return loglike if np.isfinite(loglike) else -np.inf
+            # print(like, np.isfinite(like))
+            #
+            # if not np.isfinite(like):
+            #     print(params)
+            #     print(np.sum([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance_a]))
+            #     print(np.sum([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance_b]))
+            #     print(np.sum([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance_ab]))
+            #     print(np.sum([mlc.log_likelihood(params, eval_gradient, delta) for mlc in self.ml_covariance_ref]))
+
+            return like if np.isfinite(like) else -np.inf
