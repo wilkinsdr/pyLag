@@ -369,7 +369,7 @@ class LightCurve(object):
         return segments
 
     def split_on_gaps(self, min_segment=0):
-        gaps = np.concatenate([0], np.argwhere(np.diff(self.time) > np.diff(self.time).min).flatten(), [len(self.time) - 1])
+        gaps = np.concatenate([0], np.argwhere(np.diff(self.time) > np.diff(self.time).min()).flatten(), [len(self.time) - 1])
 
         lc_seg = [LightCurve(t=self.time[start:end], r=self.rate[start:end], e=self.error[start:end]) for start, end in zip()]
 
@@ -714,6 +714,58 @@ class LightCurve(object):
             return freq
         else:
             return freq[:int(self.length / 2)]
+
+    def ft_uneven(self, freq=None, all_freq=False, ft_sign=-1):
+        """
+        freq, ft = pylag.LightCurve.ft()
+
+        Directly evaluate the discrete Fourier transform of an unevenly sampled light curve
+        using the algorithm of Scargle 1989, ApJ 343, 874
+
+        Note that time bins without data should be removed from the light curve before running this
+
+        Arguments
+        ---------
+        freq     : ndarray, optional (default=None)
+                   Array of (linear) frequencies at which the Fourier transform is to be evaluated
+                   If None, the Fourier transform will be evaluated at the default frequencies for an FFT
+        all_freq : boolean, optional (default=False)
+                   If True, include the negative frequencies
+        ft_sign  : integer, optional (default=-1)
+                   Sign of the exponent in the Fourier transform. -1 to be consistent
+
+        Return Values
+        -------------
+        freq : ndarray
+               The sample frequencies
+        ft   : ndarray
+               The Fourier transfrom of the light curve
+        """
+        if freq is None:
+            dt = np.min(np.diff(self.time))
+            freq = scipy.fftpack.fftfreq(int((self.time.max() - self.time.min()) / dt), d=dt)
+            if not all_freq:
+                freq = freq[:int(len(freq) / 2)]
+
+        csum = np.array([np.sum(np.cos(2. * 2*np.pi*f * self.time)) for f in freq[1:]])
+        ssum = np.array([np.sum(np.sin(2. * 2*np.pi*f * self.time)) for f in freq[1:]])
+        ftau = 0.5 * np.arctan2(ssum, csum)
+
+        sumr = np.array([np.sum(self.rate * np.cos(2*np.pi*f * self.time - tau)) for f, tau in zip(freq[1:], ftau)])
+        sumi = np.array([np.sum(self.rate * np.sin(2*np.pi*f * self.time - tau)) for f, tau in zip(freq[1:], ftau)])
+
+        scos2 = np.array([np.sum((np.cos(2*np.pi*f * self.time - tau)) ** 2) for f, tau in zip(freq[1:], ftau)])
+        ssin2 = np.array([np.sum((np.sin(2*np.pi*f * self.time - tau)) ** 2) for f, tau in zip(freq[1:], ftau)])
+
+        ft_real = (1. / np.sqrt(2.)) * sumr / np.sqrt(scos2)
+        ft_imag = ft_sign * (1. / np.sqrt(2.)) * sumi / np.sqrt(ssin2)
+        fphase = ftau - freq[1:] * np.min(self.time)
+
+        ft = np.zeros_like(freq, dtype=complex)
+        ft[0] = np.sum(self.rate) / np.sqrt(len(self.rate))
+        ft[1:] = (ft_real + 1j * ft_imag) * np.exp(1j * fphase)
+
+        return freq, ft
 
     def autocorr(self):
         """

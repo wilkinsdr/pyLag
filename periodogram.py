@@ -67,13 +67,13 @@ class Periodogram(object):
            from an input light curve)
     """
 
-    def __init__(self, lc=None, f=[], per=[], err=None, ferr=None, norm=True):
+    def __init__(self, lc=None, f=[], per=[], err=None, ferr=None, norm=True, **kwargs):
         if lc is not None:
             if not isinstance(lc, LightCurve):
                 raise ValueError(
                     "pyLag CrossSpectrum ERROR: Can only compute cross spectrum between two LightCurve objects")
 
-            self.freq, self.periodogram = self.calculate(lc, norm)
+            self.freq, self.periodogram = self.calculate(lc, norm, **kwargs)
 
         else:
             self.freq = np.array(f)
@@ -83,7 +83,7 @@ class Periodogram(object):
         self.freq_error = ferr
         self.error = err
 
-    def calculate(self, lc, norm=True):
+    def calculate(self, lc, norm=True, uneven=False, **kwargs):
         """
         pylag.Periodogram.calculate(lc, norm=True)
 
@@ -113,7 +113,11 @@ class Periodogram(object):
         else:
             psdnorm = 1
 
-        f, ft = lc.ft()
+        if uneven:
+            f, ft = lc.ft_uneven(**kwargs)
+        else:
+            f, ft = lc.ft()
+
         per = psdnorm * np.abs(ft) ** 2
         return f, per
 
@@ -274,10 +278,10 @@ class StackedPeriodogram(Periodogram):
               averaged over specified frequency ranges
     """
 
-    def __init__(self, lc_list, bins=None, calc_error=True):
+    def __init__(self, lc_list, bins=None, calc_error=True, **kwargs):
         self.periodograms = []
         for lc in lc_list:
-            self.periodograms.append(Periodogram(lc))
+            self.periodograms.append(Periodogram(lc, **kwargs))
 
         self.bins = bins
         freq = []

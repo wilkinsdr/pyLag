@@ -75,7 +75,7 @@ class Coherence(object):
            magnitude of the cross spectrum and periodograms
     """
 
-    def __init__(self, lc1=None, lc2=None, bins=None, fmin=None, fmax=None, bkg1=0., bkg2=0., bias=True):
+    def __init__(self, lc1=None, lc2=None, bins=None, fmin=None, fmax=None, bkg1=0., bkg2=0., bias=True, **kwargs):
         self.bkg1 = bkg1
         self.bkg2 = bkg2
 
@@ -95,9 +95,9 @@ class Coherence(object):
         # and periodograms and count the number of sample frequencies in either
         # the bins or specified range
         if isinstance(lc1, LightCurve) and isinstance(lc2, LightCurve):
-            self.cross_spec = CrossSpectrum(lc1, lc2)
-            self.per1 = Periodogram(lc1)
-            self.per2 = Periodogram(lc2)
+            self.cross_spec = CrossSpectrum(lc1, lc2, **kwargs)
+            self.per1 = Periodogram(lc1, **kwargs)
+            self.per2 = Periodogram(lc2, **kwargs)
             if bins is not None:
                 self.num_freq = lc1.bin_num_freq(bins)
                 # apply binning to cross spectrum and periodogram
@@ -113,9 +113,9 @@ class Coherence(object):
         # and periodograms and count the number of sample frequencies across all
         # the light curves
         elif isinstance(lc1, list) and isinstance(lc2, list):
-            self.cross_spec = StackedCrossSpectrum(lc1, lc2, bins)
-            self.per1 = StackedPeriodogram(lc1, bins, calc_error=False)
-            self.per2 = StackedPeriodogram(lc2, bins, calc_error=False)
+            self.cross_spec = StackedCrossSpectrum(lc1, lc2, bins, **kwargs)
+            self.per1 = StackedPeriodogram(lc1, bins, calc_error=False, **kwargs)
+            self.per2 = StackedPeriodogram(lc2, bins, calc_error=False, **kwargs)
             if bins is not None:
                 self.num_freq = np.zeros(bins.num)
 

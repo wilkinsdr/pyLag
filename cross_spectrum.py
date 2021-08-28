@@ -58,26 +58,30 @@ class CrossSpectrum(object):
 
     Constructor Arguments
     ---------------------
-    lc1  : LightCurve, optional (default=None)
-           pyLag LightCurve object for the primary or hard band (complex
-           conjugated during cross spectrum calculation)
-    lc2  : LightCurve, optional (default=None)
-           pyLag LightCurve object for the reference or soft band
-    f    : ndarray or list, optional (default=[])
-           If no light curve is specified, the sample frequency array can be
-           manually initialised using this array (used if storing the result
-           from an external calculation)
-    cs   : ndarray or list, optional (default=[])
-           If no light curve is specified, the cross spectrum can be manually
-           initialised using this array (used if storing the result from an
-           external calculation)
-    norm : boolean, optional (default=True)
-           If True, the calculated cross spectrum is normalised to be consistent
-           with the PSD normalisation (this only takes effect if the cross
-           spectrum is calculated from input light curves)
+    lc1    : LightCurve, optional (default=None)
+             pyLag LightCurve object for the primary or hard band (complex
+             conjugated during cross spectrum calculation)
+    lc2    : LightCurve, optional (default=None)
+             pyLag LightCurve object for the reference or soft band
+    f      : ndarray or list, optional (default=[])
+             If no light curve is specified, the sample frequency array can be
+             manually initialised using this array (used if storing the result
+             from an external calculation)
+    cs     : ndarray or list, optional (default=[])
+             If no light curve is specified, the cross spectrum can be manually
+             initialised using this array (used if storing the result from an
+             external calculation)
+    norm   : boolean, optional (default=True)
+             If True, the calculated cross spectrum is normalised to be consistent
+             with the PSD normalisation (this only takes effect if the cross
+             spectrum is calculated from input light curves)
+    uneven : boolean, optional (default=False)
+             True if the light curves have gaps or uneven time sampling. If True,
+             Fourier transforms will be directly evaluated using the method of
+             Scargle 1989 for unevenly sampled time series
     """
 
-    def __init__(self, lc1=None, lc2=None, f=[], cs=[], ferr=None, norm=True):
+    def __init__(self, lc1=None, lc2=None, f=[], cs=[], ferr=None, norm=True, **kwargs):
         if lc1 is not None and lc2 is not None:
             if not (isinstance(lc1, LightCurve) and isinstance(lc2, LightCurve)):
                 raise ValueError(
@@ -88,14 +92,14 @@ class CrossSpectrum(object):
                 #raise AssertionError(
                 #    "pyLag CrossSpectrum ERROR: Light curves must be the same length and have same time binning to compute cross spectrum")
 
-            self.freq, self.crossft = self.calculate(lc1, lc2, norm)
+            self.freq, self.crossft = self.calculate(lc1, lc2, norm, **kwargs)
 
         else:
             self.freq = np.array(f)
             self.crossft = np.array(cs)
             self.ferr = ferr
 
-    def calculate(self, lc1, lc2, norm=True):
+    def calculate(self, lc1, lc2, norm=True, uneven=False, **kwargs):
         """
         f, crossft = pylag.CrossSpectrum.calculate(lc1, lc2, norm=True)
 
@@ -134,8 +138,12 @@ class CrossSpectrum(object):
         else:
             crossnorm = 1
 
-        f1, ft1 = lc1.ft()
-        f2, ft2 = lc2.ft()
+        if uneven:
+            f1, ft1 = lc1.ft_uneven(**kwargs)
+            _, ft2 = lc2.ft_uneven(**kwargs)
+        else:
+            f1, ft1 = lc1.ft()
+            _, ft2 = lc2.ft()
 
         crossft = crossnorm * np.conj(ft1) * ft2
         return f1, crossft
@@ -324,10 +332,10 @@ class StackedCrossSpectrum(CrossSpectrum):
                averaged over specified frequency ranges
     """
 
-    def __init__(self, lc1_list, lc2_list, bins=None, norm=True):
+    def __init__(self, lc1_list, lc2_list, bins=None, norm=True, **kwargs):
         self.cross_spectra = []
         for lc1, lc2 in zip(lc1_list, lc2_list):
-            self.cross_spectra.append(CrossSpectrum(lc1, lc2, norm=norm))
+            self.cross_spectra.append(CrossSpectrum(lc1, lc2, norm=norm, **kwargs))
 
         self.bins = bins
 
