@@ -846,6 +846,7 @@ class MLCovariance(object):
         self.fit_params = None
         self.fit_stat = None
         self.mcmc_result = None
+        self.nest_result = None
 
     def log_likelihood(self, params, eval_gradient=False, delta=1e-3):
         c = self.cov_matrix.eval(params)
@@ -971,26 +972,69 @@ class MLCovariance(object):
             self.mcmc_result.maxprob_params[par].err_plus = quantiles[1] - self.mcmc_result.maxprob_params[par].value
             self.mcmc_result.maxprob_params[par].err_minus = self.mcmc_result.maxprob_params[par].value - quantiles[0]
 
-    def plot_corner(self, truths='median'):
-        try:
-            import corner
-        except ImportError:
-            raise AssertionError("plot_corner requires package corner to be installed")
+    def plot_corner(self, truths='median', source=None):
+        if source is None:
+            if self.nest_result is not None:
+                source = 'nest'
+            elif self.mcmc_result is not None:
+                source = 'mcmc'
+            else:
+                raise AssertionError("No results to produce corner plot from. Run run_mcmc or nested_sample first")
 
-        if self.mcmc_result is None:
-            raise AssertionError("Need to run MCMC first!")
-
-        if truths == 'median':
-            truth_values = [self.mcmc_result.params[p].value for p in self.mcmc_result.params if
-                            self.mcmc_result.params[p].vary]
-        elif truths == 'maxprob':
+        if source == 'mcmc':
             try:
-                truth_values = [self.mcmc_result.maxprob_params[p].value for p in self.mcmc_result.maxprob_params if
-                                self.mcmc_result.maxprob_params[p].vary]
-            except AttributeError:
-                raise AssertionError("To plot maximum likelihood truth values, need to run process_mcmc first")
+                import corner
+            except ImportError:
+                raise Import("plot_corner requires package corner to be installed")
 
-        corner.corner(self.mcmc_result.flatchain, labels=self.mcmc_result.var_names, truths=truth_values)
+            if self.mcmc_result is None:
+                raise Import("Need to run MCMC first!")
+
+            if truths == 'median':
+                truth_values = [self.mcmc_result.params[p].value for p in self.mcmc_result.params if
+                                self.mcmc_result.params[p].vary]
+            elif truths == 'maxprob':
+                try:
+                    truth_values = [self.mcmc_result.maxprob_params[p].value for p in self.mcmc_result.maxprob_params if
+                                    self.mcmc_result.maxprob_params[p].vary]
+                except AttributeError:
+                    raise AssertionError("To plot maximum likelihood truth values, need to run process_mcmc first")
+
+            corner.corner(self.mcmc_result.flatchain, labels=self.mcmc_result.var_names, truths=truth_values)
+
+        elif source == 'nest':
+            import ultranest.plot
+            ultranest.plot.cornerplot(result)
+
+    def nested_sample(self, params=None, prior_fn=None):
+        try:
+            import ultranest
+        except ImportError:
+            raise ImportError("nested_sample requires package ultranest to be installed")
+
+        if params is None:
+            if self.fit_params is not None:
+                params = self.fit_params
+            else:
+                params = self.params
+
+        var_params = [k for k in params.keys() if par[k].vary]
+
+        def loglike_fn(param_arr):
+            this_params = copy.copy(params)
+            for p, v in zip(var_params, param_arr):
+                this_params[p].value = v
+
+            return self.log_likelihood(this_params, eval_gradient=False)
+
+        if prior_fn is None:
+            def prior_fn(quantiles):
+                uniform_dist = lambda q, hi, lo: q * (hi - lo) + lo
+                return np.array([uniform_dist(q, params[p].max, params[p].min) for q, p in zip(quantiles, var_params)])
+
+        sampler = ultranest.ReactiveNestedSampler(var_params, loglike_fn, prior_fn)
+        self.nest_result = sampler.run()
+        sampler.print_results()
 
     def steppar(self, par, steps):
         if self.fit_params is not None:
