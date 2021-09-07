@@ -1018,7 +1018,7 @@ class MLCovariance(object):
             else:
                 params = self.params
 
-        var_params = [k for k in params.keys() if par[k].vary]
+        var_params = [k for k in params.keys() if params[k].vary]
 
         def loglike_fn(param_arr):
             this_params = copy.copy(params)
