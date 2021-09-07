@@ -1025,7 +1025,8 @@ class MLCovariance(object):
             for p, v in zip(var_params, param_arr):
                 this_params[p].value = v
 
-            return self.log_likelihood(this_params, eval_gradient=False)
+            loglike = self.log_likelihood(this_params, eval_gradient=False)
+            return loglike if np.isfinite(loglike) else 1e-100
 
         if prior_fn is None:
             def prior_fn(quantiles):
