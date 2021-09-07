@@ -1114,6 +1114,9 @@ class StackedMLCovariance(MLCovariance):
 
         self.minimizer = None
         self.fit_result = None
+        self.fit_params = None
+        self.mcmc_result = None
+        self.nest_result = None
 
     def log_likelihood(self, params, eval_gradient=False, delta=1e-3):
         # the likelihood is the product of the likelihood for the individual light curve pairs
