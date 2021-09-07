@@ -1006,7 +1006,7 @@ class MLCovariance(object):
             import ultranest.plot
             ultranest.plot.cornerplot(result)
 
-    def nested_sample(self, params=None, prior_fn=None):
+    def nested_sample(self, params=None, prior_fn=None, **kwargs):
         try:
             import ultranest
         except ImportError:
@@ -1034,7 +1034,7 @@ class MLCovariance(object):
                 return np.array([uniform_dist(q, params[p].max, params[p].min) for q, p in zip(quantiles, var_params)])
 
         sampler = ultranest.ReactiveNestedSampler(var_params, loglike_fn, prior_fn)
-        self.nest_result = sampler.run()
+        self.nest_result = sampler.run(**kwargs)
         sampler.print_results()
 
     def steppar(self, par, steps):
