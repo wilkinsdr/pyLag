@@ -379,7 +379,7 @@ class LightCurve(object):
         segs = [(start + 1, end + 1) for start, end in zip(gaps[:-1], gaps[1:])]
 
         t = np.array([0.5*(self.time[start] + self.time[end-1]) for start, end in segs])
-        new_dt = np.array([(self.time[end] - self.time[start]) for start, end in segs])
+        new_dt = np.array([(self.time[end-1] - self.time[start]) for start, end in segs])
 
         dt = np.diff(self.time).min()
         cts = np.array([np.sum(self.rate[start:end]) * dt for start, end in segs])
