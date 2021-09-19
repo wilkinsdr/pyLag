@@ -375,7 +375,7 @@ class LightCurve(object):
         lc_seg = [LightCurve(t=self.time[start:end], r=self.rate[start:end], e=self.error[start:end]) for start, end in segs]
 
     def bin_by_gaps(self):
-        gaps = np.concatenate([[-1], np.argwhere(np.diff(s.time) > np.diff(s.time).min()).flatten(), [len(s.time) - 1]])
+        gaps = np.concatenate([[-1], np.argwhere(np.diff(self.time) > np.diff(self.time).min()).flatten(), [len(self.time) - 1]])
         segs = [(start + 1, end + 1) for start, end in zip(gaps[:-1], gaps[1:])]
 
         t = np.array([0.5*(self.time[start] + self.time[end-1]) for start, end in segs])
