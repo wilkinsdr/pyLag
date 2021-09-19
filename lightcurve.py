@@ -381,13 +381,17 @@ class LightCurve(object):
         t = np.array([0.5*(self.time[start] + self.time[end-1]) for start, end in segs])
         new_dt = np.array([(self.time[end-1] - self.time[start]) for start, end in segs])
 
+        print(new_dt)
+
         dt = np.diff(self.time).min()
         cts = np.array([np.sum(self.rate[start:end]) * dt for start, end in segs])
         r = cts / new_dt
 
         e = np.sqrt(r) / np.sqrt(new_dt)
 
-        return LightCurve(t=t, r=r, e=e)
+        lc = LightCurve(t=t, r=r, e=e)
+        lc.time_error = new_dt / 2
+        return lc
 
     def split_on_nan(self, min_segment=0):
         """
