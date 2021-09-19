@@ -369,10 +369,25 @@ class LightCurve(object):
         return segments
 
     def split_on_gaps(self, min_segment=0):
-        gaps = np.concatenate([0], np.argwhere(np.diff(self.time) > np.diff(self.time).min()).flatten(), [len(self.time) - 1])
+        gaps = np.concatenate([[-1], np.argwhere(np.diff(s.time) > np.diff(s.time).min()).flatten(), [len(s.time) - 1]])
+        segs = [(start + 1, end + 1) for start, end in zip(gaps[:-1], gaps[1:])]
 
-        lc_seg = [LightCurve(t=self.time[start:end], r=self.rate[start:end], e=self.error[start:end]) for start, end in zip()]
+        lc_seg = [LightCurve(t=self.time[start:end], r=self.rate[start:end], e=self.error[start:end]) for start, end in segs]
 
+    def bin_by_gaps(self):
+        gaps = np.concatenate([[-1], np.argwhere(np.diff(s.time) > np.diff(s.time).min()).flatten(), [len(s.time) - 1]])
+        segs = [(start + 1, end + 1) for start, end in zip(gaps[:-1], gaps[1:])]
+
+        t = np.array([0.5*(self.time[start] + self.time[end-1]) for start, end in segs])
+        new_dt = np.array([(self.time[end] - self.time[start]) for start, end in segs])
+
+        dt = np.diff(self.time).min()
+        cts = np.array([np.sum(self.rate[start:end]) * dt for start, end in segs])
+        r = cts / new_dt
+
+        e = np.sqrt(r) / np.sqrt(new_dt)
+
+        return LightCurve(t=t, r=r, e=e)
 
     def split_on_nan(self, min_segment=0):
         """
