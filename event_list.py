@@ -128,9 +128,9 @@ class EventList(object):
         filt_y = self.y[tfilt]
         return EventList(time=filt_time, x=filt_x, y=filt_y, pha=filt_pha)
 
-    def bayesian_lightcurve(self, p0=0.01):
+    def bayesian_lightcurve(self, gamma=1):
         import astropy.stats.bayesian_blocks
-        bin_edges = astropy.stats.bayesian_blocks(self.time, fitness='events', p0=p0)
+        bin_edges = astropy.stats.bayesian_blocks(self.time, fitness='events', gamma=gamma)
         tcent = 0.5*(bin_edges[1:] + bin_edges[:-1])
         terr = tcent - bin_edges[:-1]
         bin_rate = np.array([np.sum(np.logical_and(self.time>=tstart, self.time<tend)) for tstart, tend in zip(bin_edges[:-1], bin_edges[1:])]).astype(float)
