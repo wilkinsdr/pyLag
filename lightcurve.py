@@ -991,6 +991,10 @@ class LightCurve(object):
         else:
             return LightCurve(t=self.time, r=rsum, e=esum)
 
+    def to_df(self):
+        import pandas as pd
+        df = pd.DataFrame({'time':self.time, 'rate':self.rate}).set_index('time')
+        return df
 
     def __add__(self, other):
         """
