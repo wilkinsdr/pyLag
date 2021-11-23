@@ -965,30 +965,54 @@ class SimLagFrequencySpectrum(LagFrequencySpectrum):
 
 
 class SimLagEnergySpectrum(LagEnergySpectrum):
-    def __init__(self, fmin, fmax, ent, rate, tbin=10, tmax=1E5, add_noise=True, sample_errors=True, nsamples=100, plslope=2,
-                 std=1., refband=None, bias=True, lc=None):
+    def __init__(self, fmin, fmax, ent, rate, tbin=10, tmax=1E5, nobs=1, add_noise=True, sample_errors=True,
+                 nsamples=100, plslope=2, std=1., refband=None, bias=True, lc=None):
         self.en = np.array(ent.en_bins.bin_cent)
         self.en_error = ent.en_bins.x_error()
 
-        lclist = ent.norm().simulate_lc_list(tmax, plslope, std*rate, rate, add_noise=(True if add_noise and not sample_errors else False), rebin_time=tbin, lc=lc)
+        if nobs == 1:
+            lclist = ent.norm().simulate_lc_list(tmax, plslope, std * rate, rate,
+                                                 add_noise=(True if add_noise and not sample_errors else False),
+                                                 rebin_time=tbin, lc=lc)
 
-        self.base_lc = lclist.base_lc
+            self.base_lc = lclist.base_lc
 
-        self.model_lag, _, _ = self.calculate(lclist.lclist, fmin, fmax, refband=refband, energies=self.en,
-                                        bias=False, calc_error=False)
+            self.model_lag, _, _ = self.calculate(lclist.lclist, fmin, fmax, refband=refband, energies=self.en,
+                                                  bias=False, calc_error=False)
+
+        else:
+            lclists = [ent.norm().simulate_lc_list(tmax, plslope, std * rate, rate,
+                                                 add_noise=(True if add_noise and not sample_errors else False),
+                                                 rebin_time=tbin, lc=lc) for n in range(nobs)]
+            lclist = stack_lclists(lclists)
+            self.base_lc = [l.base_lc for l in lclists]
+
+            self.model_lag, _, _ = self.calculate_stacked(lclist.lclist, fmin, fmax, refband=refband, energies=self.en,
+                                                  bias=False, calc_error=False)
 
         if add_noise and sample_errors:
             lags = []
             for i in range(nsamples):
-                sample_lag, _, _ = self.calculate(lclist.add_noise().lclist, fmin, fmax, refband=refband, energies=self.en, bias=False, calc_error=False)
+                if nobs == 1:
+                    sample_lag, _, _ = self.calculate(lclist.add_noise().lclist, fmin, fmax, refband=refband,
+                                                     energies=self.en, bias=False, calc_error=False)
+                else:
+                    sample_lag, _, _ = self.calculate_stacked(lclist.add_noise().lclist, fmin, fmax, refband=refband,
+                                                     energies=self.en, bias=False, calc_error=False)
                 lags.append(sample_lag)
             lags = np.vstack(lags)
             self.lag = np.mean(lags, axis=0)
             self.error = np.std(lags, axis=0)
             self.coh = None
         elif add_noise:
-            self.lag, self.error, self.coh = self.calculate(lclist.lclist, fmin, fmax, refband=refband, energies=self.en,
-                                       bias=bias, calc_error=True)
+            if nobs == 1:
+                self.lag, self.error, self.coh = self.calculate(lclist.lclist, fmin, fmax, refband=refband,
+                                                                energies=self.en,
+                                                                bias=bias, calc_error=True)
+            else:
+                self.lag, self.error, self.coh = self.calculate_stacked(lclist.lclist, fmin, fmax, refband=refband,
+                                                                energies=self.en,
+                                                                bias=bias, calc_error=True)
         else:
             self.lag, self.model_lag
             self.error = np.zeros(self.lag.shape)

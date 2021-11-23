@@ -995,6 +995,13 @@ class LightCurve(object):
         else:
             return LightCurve(t=self.time, r=rsum, e=esum)
 
+    def to_df(self, errors=False):
+        import pandas as pd
+        cols = {'time':self.time, 'rate':self.rate}
+        if errors:
+            cols['error'] = self.error
+        df = pd.DataFrame(cols).set_index('time')
+        return df
 
     def __add__(self, other):
         """
@@ -1876,6 +1883,27 @@ def sum_sim_lclists(lclist1, lclist2):
             lclist.append(lc1s + lc2s)
 
     return EnergyLCList(enmin=lclist1.enmin, enmax=lclist2.enmax, lclist=lclist)
+
+
+def stack_lclists(lclists):
+    """
+    Stack a list of EnergyLCLists into a single, EnergyLCList with multiple segments
+    """
+    enmin = lclists[0].enmin
+    enmax = lclists[0].enmax
+
+    stacked_list = [[] for n in range(len(lclists[0].lclist))]    # an empty list for each energy band
+    for l in lclists:
+        if isinstance(l.lclist[0], list):
+            for ien in range(len(l.lclist)):
+                stacked_list[ien] += l.lclist[ien]
+        elif isinstance(l.lclist[0], LightCurve):
+            for ien in range(len(l.lclist)):
+                stacked_list[ien].append(l.lclist[ien])
+
+    lcl = EnergyLCList(enmin=enmin, enmax=enmax, lclist=stacked_list)
+    lcl.__class__ = lclists[0].__class__
+    return lcl
 
 
 def extract_lclist_time_segment(lclist, tstart, tend):
