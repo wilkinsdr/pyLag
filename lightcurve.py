@@ -645,8 +645,12 @@ class LightCurve(object):
             time = np.arange(min(self.time), max(self.time)+tbin, tbin)
         else:
             tbin = np.diff(time)
-        counts = binned_statistic(self.time, self.dt*self.rate, statistic='sum', bins=time)[0]
-        rate = counts / tbin
+        counts, _, binid = binned_statistic(self.time, self.dt*self.rate, statistic='sum', bins=time)[0]
+
+        # count the number of original time bins in each new time bin for the efefctive exposure
+        num_in_bin = np.array([np.sum(binid == (i + 1)) for i in range(len(time))])
+
+        rate = counts / (self.dt*num_in_bin)
         err = rate * np.sqrt(counts) / counts
 
         binlc = LightCurve(t=time[:-1], r=rate, e=err)
