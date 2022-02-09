@@ -21,7 +21,7 @@ from scipy.stats import binned_statistic
 from scipy.interpolate import interp1d
 
 from .plotter import Spectrum
-
+from .util import printmsg
 
 class LightCurve(object):
     """
@@ -139,7 +139,7 @@ class LightCurve(object):
             hdu = 'LIGHTCURVE'
 
         try:
-            print("Reading light curve from " + filename)
+            printmsg(1, "Reading light curve from " + filename)
             fitsfile = pyfits.open(filename)
             tabdata = fitsfile[hdu].data
 
@@ -249,8 +249,8 @@ class LightCurve(object):
                         if gap_length > longest_gap:
                             longest_gap = gap_length
 
-        print("Patched %d gaps" % gap_count)
-        print("Longest gap was %d bins" % longest_gap)
+        printmsg(1, "Patched %d gaps" % gap_count)
+        printmsg(1, "Longest gap was %d bins" % longest_gap)
 
     def _zeronan(self):
         """
@@ -442,9 +442,9 @@ class LightCurve(object):
                     else:
                         short_count += 1
 
-        print("Split light curve into  %d good segments" % good_count)
+        printmsg(1, "Split light curve into  %d good segments" % good_count)
         if short_count > 0:
-            print("%d segments too short" % short_count)
+            printmsg(1, "%d segments too short" % short_count)
         return lclist
 
     def find_gaps(self):
@@ -484,12 +484,12 @@ class LightCurve(object):
 
                 # make sure we get the end of the light curve if it's good
                 elif i==len(self.rate)-1:
-                    print("got the end")
+                    printmsg(1, "got the end")
                     good_end = len(self.rate)
                     good_length.append(good_end - good_start)
 
-        print("Good segment lengths: ", good_length)
-        print("Gaps: ", gap_length)
+        printmsg(1, "Good segment lengths: ", good_length)
+        printmsg(1, "Gaps: ", gap_length)
 
     def remove_nan(self, to_self=False):
         t = self.time[np.logical_not(np.isnan(self.rate))]
@@ -545,7 +545,7 @@ class LightCurve(object):
         if tbin <= self.dt:
             raise ValueError("pylag LightCurve Rebin ERROR: Must rebin light curve into larger bins")
         if tbin % self.dt != 0:
-            print("pylag LightCurve Rebin WARNING: New time binning is not a multiple of the old")
+            printmsg(1, "pylag LightCurve Rebin WARNING: New time binning is not a multiple of the old")
 
         time = np.arange(min(self.time), max(self.time), tbin)
 
@@ -597,7 +597,7 @@ class LightCurve(object):
         if tbin <= self.dt:
             raise ValueError("pylag LightCurve Rebin ERROR: Must rebin light curve into larger bins")
         if tbin % self.dt != 0:
-            print("pylag LightCurve Rebin WARNING: New time binning is not a multiple of the old")
+            printmsg(1, "pylag LightCurve Rebin WARNING: New time binning is not a multiple of the old")
 
         time = np.arange(min(self.time), max(self.time), tbin)
 
@@ -1376,8 +1376,8 @@ def extract_sim_lightcurves(lc1, lc2):
     start = max([lc1.time.min(), lc2.time.min()])
     end = min([lc1.time.max(), lc2.time.max()])
 
-    print("Extracting simultaneous light curve portion from t=%g to %g" % (start, end))
-    print("Simultaneous portion length = %g" % (end - start))
+    printmsg(1, "Extracting simultaneous light curve portion from t=%g to %g" % (start, end))
+    printmsg(1, "Simultaneous portion length = %g" % (end - start))
 
     # extract the portion of eaach light curve from this range of times
     time1 = np.array([t for t in lc1.time if start <= t <= end])

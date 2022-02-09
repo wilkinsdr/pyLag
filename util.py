@@ -1,5 +1,20 @@
 from .lightcurve import *
 
+__PYLAG_CHATTER__ = 0
+
+
+def printmsg(level, *args):
+    global __PYLAG_CHATTER__
+    if level <= __PYLAG_CHATTER__:
+        print(*args)
+
+
+def chatter(level=None):
+    global __PYLAG_CHATTER__
+    if level is not None:
+        __PYLAG_CHATTER__ = level
+    return __PYLAG_CHATTER__
+
 
 def get_nustar_lclist(src_files_fpma='nu*A01_sr.lc', bkg_files_fpma='nu*A01_bk.lc', src_files_fpmb='nu*B01_sr.lc', bkg_files_fpmb='nu*B01_bk.lc', **kwargs):
     #

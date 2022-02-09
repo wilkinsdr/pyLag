@@ -17,7 +17,8 @@ from .binning import *
 from .plotter import *
 
 import numpy as np
-import matplotlib.pyplot as plt
+
+from .util import printmsg
 
 
 class LagFrequencySpectrum(object):
@@ -94,12 +95,12 @@ class LagFrequencySpectrum(object):
     @staticmethod
     def calculate(lc1, lc2, bins, calc_error=True, **kwargs):
         if isinstance(lc1, list) and isinstance(lc2, list):
-            print("Constructing lag-frequency spectrum from %d pairs of light curves" % len(lc1))
+            printmsg(1, "Constructing lag-frequency spectrum from %d pairs of light curves" % len(lc1))
             cross_spec = StackedCrossSpectrum(lc1, lc2, bins, **kwargs)
             if calc_error:
                 coh = Coherence(lc1, lc2, bins, **kwargs)
         elif isinstance(lc1, LightCurve) and isinstance(lc2, LightCurve):
-            print("Computing lag-frequency spectrum from pair of light curves")
+            printmsg(1, "Computing lag-frequency spectrum from pair of light curves")
             cross_spec = CrossSpectrum(lc1, lc2, **kwargs).bin(bins)
             if calc_error:
                 coh = Coherence(lc1, lc2, bins, **kwargs)

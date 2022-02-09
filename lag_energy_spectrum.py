@@ -20,6 +20,8 @@ import numpy as np
 import glob
 import re
 
+from .util import printmsg
+
 
 class LagEnergySpectrum(object):
     """
@@ -105,10 +107,10 @@ class LagEnergySpectrum(object):
         self.en_error = np.array(lclist.en_error)
 
         if isinstance(lclist[0], LightCurve):
-            print("Constructing lag energy spectrum in %d energy bins" % len(lclist))
+            printmsg(1, "Constructing lag energy spectrum in %d energy bins" % len(lclist))
             self.lag, self.error, self.coh = self.calculate(lclist.lclist, fmin, fmax, refband, self.en, bias, calc_error)
         elif isinstance(lclist[0], list) and isinstance(lclist[0][0], LightCurve):
-            print("Constructing lag energy spectrum from %d light curves in each of %d energy bins" % (
+            printmsg(1, "Constructing lag energy spectrum from %d light curves in each of %d energy bins" % (
                 len(lclist[0]), len(lclist)))
             self.lag, self.error, self.coh = self.calculate_stacked(lclist.lclist, fmin, fmax, refband, self.en, bias, calc_error)
 
