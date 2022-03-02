@@ -83,16 +83,19 @@ class ReverbModel(Model):
 
             # find the repsonse we need
             ix = np.argwhere(self.h == source_h)[0][0]
-            # scale the response
-            ent = self.line_resp[ix].rescale_time(mass=10. ** lgmass)
             # convolve with the reflection spectrum
-            ent = ent.convolve_spectrum(self.spec, self.conv_bins, binspec=self.spec_bin, Gamma=gamma, A_Fe=A_Fe, logXi=logxi, Incl=incl)
+            ent = self.line_resp[ix].convolve_spectrum(self.spec, self.conv_bins, binspec=self.spec_bin, Gamma=gamma, A_Fe=A_Fe, logXi=logxi, Incl=incl)
             # add the continuum emission (delta function at t=0)
             ent = ent.add_continuum(ent.tstart, gamma, reffrac)
             # rebin onto the required energy grid
             ent = ent.rebin_energy(self.en_bins)
+            # scale the response
+            ent = ent.rescale_time(mass=10. ** lgmass)
             # and calculate the lag-energy spectrum in the required frequency bin
-            lag = ent.lag_energy_spectrum(fmin, fmax, pad=100000).lag
+            if fmin>0:
+                lag = ent.lag_energy_spectrum(fmin, fmax, pad=100000).lag
+            else:
+                lag = ent.avg_arrival().spec
         else:
             #
             # if not, interpolate between the heights we have either side of the requested value
@@ -107,18 +110,24 @@ class ReverbModel(Model):
             frac_high = (source_h - self.h[ix_low]) / (self.h[ix_high] - self.h[ix_low])
 
             # get the lag-energy spectrum for the low end of the interpolation
-            ent = self.line_resp[ix_low].rescale_time(mass=10. ** lgmass)
-            ent = ent.convolve_spectrum(self.spec, self.conv_bins, binspec=self.spec_bin, Gamma=gamma, A_Fe=A_Fe, logXi=logxi, Incl=incl)
+            ent = self.line_resp[ix_low].convolve_spectrum(self.spec, self.conv_bins, binspec=self.spec_bin, Gamma=gamma, A_Fe=A_Fe, logXi=logxi, Incl=incl)
             ent = ent.add_continuum(ent.tstart, gamma, reffrac)
             ent = ent.rebin_energy(self.en_bins)
-            lag_low = ent.lag_energy_spectrum(fmin, fmax, pad=100000).lag
+            ent = ent.rescale_time(mass=10. ** lgmass)
+            if fmin>0:
+                lag_low = ent.lag_energy_spectrum(fmin, fmax, pad=100000).lag
+            else:
+                lag_low = ent.avg_arrival().spec
 
             # and the high end
-            ent = self.line_resp[ix_high].rescale_time(mass=10. ** lgmass)
-            ent = ent.convolve_spectrum(self.spec, self.conv_bins, binspec=self.spec_bin, Gamma=gamma, A_Fe=A_Fe, logXi=logxi, Incl=incl)
+            ent = self.line_resp[ix_high].convolve_spectrum(self.spec, self.conv_bins, binspec=self.spec_bin, Gamma=gamma, A_Fe=A_Fe, logXi=logxi, Incl=incl)
             ent = ent.add_continuum(ent.tstart, gamma, reffrac)
             ent = ent.rebin_energy(self.en_bins)
-            lag_high = ent.lag_energy_spectrum(fmin, fmax, pad=100000).lag
+            ent = ent.rescale_time(mass=10. ** lgmass)
+            if fmin > 0:
+                lag_high = ent.lag_energy_spectrum(fmin, fmax, pad=100000).lag
+            else:
+                lag_high = ent.avg_arrival().spec
 
             lag = frac_low * lag_low + frac_high * lag_high - offset
 
@@ -126,6 +135,6 @@ class ReverbModel(Model):
 
     def spectrum(self, params, x=0):
         lag = self.eval(params, x)
-        en = lagen_bins.bin_cent
-        en_error = lagen_bins.x_error
+        en = self.en_bins.bin_cent
+        en_error = self.en_bins.x_error
         return Spectrum(en=(en, en_error), spec=lag, ylabel='Lag', yscale='linear')
