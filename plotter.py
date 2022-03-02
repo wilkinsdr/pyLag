@@ -1205,3 +1205,28 @@ def txt_to_ds(filename, xcol=1, ycol=2, xerrcol=None, yerrcol=None, transpose=Fa
         ydata = dat[:,ycol-1]
 
     return DataSeries(x=xdata, y=ydata, **kwargs)
+
+
+class Histogram(DataSeries):
+    def __init__(self, x, bins=100, min=None, max=None, logbin=False, density=True):
+        if isinstance(b, Binning):
+            self.bins = bins
+        else:
+            if min is None:
+                min = np.min(x)
+            if max is None:
+                max = np.max(x)
+            self.bins = LogBinning(min, max, bins) if logbin else LinearBinning(min, max, bins)
+
+        self.hist, _ = np.histogram(x, bins=self.bins.bin_edges, density=density)
+
+    def _getplotdata(self):
+        if self.error is not None:
+            return self.en, (self.spec, self.error)
+        else:
+            return self.bins.bin_cent, self.hist
+
+    def _getplotaxes(self):
+        return self.xlabel, self.xscale, self.ylabel, self.yscale
+
+
