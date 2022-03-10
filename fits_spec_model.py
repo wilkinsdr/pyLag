@@ -1,6 +1,7 @@
 import numpy as np
 import astropy.io.fits as pyfits
 from .plotter import Spectrum
+from .util import printmsg
 
 class FITSSpecModel(object):
     def __init__(self, filename):
@@ -30,7 +31,7 @@ class FITSSpecModel(object):
         for p, v in kwargs.items():
             values[p] = v
 
-        print(values)
+        printmsg(1, values)
 
         # find the nearest tabulated value for each parameter
         param_num = [np.argmin(np.abs(tabvals - values[p])) for p, tabvals in zip(self.params, self.param_tab_vals)]
