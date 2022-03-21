@@ -292,7 +292,11 @@ class StackedPeriodogram(Periodogram):
         if bins is not None:
             freq = bins.bin_cent
             ferr = bins.x_error()
-            per, err = self.calculate(calc_error)
+            per, err = self.calculate_binned(calc_error)
+        else:
+            freq = self.periodograms[0].freq
+            ferr = np.zeros_like(freq)
+            per, err = self.calculate_stacked()
 
         Periodogram.__init__(self, f=freq, per=per, err=err, ferr=ferr)
 
@@ -332,9 +336,32 @@ class StackedPeriodogram(Periodogram):
 
         return np.array(per), np.array(err)
 
-    def calculate(self, calc_error=True):
+    def calculate_stacked(self):
         """
-        per, err = pylag.StackedPeriodogram.calculate()
+        per, err = pylag.StackedPeriodogram.calculate_stacked()
+
+        Calculates the average periodogram at in each frequency by stacking
+        the periodograms from the individual light curves. Requires input
+        light curves to have the same time binning and length.
+
+        Returns
+        -------
+        per : ndarray
+              The average periodogram in each frequency bin
+        err : ndarray
+              The standard error of the periodogram in each bin
+        """
+        try:
+            stacked_per = np.mean(np.vstack([p.periodogram for p in self.periodograms]), axis=0)
+            err = np.std(np.vstack([p.periodogram for p in self.periodograms]), axis=0)
+        except ValueError:
+            raise ValueError("pylag StackedPeriodogram ERROR: Input light curves must have same length and time binning.")
+
+        return stacked_per, err
+
+    def calculate_binned(self, calc_error=True):
+        """
+        per, err = pylag.StackedPeriodogram.calculate_binned()
 
         Calculates the average periodogram in each frequency bin. The final
         periodogram in each bin is the average over all of the individual
