@@ -15,6 +15,7 @@ from .lightcurve import *
 from .cross_spectrum import *
 from .periodogram import *
 from .binning import *
+from .util import printmsg
 
 import numpy as np
 import re
@@ -282,13 +283,13 @@ class CovarianceSpectrum(object):
         self.en_error = np.array(lclist.en_error)
 
         if resample_errors:
-            print("Constructing covariance spectrum from resampled light curves in %d energy bins" % len(lclist))
+            printmsg(1, "Constructing covariance spectrum from resampled light curves in %d energy bins" % len(lclist))
             self.cov, self.error = self.calculate_resample(lclist, fmin, fmax, refband, self.en, bias, n_samples)
         elif isinstance(lclist[0], LightCurve):
-            print("Constructing covariance spectrum in %d energy bins" % len(lclist))
+            printmsg(1, "Constructing covariance spectrum in %d energy bins" % len(lclist))
             self.cov, self.error = self.calculate(lclist.lclist, fmin, fmax, refband, self.en, bias=bias)
         elif isinstance(lclist[0], list) and isinstance(lclist[0][0], LightCurve):
-            print("Constructing covariance spectrum from %d light curves in each of %d energy bins" % (
+            printmsg(1, "Constructing covariance spectrum from %d light curves in each of %d energy bins" % (
                 len(lclist[0]), len(lclist)))
             self.cov, self.error = self.calculate_stacked(lclist.lclist, fmin, fmax, refband, self.en, bias=bias)
 
