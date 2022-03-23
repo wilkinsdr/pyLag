@@ -4,7 +4,7 @@ from .plotter import Spectrum
 from .util import printmsg
 
 class FITSSpecModel(object):
-    def __init__(self, filename):
+    def __init__(self, filename, interp=False):
         self.fits_file = pyfits.open(filename)
 
         self.en_low = np.array(self.fits_file['ENERGIES'].data['ENERG_LO'])
@@ -19,6 +19,10 @@ class FITSSpecModel(object):
         self.values = {}
         for p,v in zip(self.params, param_initial):
             self.values[p] = v
+
+        self.interpolator = None
+        if interp:
+            self.init_interpolator()
 
     def __del__(self):
         self.fits_file.close()
@@ -44,11 +48,17 @@ class FITSSpecModel(object):
         return spec_num
 
     def spectrum(self, energy=None, **kwargs):
-        spec_num = self.find_spec_num(**kwargs)
+        if self.interpolator is not None:
+            values = dict(self.values)
+            for p, v in kwargs.items():
+                values[p] = v
+
+            spec = self.interpolator([values[k] for k in values])[0]
+        else:
+            spec_num = self.find_spec_num(**kwargs)
+            spec = np.array(self.fits_file['SPECTRA'].data['INTPSPEC'][spec_num])
 
         en = self.energy
-        spec = np.array(self.fits_file['SPECTRA'].data['INTPSPEC'][spec_num])
-
         if energy is not None:
             imin = self.find_energy(energy[0])
             imax = self.find_energy(energy[1])
@@ -56,3 +66,12 @@ class FITSSpecModel(object):
             spec = spec[imin:imax]
 
         return Spectrum(en, spec, xscale='log', xlabel='Energy / keV', yscale='log', ylabel='Count Rate')
+
+    def init_interpolator(self):
+        from scipy.interpolate import RegularGridInterpolator
+
+        spec_array = np.array(self.fits_file['SPECTRA'].data['INTPSPEC'])
+        spec_array = spec_array.reshape(13, 4, 15, 11, 10, 2999)
+
+        vals = [np.trim_zeros(a, 'b') for a in self.param_tab_vals]
+        self.interpolator = RegularGridInterpolator(tuple(vals), spec_array)
