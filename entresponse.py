@@ -14,7 +14,7 @@ import numpy as np
 
 try:
     import astropy.io.fits as pyfits
-except:
+except ModuleNotFoundError:
     import pyfits
 
 import matplotlib.pyplot as plt
@@ -442,3 +442,34 @@ class ENTResponse(object):
 
         return self
 
+
+class ENTResponseSet(object):
+    def __init__(self, response_file):
+        try:
+            import h5py
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError('ENTResponseSet requires h5py to be installed')
+
+        with h5py.File(response_file) as hdf:
+            en0 = hdf['responses'].attrs['en0']
+            enmax = hdf['responses'].attrs['enmax']
+            Nen = hdf['responses'].attrs['Nen']
+            logbin_en = hdf['responses'].attrs['logbin_en']
+            self.en_bins = LogBinning(en0, enmax, Nen) if logbin_en else LinearBinning(en0, enmax, Nen)
+
+            t0 = hdf['responses'].attrs['t0']
+            dt = hdf['responses'].attrs['dt']
+            Nt = hdf['responses'].attrs['Nt']
+            self.time = t0 + dt * np.arange(0, Nt, 1)
+
+            self.heights = np.array(hdf['heights'])
+            self.incl = np.array(hdf['incl'])
+            self.tstart = np.array(hdf['tstart'])
+            self.responses = np.array(hdf['responses'])
+
+    def get_response(self, incl, h):
+        i_num = np.argmin(np.abs(self.incl - incl))
+        h_num = np.argmin(np.abs(self.heights - h))
+
+        return ENTResponse(en_bins=self.en_bins, t=self.time, ent=self.responses[i_num, h_num],
+                           logbin_en=self.logbin_en, tstart=self.tstart[i_num, h_num])
