@@ -92,6 +92,14 @@ class LightCurve(object):
                               Light curves must have the same length and time
                               binning.
 
+    LightCurve / LightCurve : Return the ratio of the count rates between two
+                              light curves in a new LightCurve object
+                              (e.g. for calculating hardness ratios).
+                              Fractional errors from the ERROR columns are combined in
+                              quadrature.
+                              Light curves must have the same length and time
+                              binning.
+
     """
 
     def __init__(self, filename=None, t=[], r=[], e=[], interp_gaps=False, zero_nan=True, trim=False, max_gap=0, **kwargs):
