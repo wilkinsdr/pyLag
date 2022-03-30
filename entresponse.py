@@ -987,8 +987,8 @@ class ENTResponseSet(object):
             en0 = hdf['responses'].attrs['en0']
             enmax = hdf['responses'].attrs['enmax']
             Nen = hdf['responses'].attrs['Nen']
-            logbin_en = hdf['responses'].attrs['logbin_en']
-            self.en_bins = LogBinning(en0, enmax, Nen) if logbin_en else LinearBinning(en0, enmax, Nen)
+            self.logbin_en = bool(hdf['responses'].attrs['logbin_en'])
+            self.en_bins = LogBinning(en0, enmax, Nen) if self.logbin_en else LinearBinning(en0, enmax, Nen)
 
             t0 = hdf['responses'].attrs['t0']
             dt = hdf['responses'].attrs['dt']
@@ -1006,3 +1006,39 @@ class ENTResponseSet(object):
 
         return ENTResponse(en_bins=self.en_bins, t=self.time, ent=self.responses[i_num, h_num],
                            logbin_en=self.logbin_en, tstart=self.tstart[i_num, h_num])
+
+
+class RadiusENTResponse(object):
+    def __init__(self, response_file):
+        try:
+            import h5py
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError('RadiusENTResponse requires h5py to be installed')
+
+        with h5py.File(response_file) as hdf:
+            en0 = hdf.attrs['en0']
+            enmax = hdf.attrs['enmax']
+            Nen = hdf.attrs['Nen']
+            self.logbin_en = bool(hdf.attrs['logbin_en'])
+            self.en_bins = LogBinning(en0, enmax, Nen) if self.logbin_en else LinearBinning(en0, enmax, Nen)
+
+            t0 = hdf.attrs['t0']
+            dt = hdf.attrs['dt']
+            Nt = hdf.attrs['Nt']
+            self.time = t0 + dt * np.arange(0, Nt, 1)
+
+            self.tstart = hdf.attrs['tstart']
+
+            r0 = hdf.attrs['r0']
+            r_max = hdf.attrs['r_max']
+            Nr = hdf.attrs['Nr']
+            logbin_r = hdf.attrs['logbin_r']
+            self.r_bins = LogBinning(r0, r_max, Nr) if logbin_r else LinearBinning(r0, r_max, Nr)
+
+            self.responses = hdf['radius_response']
+
+    def get_response(self, r):
+        r_num = self.r_bins.bin_index(r)
+
+        return ENTResponse(en_bins=self.en_bins, t=self.time, ent=self.responses[r_num],
+                           logbin_en=self.logbin_en, tstart=self.tstart)
