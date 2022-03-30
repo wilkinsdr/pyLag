@@ -983,7 +983,7 @@ class ENTResponseSet(object):
         except ModuleNotFoundError:
             raise ModuleNotFoundError('ENTResponseSet requires h5py to be installed')
 
-        hdf = h5py.File(response_file) as hdf:
+        hdf = h5py.File(response_file)
         en0 = hdf['responses'].attrs['en0']
         enmax = hdf['responses'].attrs['enmax']
         Nen = hdf['responses'].attrs['Nen']
