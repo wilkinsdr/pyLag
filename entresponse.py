@@ -983,22 +983,22 @@ class ENTResponseSet(object):
         except ModuleNotFoundError:
             raise ModuleNotFoundError('ENTResponseSet requires h5py to be installed')
 
-        hdf = h5py.File(response_file)
-        en0 = hdf['responses'].attrs['en0']
-        enmax = hdf['responses'].attrs['enmax']
-        Nen = hdf['responses'].attrs['Nen']
-        self.logbin_en = bool(hdf['responses'].attrs['logbin_en'])
-        self.en_bins = LogBinning(en0, enmax, Nen) if self.logbin_en else LinearBinning(en0, enmax, Nen)
+        with h5py.File(response_file) as hdf:
+            en0 = hdf['responses'].attrs['en0']
+            enmax = hdf['responses'].attrs['enmax']
+            Nen = hdf['responses'].attrs['Nen']
+            self.logbin_en = bool(hdf['responses'].attrs['logbin_en'])
+            self.en_bins = LogBinning(en0, enmax, Nen) if self.logbin_en else LinearBinning(en0, enmax, Nen)
 
-        t0 = hdf['responses'].attrs['t0']
-        dt = hdf['responses'].attrs['dt']
-        Nt = hdf['responses'].attrs['Nt']
-        self.time = t0 + dt * np.arange(0, Nt, 1)
+            t0 = hdf['responses'].attrs['t0']
+            dt = hdf['responses'].attrs['dt']
+            Nt = hdf['responses'].attrs['Nt']
+            self.time = t0 + dt * np.arange(0, Nt, 1)
 
-        self.heights = np.array(hdf['heights'])
-        self.incl = np.array(hdf['incl'])
-        self.tstart = np.array(hdf['tstart'])
-        self.responses = np.array(hdf['responses'])
+            self.heights = np.array(hdf['heights'])
+            self.incl = np.array(hdf['incl'])
+            self.tstart = np.array(hdf['tstart'])
+            self.responses = np.array(hdf['responses'])
 
     def get_response(self, incl, h):
         i_num = np.argmin(np.abs(self.incl - incl))
@@ -1015,27 +1015,27 @@ class RadiusENTResponse(object):
         except ModuleNotFoundError:
             raise ModuleNotFoundError('RadiusENTResponse requires h5py to be installed')
 
-        with h5py.File(response_file) as hdf:
-            en0 = hdf.attrs['en0']
-            enmax = hdf.attrs['enmax']
-            Nen = hdf.attrs['Nen']
-            self.logbin_en = bool(hdf.attrs['logbin_en'])
-            self.en_bins = LogBinning(en0, enmax, Nen) if self.logbin_en else LinearBinning(en0, enmax, Nen)
+        hdf = h5py.File(response_file)
+        en0 = hdf.attrs['en0']
+        enmax = hdf.attrs['enmax']
+        Nen = hdf.attrs['Nen']
+        self.logbin_en = bool(hdf.attrs['logbin_en'])
+        self.en_bins = LogBinning(en0, enmax, Nen) if self.logbin_en else LinearBinning(en0, enmax, Nen)
 
-            t0 = hdf.attrs['t0']
-            dt = hdf.attrs['dt']
-            Nt = hdf.attrs['Nt']
-            self.time = t0 + dt * np.arange(0, Nt, 1)
+        t0 = hdf.attrs['t0']
+        dt = hdf.attrs['dt']
+        Nt = hdf.attrs['Nt']
+        self.time = t0 + dt * np.arange(0, Nt, 1)
 
-            self.tstart = hdf.attrs['tstart']
+        self.tstart = hdf.attrs['tstart']
 
-            r0 = hdf.attrs['r0']
-            r_max = hdf.attrs['r_max']
-            Nr = hdf.attrs['Nr']
-            logbin_r = hdf.attrs['logbin_r']
-            self.r_bins = LogBinning(r0, r_max, Nr) if logbin_r else LinearBinning(r0, r_max, Nr)
+        r0 = hdf.attrs['r0']
+        r_max = hdf.attrs['r_max']
+        Nr = hdf.attrs['Nr']
+        logbin_r = hdf.attrs['logbin_r']
+        self.r_bins = LogBinning(r0, r_max, Nr) if logbin_r else LinearBinning(r0, r_max, Nr)
 
-            self.responses = hdf['radius_response']
+        self.responses = hdf['radius_response']
 
     def get_response(self, r):
         r_num = self.r_bins.bin_index(r)
