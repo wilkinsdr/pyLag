@@ -998,7 +998,7 @@ class ENTResponseSet(object):
         self.heights = np.array(hdf['heights'])
         self.incl = np.array(hdf['incl'])
         self.tstart = np.array(hdf['tstart'])
-        self.responses = np.array(hdf['responses'])`
+        self.responses = np.array(hdf['responses'])
 
     def get_response(self, incl, h):
         i_num = np.argmin(np.abs(self.incl - incl))
