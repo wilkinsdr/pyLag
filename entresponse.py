@@ -1067,9 +1067,12 @@ class RadiusENTResponse(object):
         xi[xi < xi_vals.min()] = xi_vals.min()
         xi[xi > xi_vals.max()] = xi_vals.max()
 
+        # note we use the normalised rest-frame reflection spectra and assume the photon count per
+        # radial bin comes from the response functions
+
         r_ent = [ENTResponse(en_bins=self.en_bins, t=self.time, ent=self.responses[r_num],
                            logbin_en=self.logbin_en, tstart=self.tstart).convolve_spectrum(spectrum,
-                               enbins, binspec, self.line_en, logXi=x, **kwargs) for r_num, x in enumerate(xi)]
+                               enbins, binspec, self.line_en, norm_spec=True, logXi=x, **kwargs) for r_num, x in enumerate(xi)]
 
         return np.sum(r_ent)
 

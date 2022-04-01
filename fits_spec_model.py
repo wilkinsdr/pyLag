@@ -54,7 +54,7 @@ class FITSSpecModel(object):
 
         return spec_num
 
-    def spectrum(self, energy=None, **kwargs):
+    def spectrum(self, energy=None, norm_spec=False, **kwargs):
         if self.interpolator is not None:
             values = dict(self.values)
             for p, v in kwargs.items():
@@ -64,6 +64,9 @@ class FITSSpecModel(object):
         else:
             spec_num = self.find_spec_num(**kwargs)
             spec = np.array(self.spectra[spec_num])
+
+        if norm_spec:
+            spec /= np.sum(spec)
 
         en = self.energy
         if energy is not None:
