@@ -4,7 +4,7 @@ from .plotter import Spectrum
 from .util import printmsg
 
 class FITSSpecModel(object):
-    def __init__(self, filename, interp=False):
+    def __init__(self, filename, bins=None, interp=False):
         self.fits_file = pyfits.open(filename)
 
         self.en_low = np.array(self.fits_file['ENERGIES'].data['ENERG_LO'])
@@ -15,10 +15,17 @@ class FITSSpecModel(object):
         self.param_num_vals = tuple(self.fits_file['PARAMETERS'].data['NUMBVALS'])
         self.param_tab_vals = tuple(self.fits_file['PARAMETERS'].data['VALUE'])
 
+        # initially, spectra is a pointer to the table column in the FITS file
+        # but we can replace it with a numpy array, e.g. if we rebin
+        self.spectra = self.fits_file['SPECTRA'].data['INTPSPEC']
+
         param_initial = tuple(self.fits_file['PARAMETERS'].data['INITIAL'])
         self.values = {}
         for p,v in zip(self.params, param_initial):
             self.values[p] = v
+
+        if bins is not None:
+            self.rebin(bins)
 
         self.interpolator = None
         if interp:
@@ -56,7 +63,7 @@ class FITSSpecModel(object):
             spec = self.interpolator([values[k] for k in values])[0]
         else:
             spec_num = self.find_spec_num(**kwargs)
-            spec = np.array(self.fits_file['SPECTRA'].data['INTPSPEC'][spec_num])
+            spec = np.array(self.spectra[spec_num])
 
         en = self.energy
         if energy is not None:
@@ -67,10 +74,19 @@ class FITSSpecModel(object):
 
         return Spectrum(en, spec, xscale='log', xlabel='Energy / keV', yscale='log', ylabel='Count Rate')
 
+    def rebin(self, en_bins):
+        binspec = np.zeros((self.spectra.shape[0], len(en_bins)))
+        for i in range(self.spectra.shape[0]):
+            binspec[i, :] = en_bins.bin(self.energy, self.spectra[i])
+        self.spectra = binspec
+        self.energy = en_bins.bin_cent
+        self.en_low = en_bins.bin_start
+        self.en_high = en_bins.bin_end
+
     def init_interpolator(self):
         from scipy.interpolate import RegularGridInterpolator
 
-        spec_array = np.array(self.fits_file['SPECTRA'].data['INTPSPEC'])
+        spec_array = np.array(self.spectra)
         spec_array = spec_array.reshape(13, 4, 15, 11, 10, 2999)
 
         vals = [np.trim_zeros(a, 'b') for a in self.param_tab_vals]
