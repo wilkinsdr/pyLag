@@ -31,35 +31,7 @@ class Model(object):
         raise AssertionError("I should be overriden")
 
 
-def broken_pl_model(params, x):
-    norm = params['norm'].value
-    slope1 = params['slope1'].value
-    xbreak = params['xbreak'].value
-    slope2 = params['slope2'].value
 
-    func = np.zeros(x.shape)
-    func[x <= xbreak] = norm * x[x <= xbreak] ** -slope1
-    func[x > xbreak] = norm * xbreak ** (slope2 - slope1) * x[x > xbreak] ** -slope2
-    return func
-
-def broken_pl_plus_const_model(params, x):
-    norm = params['norm'].value
-    slope1 = params['slope1'].value
-    xbreak = params['xbreak'].value
-    slope2 = params['slope2'].value
-    const = params['const'].value
-
-    func = np.zeros(x.shape)
-    func[x <= xbreak] = norm * x[x <= xbreak] ** -slope1 + const
-    func[x > xbreak] = norm * xbreak ** (slope2 - slope1) * x[x > xbreak] ** -slope2 + const
-    return func
-
-def gaussian_model(params, x):
-    norm = params['norm'].value
-    mu = params['mu'].value
-    sigma = params['sigma'].value
-
-    return norm * np.exp((-(x - mu)**2) / (2*sigma**2)) / np.sqrt(2*np.pi*sigma**2)
 
 class LinearModel(Model):
     def get_params(self, slope=1., intercept=0.):
