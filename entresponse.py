@@ -1091,3 +1091,7 @@ class RadiusENTResponse(object):
             bins = LogBinning(self.en_bins.min(), self.en_bins.max(), Nen)
 
         rebin_responses = np.zeros((self.responses.shape[0], len(bins), self.responses.shape[2]))
+        for i in range(self.responses.shape[0]):
+            for k in range(self.responses.shape[2]):
+                rebin_responses[i,:,k] = bins.bin(self.en_bins.bin_cent, self.responses[i,:,k], statistic='sum')
+        self.responses = rebin_responses
