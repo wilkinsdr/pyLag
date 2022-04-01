@@ -79,7 +79,7 @@ class Binning(object):
 
         return np.array(binned)
 
-    def bin_fast(self, x, y):
+    def bin_fast(self, x, y, statistic='mean'):
         """
         binned = pylag.Binning.bin_fast(x, y)
 
@@ -101,10 +101,10 @@ class Binning(object):
                  The mean value in each bin
 
         """
-        binned,_,_ = binned_statistic(x, y, statistic='mean', bins=self.bin_edges)
+        binned,_,_ = binned_statistic(x, y, statistic=statistic, bins=self.bin_edges)
         return binned
 
-    def bin_fast_complex(self, x, y):
+    def bin_fast_complex(self, x, y, statistic='mean'):
         """
         binned = pylag.Binning.bin_fast(x, y)
 
@@ -129,12 +129,12 @@ class Binning(object):
         real = y.real
         imag = y.imag
 
-        real_binned, _, _ = binned_statistic(x, real, statistic='mean', bins=self.bin_edges)
-        imag_binned, _, _ = binned_statistic(x, imag, statistic='mean', bins=self.bin_edges)
+        real_binned, _, _ = binned_statistic(x, real, statistic=statistic, bins=self.bin_edges)
+        imag_binned, _, _ = binned_statistic(x, imag, statistic=statistic, bins=self.bin_edges)
         binned = np.array([np.complex(r, i) for r, i in zip(real_binned, imag_binned)])
         return binned
 
-    def bin(self, x, y):
+    def bin(self, x, y, statistic='mean'):
         """
         binned = pylag.Binning.bin(x, y)
 
@@ -155,9 +155,9 @@ class Binning(object):
 
         """
         if y.dtype == 'complex' or y.dtype == 'complex64' or y.dtype == 'complex128':
-            return self.bin_fast_complex(x, y)
+            return self.bin_fast_complex(x, y, statistic=statistic)
         else:
-            return self.bin_fast(x, y)
+            return self.bin_fast(x, y, statistic=statistic)
 
     def binned_statistic(self, x, y, stat='sum'):
         """
