@@ -1086,6 +1086,11 @@ class RadiusENTResponse(object):
                 rebin_responses[i,j,:] = bins.bin(self.time, self.responses[i,j,:])
         self.responses = rebin_responses
 
+        self.dt = bins.bin_end[0] = bins.bin_start[0]
+        self.t0 = bins.bin_start[0]
+        self.Nt = len(bins)
+        self.time = bins.bin_start
+
     def rebin_energy(self, bins=None, Nen=None):
         if bins is None:
             bins = LogBinning(self.en_bins.min(), self.en_bins.max(), Nen)
@@ -1095,3 +1100,6 @@ class RadiusENTResponse(object):
             for k in range(self.responses.shape[2]):
                 rebin_responses[i,:,k] = bins.bin(self.en_bins.bin_cent, self.responses[i,:,k], statistic='sum')
         self.responses = rebin_responses
+
+        self.en_bins = bins
+        self.logbin_en = isinstance(bins, LogBinning)
