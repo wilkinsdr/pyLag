@@ -405,7 +405,7 @@ class ENTResponse(object):
 
         ent = []
         for ien in range(self.ent.shape[0]):
-            ent.append(bins.bin(self.time, self.ent[ien,:]))
+            ent.append(bins.bin(self.time, self.ent[ien,:], statistic='sum'))
         return ENTResponse(en_bins=self.en_bins, t=bins.bin_start, ent=np.array(ent), tstart=self.tstart)
 
     def rescale_time(self, mult=None, mass=None):
@@ -1073,3 +1073,21 @@ class RadiusENTResponse(object):
 
         return np.sum(r_ent)
 
+    def rebin_time(self, bins=None, dt=None, Nt=None):
+        if bins is None:
+            if dt is not None:
+                bins = LinearBinning(self.time.min(), self.time.max(), step=dt)
+            if Nt is not None:
+                bins = LinearBinning(self.time.min(), self.time.max(), num=Nt)
+
+        rebin_responses = np.zeros((self.responses.shape[0], self.responses.shape[1], len(bins)))
+        for i in range(self.responses.shape[0]):
+            for j in range(self.responses.shape[1]):
+                rebin_responses[i,j,:] = bins.bin(self.time, self.responses[i,j,:])
+        self.responses = rebin_responses
+
+    def rebin_energy(self, bins=None, Nen=None):
+        if bins is None:
+            bins = LogBinning(self.en_bins.min(), self.en_bins.max(), Nen)
+
+        rebin_responses = np.zeros((self.responses.shape[0], len(bins), self.responses.shape[2]))
