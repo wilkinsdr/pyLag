@@ -24,6 +24,8 @@ from scipy.stats import binned_statistic
 from .binning import *
 from .plotter import Spectrum
 
+from .math_functions import *
+
 
 def weighted_std(values, weights):
     """
@@ -1028,6 +1030,7 @@ class RadiusENTResponse(object):
         self.time = t0 + dt * np.arange(0, Nt, 1)
 
         self.tstart = hdf.attrs['tstart']
+        self.line_en = hdf.attrs['line_en']
 
         r0 = hdf.attrs['r0']
         r_max = hdf.attrs['r_max']
@@ -1042,3 +1045,31 @@ class RadiusENTResponse(object):
 
         return ENTResponse(en_bins=self.en_bins, t=self.time, ent=self.responses[r_num],
                            logbin_en=self.logbin_en, tstart=self.tstart)
+
+    def response_list(self):
+        return [ENTResponse(en_bins=self.en_bins, t=self.time, ent=resp,
+                           logbin_en=self.logbin_en, tstart=self.tstart) for resp in self.responses]
+
+    def sum_radii(self, r_min, r_max):
+        r_min_num = self.r_bins.bin_index(r_min)
+        r_max_num = self.r_bins.bin_index(r_max)
+
+        ent_sum = np.sum(self.responses[r_min_num:r_max_num+1], axis=0)
+
+        return ENTResponse(en_bins=self.en_bins, t=self.time, ent=ent_sum,
+                           logbin_en=self.logbin_en, tstart=self.tstart)
+
+    def convolve_iongrad_spectra(self, spectrum, enbins, binspec=None, ion_func=powerlaw, ion_args=None, **kwargs):
+        r = self.r_bins.bin_cent
+        xi = np.log10(ion_func(r, **ion_args))
+
+        xi_vals = np.trim_zeros(spectrum.param_tab_vals[spectrum.params.index('logXi')], 'b')
+        xi[xi < xi_vals.min()] = xi_vals.min()
+        xi[xi > xi_vals.max()] = xi_vals.max()
+
+        r_ent = [ENTResponse(en_bins=self.en_bins, t=self.time, ent=self.responses[r_num],
+                           logbin_en=self.logbin_en, tstart=self.tstart).convolve_spectrum(spectrum,
+                               enbins, binspec, self.line_en, logXi=x, **kwargs) for r_num, x in enumerate(xi)]
+
+        return np.sum(r_ent)
+
