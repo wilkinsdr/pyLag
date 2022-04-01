@@ -377,7 +377,7 @@ class ENTResponse(object):
             ent.append(np.sum(self.ent[enstarti:enendi,:], axis=0))
         return ENTResponse(en_bins=bins, t=self.time, ent=np.array(ent), tstart=self.tstart)
 
-    def rebin_time(self, bins=None, dt=None, Nt=None):
+    def rebin_time(self, bins=None, dt=None, Nt=None, statistic='mean'):
         """
         ent = pylag.ENTResponse.rebin_time(bins=None, dt=None, Nt=None)
 
@@ -405,7 +405,7 @@ class ENTResponse(object):
 
         ent = []
         for ien in range(self.ent.shape[0]):
-            ent.append(bins.bin(self.time, self.ent[ien,:], statistic='sum'))
+            ent.append(bins.bin(self.time, self.ent[ien,:], statistic=statistic))
         return ENTResponse(en_bins=self.en_bins, t=bins.bin_start, ent=np.array(ent), tstart=self.tstart)
 
     def rescale_time(self, mult=None, mass=None):
