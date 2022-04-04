@@ -1095,3 +1095,52 @@ class RadiusENTResponse(object):
 
         self.en_bins = bins
         self.logbin_en = isinstance(bins, LogBinning)
+
+    def convolve_iongrad_spectra(self, spectrum, enbins, binspec=None, ion_func=powerlaw, ion_args=None, **kwargs):
+        r = self.r_bins.bin_cent
+        xi = np.log10(ion_func(r, **ion_args))
+
+        try:
+            xi_vals = np.trim_zeros(spectrum.param_tab_vals[spectrum.params.index('logXi')], 'b')
+            xi[xi < xi_vals.min()] = xi_vals.min()
+            xi[xi > xi_vals.max()] = xi_vals.max()
+        except:
+            raise ValueError("Could not find logXi parameter in table model. Are you using xillver?")
+
+        # note we use the normalised rest-frame reflection spectra and assume the photon count per
+        # radial bin comes from the response functions
+
+        r_ent = [ENTResponse(en_bins=self.en_bins, t=self.time, ent=self.responses[r_num],
+                           logbin_en=self.logbin_en, tstart=self.tstart).convolve_spectrum(spectrum,
+                               enbins, binspec, self.line_en, norm_spec=True, logXi=x, **kwargs) for r_num, x in enumerate(xi)]
+
+        return np.sum(r_ent)
+
+    def convolve_densitygrad_spectra(self, spectrum, enbins, binspec=None, dens_func=powerlaw, dens_args=None,
+                                     ion_func=powerlaw, ion_args=None, **kwargs):
+        r = self.r_bins.bin_cent
+        xi = np.log10(ion_func(r, **ion_args))
+        dens = np.log10(dens_func(r, **dens_args))
+
+        try:
+            xi_vals = np.trim_zeros(spectrum.param_tab_vals[spectrum.params.index('logXi')], 'b')
+            xi[xi < xi_vals.min()] = xi_vals.min()
+            xi[xi > xi_vals.max()] = xi_vals.max()
+        except:
+            raise ValueError("Could not find logXi parameter in table model. Are you using xillver?")
+
+        try:
+            dens_vals = np.trim_zeros(spectrum.param_tab_vals[spectrum.params.index('Dens')], 'b')
+            dens[dens < dens_vals.min()] = dens_vals.min()
+            dens[dens > dens_vals.max()] = dens_vals.max()
+        except:
+            raise ValueError("Could not find Dens parameter in table model. Are you using xillver-D?")
+
+        # note we use the normalised rest-frame reflection spectra and assume the photon count per
+        # radial bin comes from the response functions
+
+        r_ent = [ENTResponse(en_bins=self.en_bins, t=self.time, ent=self.responses[r_num],
+                           logbin_en=self.logbin_en, tstart=self.tstart).convolve_spectrum(spectrum,
+                               enbins, binspec, self.line_en, norm_spec=True, Dens=d, logXi=x, **kwargs) for r_num, (d, x) in enumerate(zip(d,xi))]
+
+        return np.sum(r_ent)
