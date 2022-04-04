@@ -128,6 +128,8 @@ class LightCurve(object):
         if trim:
             self.trim()
 
+        self.filename = filename
+
     def read_fits(self, filename, byte_swap=True, add_tstart=False, time_col='TIME', rate_col='RATE', error_col='ERROR', hdu='RATE', inst=None, bkg=False):
         """
         pylag.LightCurve.read_fits(filename)
@@ -1238,6 +1240,12 @@ class LightCurve(object):
         slice = LightCurve(t=self.time[start:end], r=self.rate[start:end], e=self.error[start:end])
         slice.__class__ = self.__class__
         return slice
+
+    def __str__(self):
+        return "<pylag.lightcurve.LightCurve: %d time bins, dt = %g%s>" % (len(self), self.dt, ", loaded from: %s" % self.filename if self.filename is not None else "")
+
+    def __repr__(self):
+        return "<pylag.lightcurve.LightCurve: %d time bins, dt = %g%s>" % (len(self), self.dt, ", loaded from: %s" % self.filename if self.filename is not None else "")
 
     def _getplotdata(self):
         return self.time, (self.rate, self.error)
