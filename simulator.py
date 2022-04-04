@@ -127,7 +127,8 @@ class SimLightCurve(LightCurve):
 
         if not isinstance(psd_param, tuple):
             psd_param = tuple([psd_param])
-        psd = psdfn(freq, *psd_param)
+        psd = np.ones_like(freq)
+        psd[1:] = psdfn(freq[1:], *psd_param)
 
         if seed is not None:
             np.random.seed(seed)
