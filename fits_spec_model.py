@@ -31,6 +31,8 @@ class FITSSpecModel(object):
         if interp:
             self.init_interpolator()
 
+        self.filename = filename
+
     def __del__(self):
         self.fits_file.close()
 
@@ -94,3 +96,9 @@ class FITSSpecModel(object):
 
         vals = [np.trim_zeros(a, 'b') for a in self.param_tab_vals]
         self.interpolator = RegularGridInterpolator(tuple(vals), spec_array)
+
+    def __str__(self):
+        return "<pylag.fits_spec_model.FITSSpecModel: %s, parameters: %s>" % (self.filename, str(self.params))
+
+    def __repr__(self):
+        return "<pylag.fits_spec_model.FITSSpecModel: %s, parameters: %s>" % (self.filename, str(self.params))

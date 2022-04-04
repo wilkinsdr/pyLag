@@ -977,6 +977,12 @@ class ENTResponse(object):
 
         return self
 
+    def __str__(self):
+        return "<pylag.entresponse.ENTResponse: (%d, %d) energy, time channels>" % (self.ent.shape[0], self.ent.shape[1])
+
+    def __repr__(self):
+        return "<pylag.entresponse.ENTResponse: (%d, %d) energy, time channels>" % (self.ent.shape[0], self.ent.shape[1])
+
 
 class ENTResponseSet(object):
     def __init__(self, response_file):
@@ -1058,23 +1064,6 @@ class RadiusENTResponse(object):
 
         return ENTResponse(en_bins=self.en_bins, t=self.time, ent=ent_sum,
                            logbin_en=self.logbin_en, tstart=self.tstart)
-
-    def convolve_iongrad_spectra(self, spectrum, enbins, binspec=None, ion_func=powerlaw, ion_args=None, **kwargs):
-        r = self.r_bins.bin_cent
-        xi = np.log10(ion_func(r, **ion_args))
-
-        xi_vals = np.trim_zeros(spectrum.param_tab_vals[spectrum.params.index('logXi')], 'b')
-        xi[xi < xi_vals.min()] = xi_vals.min()
-        xi[xi > xi_vals.max()] = xi_vals.max()
-
-        # note we use the normalised rest-frame reflection spectra and assume the photon count per
-        # radial bin comes from the response functions
-
-        r_ent = [ENTResponse(en_bins=self.en_bins, t=self.time, ent=self.responses[r_num],
-                           logbin_en=self.logbin_en, tstart=self.tstart).convolve_spectrum(spectrum,
-                               enbins, binspec, self.line_en, norm_spec=True, logXi=x, **kwargs) for r_num, x in enumerate(xi)]
-
-        return np.sum(r_ent)
 
     def rebin_time(self, bins=None, dt=None, Nt=None):
         if bins is None:

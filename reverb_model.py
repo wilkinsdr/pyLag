@@ -83,6 +83,7 @@ class ReverbModel(Model):
 
             # find the repsonse we need
             ix = np.argwhere(self.h == source_h)[0][0]
+            print(ix)
             # convolve with the reflection spectrum
             ent = self.line_resp[ix].convolve_spectrum(self.spec, self.conv_bins, binspec=self.spec_bin, Gamma=gamma, A_Fe=A_Fe, logXi=logxi, Incl=incl)
             # add the continuum emission (delta function at t=0)

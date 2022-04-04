@@ -465,6 +465,13 @@ class Binning(object):
         self.bin_edges /= other
         return self
 
+    def __str__(self):
+        return "<pylag.binning.Binning: %g to %g in %d bins>" % (self.bin_start[0], self.bin_end[-1], self.num)
+
+    def __repr__(self):
+        return "<pylag.binning.Binning: %g to %g in %d bins>" % (self.bin_start[0], self.bin_end[-1], self.num)
+
+
 
 class LogBinning(Binning):
     """
@@ -510,6 +517,12 @@ class LogBinning(Binning):
         """
         return int((np.log(x / self.bin_start[0]) / np.log(self.ratio)))
 
+    def __str__(self):
+        return "<pylag.binning.LogBinning: %g to %g in %d log-spaced bins>" % (self.bin_start[0], self.bin_end[-1], self.num)
+
+    def __repr__(self):
+        return "<pylag.binning.LogBinning: %g to %g in %d log-spaced bins>" % (self.bin_start[0], self.bin_end[-1], self.num)
+
 
 class LinearBinning(Binning):
     """
@@ -531,7 +544,7 @@ class LinearBinning(Binning):
 
     def __init__(self, minval, maxval, num=None, step=None):
         if num is not None:
-            self.step = (maxval - minval) / (float(num) - 1.)
+            self.step = (maxval - minval) / float(num)
         elif step is not None:
             self.step = step
             num = int((maxval - minval) / step + 1)
@@ -560,3 +573,9 @@ class LinearBinning(Binning):
               The bin number
         """
         return int((x - self.bin_start[0]) / self.step)
+
+    def __str__(self):
+        return "<pylag.binning.LinearBinning: %g to %g in %d linear bins (delta = %g)>" % (self.bin_start[0], self.bin_end[-1], self.num, self.step)
+
+    def __repr__(self):
+        return "<pylag.binning.LinearBinning: %g to %g in %d linear bins (delta = %g)>" % (self.bin_start[0], self.bin_end[-1], self.num, self.step)
