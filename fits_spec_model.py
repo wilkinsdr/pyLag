@@ -98,7 +98,7 @@ class FITSSpecModel(object):
         self.interpolator = RegularGridInterpolator(tuple(vals), spec_array)
 
     def __str__(self):
-        return "<pylag.fits_spec_model.FITSSpecModel: %s, parameters: %s>" % (self.filename, str(self.params))
+        return "<pylag.fits_spec_model.FITSSpecModel: %s, parameters: %s%s>" % (self.filename, str(self.params), ", interpolation enabled" if self.interpolator is not None else "")
 
     def __repr__(self):
-        return "<pylag.fits_spec_model.FITSSpecModel: %s, parameters: %s>" % (self.filename, str(self.params))
+        return "<pylag.fits_spec_model.FITSSpecModel: %s, parameters: %s%s>" % (self.filename, str(self.params), ", interpolation enabled" if self.interpolator is not None else "")
