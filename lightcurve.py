@@ -353,30 +353,20 @@ class LightCurve(object):
                          The number of segments to divide the light curve into
         segment_length : float, optional (default=None)
                          If set, the length of the light curve segments to be
-                         created.
-        use_end        : boolean, optional (default=False)
-                         Sometimes the light curve will not divide exactly into
-                         the desired number of segments. If true, in this case,
-                         the list of segments will also include the partial
-                         segment from the end of the light curve
+                         created (in seconds)
 
         Returns
         -------
         segments : list of LightCurves
         """
-        if segment_length is None:
-            segment_length = (self.time.max() - self.time.min()) / float(num_segments)
+        seg_bins = segment_length // np.min(np.diff(self.time)) if segment_length is not None else len(self.rate) // num_segments
 
-        seg_bins = int(segment_length / (self.time[1] - self.time[0]))
+        num_bins = len(self.rate) - (len(self.rate) % seg_bins) # throw away the end of the light curve
+        time_arr = self.time[:num_bins].reshape(-1, seg_bins)
+        rate_arr = self.rate[:num_bins].reshape(-1, seg_bins)
+        error_arr = self.error[:num_bins].reshape(-1, seg_bins)
 
-        segments = []
-        for bin_start in range(0, len(self), seg_bins):
-            if (bin_start + seg_bins) <= len(self):
-                segments.append(self[bin_start:bin_start + seg_bins])
-            elif use_end:
-                segments.append(self[bin_start:])
-
-        return segments
+        return [LightCurve(t=t, r=r, e=e) for t, r, e in zip(time_arr, rate_arr, error_arr)]
 
     def split_on_gaps(self, min_segment=0):
         gaps = np.concatenate([[-1], np.argwhere(np.diff(s.time) > np.diff(s.time).min()).flatten(), [len(s.time) - 1]])
