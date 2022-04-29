@@ -1134,13 +1134,13 @@ class RadiusENTResponse(object):
             dens[dens < dens_vals.min()] = dens_vals.min()
             dens[dens > dens_vals.max()] = dens_vals.max()
         except:
-            raise ValueError("Could not find Dens parameter in table model. Are you using xillver-D?")
+            raise ValueError("Could not find Dens parameter in table model. Are you using xillverD?")
 
         # note we use the normalised rest-frame reflection spectra and assume the photon count per
         # radial bin comes from the response functions
 
         r_ent = [ENTResponse(en_bins=self.en_bins, t=self.time, ent=self.responses[r_num],
                            logbin_en=self.logbin_en, tstart=self.tstart).convolve_spectrum(spectrum,
-                               enbins, binspec, self.line_en, norm_spec=True, Dens=d, logXi=x, **kwargs) for r_num, (d, x) in enumerate(zip(d,xi))]
+                               enbins, binspec, self.line_en, norm_spec=True, Dens=d, logXi=x, **kwargs) for r_num, (d, x) in enumerate(zip(dens, xi))]
 
         return np.sum(r_ent)
