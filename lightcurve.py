@@ -138,8 +138,33 @@ class LightCurve(object):
 
         Paremeters
         ----------
-        filename : string
-                   The path of the FITS file from which the light curve is loaded
+        filename   : string
+                    The path of the FITS file from which the light curve is loaded
+        byte_swap  : bool, optional (default=True)
+                     Swap the byte order of the arrays after reading. This is done to convert the big-endian convention
+                     in FITS files to the numpy-standard little-endian. If you don't understand what this means, leave
+                     this option set to its default value
+        add_tstart : bool, optional (default=False)
+                     If True, add the TSTART value from the primary header to every value in the time column. This
+                     option is useful for missions that start every light curve at time zero and store the start time
+                     of the observation in the header, in order to use the light curve in MET (mission-elapsed time).
+        time_col   : str, optional (default='TIME')
+                     The name of the time column in the FITS table
+        rate_col   : str, optional (default='RATE')
+                     The name of the rate column in the FITS table
+        error_col  : str, optional (default='ERROR')
+                     The name of the error column in the FITS table
+        hdu        : str, optional (default='RATE')
+                     The name of the table extension in the FITS file that contains the light curve data
+        inst       : str, optional (default=None)
+                     A shortcut for setting all of the column and HDU names appropriately for light curves from specific
+                     missions and instruments. For example, set to 'chandra' to read light curves that were created by
+                     CIAO. This can be left set to None for XMM-Newton, NuSTAR and light curves created by xselect,
+                     since these will all use the default naming conventions.
+        bkg        : bool, optional (default=False)
+                     In addition to the source rate and error columns, also read the background rate and corresponding
+                     error from light curves that contain these. The background rate and error will be stored in the
+                     member arrays bkg_rate and bkg_error.
         """
         # shortcut for loading Chandra light curves which helpfully have different HDU and column names!
         if inst == 'chandra':
@@ -177,6 +202,42 @@ class LightCurve(object):
 
         except:
             raise AssertionError("pyLag LightCurve ERROR: Could not read light curve from FITS file")
+
+    def write_fits(self, filename, byte_swap=True, time_col='TIME', rate_col='RATE', error_col='ERROR', hdu='RATE'):
+        """
+        pylag.LightCurve.write_fits(filename, byte_swap=True, time_col='TIME', rate_col='RATE', error_col='ERROR', hdu='RATE')
+
+        Save the light curve to an OGIP standard FITS file.
+
+        Paremeters
+        ----------
+        filename  : string
+                    The path of the FITS file to which the light curve is to be saved
+        byte_swap : bool, optional (default=True)
+                    Swap the byte order of the arrays before saving. This is done to convert the numpy-standard
+                    little-endian to the big-endian convention in FITS files
+        time_col  : str, optional (default='TIME')
+                    The name of the time column in the FITS table
+        rate_col  : str, optional (default='RATE')
+                    The name of the rate column in the FITS table
+        error_col : str, optional (default='ERROR')
+                    The name of the error column in the FITS table
+        hdu       : str, optional (default='RATE')
+                    The name of the table extension to be created in the FITS file. This extension will be created
+                    alongside an empty primary HDU.
+        """
+        time_arr = self.time.byteswap().newbyteorder('>') if byte_swap else self.time
+        rate_arr = self.rate.byteswap().newbyteorder('>') if byte_swap else self.rate
+        error_arr = self.error.byteswap().newbyteorder('>') if byte_swap else self.error
+
+        time_c = pyfits.Column(name=time_col, array=time_arr, format='D')
+        rate_c = pyfits.Column(name=rate_col, array=rate_arr, format='E')
+        error_c = pyfits.Column(name=error_col, array=error_arr, format='E')
+
+        primary_hdu = pyfits.PrimaryHDU()
+        table_hdu = pyfits.BinTableHDU.from_columns([time_c, rate_c, error_c], name=hdu)
+        hdul = pyfits.HDUList([primary_hdu, table_hdu])
+        hdul.writeto(filename, overwrite=True)
 
     def _byteswap(self):
         """
