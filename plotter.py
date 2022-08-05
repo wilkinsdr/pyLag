@@ -338,7 +338,7 @@ class Plot(object):
             if not isinstance(yerr, (np.ndarray, list)):
                 yerr = np.zeros(len(yd))
             if self.errorbar:
-                self._ax.errorbar(xd[np.isfinite(yd)], yd[np.isfinite(yd)], yerr=yerr[np.isfinite(yd)],
+                self._ax.errorbar(xd[np.isfinite(yd)], yd[np.isfinite(yd)], yerr=yerr[np.isfinite(yd)] if yerr.ndim==1 else np.vstack([ye[np.isfinite(yd)] for ye in yerr]),
                               xerr=xerr[np.isfinite(yd)], fmt=marker, color=colour, label=label)
             else:
                 if marker != '-':
