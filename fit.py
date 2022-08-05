@@ -21,49 +21,7 @@ def resid(params, x, data, err, model):
 def chisq(params, x, data, err, model):
     return (data - model(params, x)) / err
 
-class Model(object):
-    def __init__(self, component_name=None, **kwargs):
-        self.prefix = component_name + "_" if component_name is not None else ''
-        self.params = self.get_params(**kwargs)
-    def get_params(self):
-        raise AssertionError("I should be overridden!")
-    def eval(self, params, x):
-        raise AssertionError("I should be overriden")
 
-
-
-
-class LinearModel(Model):
-    def get_params(self, slope=1., intercept=0.):
-        params = lmfit.Parameters()
-
-        params.add('%sslope' % self.prefix, value=slope, min=-1e10, max=1e10)
-        params.add('%sintercept' % self.prefix, value=intercept, min=-1e10, max=1e10)
-
-        return params
-
-    def eval(self, params, x):
-        slope = params['%sslope' % self.prefix].value
-        intercept = params['%sintercept' % self.prefix].value
-
-        return slope*x + intercept
-
-class PowerLawModel(Model):
-    def get_params(self, slope=1., intercept=0.):
-        params = lmfit.Parameters()
-
-        params.add('%snorm' % self.prefix, value=slope, min=1e-10, max=1e10)
-        params.add('%sslope' % self.prefix, value=slope, min=-10, max=10)
-        params.add('%sintercept' % self.prefix, value=intercept, min=-1e10, max=1e10)
-
-        return params
-
-    def eval(self, params, x):
-        norm = params['%snorm' % self.prefix].value
-        slope = params['%sslope' % self.prefix].value
-        intercept = params['%sintercept' % self.prefix].value
-
-        return norm * x**slope + intercept
 
 
 class Fit(object):
