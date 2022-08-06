@@ -21,16 +21,15 @@ from .fit import *
 from .plotter import *
 from .model import *
 
-class MLPSD(object):
-    def __init__(self, lc, Nf=10, fbins=None, psd_model=None, comp_name='', model_args={}):
-        self.time = np.array(lc.time)
+class MLFit(object):
+    def __init__(self, t, y, psdnorm=1., Nf=10, fbins=None, model=None, comp_name='', model_args={}):
+        self.time = np.array(t)
         self.dt = np.min(np.diff(self.time))
 
-        self.data = np.array(lc.rate)
         # the linear algebra we'll be doing requires the data points as a column vector (in matrix form)
-        self.data = self.data[:, np.newaxis]
-        # to fit a Gaussian process, we should make sure our data has zero mean
-        self.data -= np.mean(self.data)
+        self.data = y[:, np.newaxis]
+
+        self.psdnorm = psdnorm
 
         # matrix of pairwise separations of time bins
         self.tau = squareform(pdist(np.array([[t] for t in self.time])))
@@ -46,9 +45,6 @@ class MLPSD(object):
         self.freq = self.fbins.bin_cent
         self.freq_error = self.fbins.x_error()
 
-        # RMS normalisation for PSD
-        self.psdnorm = 2 * self.dt / (lc.mean() ** 2 * lc.length)
-
         # pre-compute the integral of the cosine term in the autocorrelation for each frequency bin
         # so we don't have to do this for every change in parameter values
         # note the factor of 2 to integrate over the negative frequencies too!
@@ -57,40 +53,37 @@ class MLPSD(object):
                                                 for t in self.tau.flatten()]).reshape(self.tau.shape)
                                       for fmin, fmax in zip(self.fbins.bin_start, self.fbins.bin_end)])
 
-        if psd_model is None:
-            self.psd_model = None
-        elif isinstance(psd_model, Model):
-            self.psd_model = psd_model
+        if model is None:
+            self.model = None
+        elif isinstance(model, Model):
+            self.model = model
         else:
-            self.psd_model = psd_model(**model_args)
+            self.model = model(**model_args)
 
         self.comp_name = comp_name
         self.params = self.get_params(comp_name=self.comp_name)
-
-        self.psd = self.get_psd()
-        self.psd_error = None
 
         self.fit_result = None
 
     def cov_matrix(self, params):
         # if no model is specified, the PSD model is just the PSD value in each frequency bin
-        if self.psd_model is None:
+        if self.model is None:
             psd = np.exp(np.array([params[p].value for p in params])) / self.psdnorm
         else:
-            psd = self.psd_model(params, self.fbins.bin_cent) / self.psdnorm
+            psd = self.model(params, self.fbins.bin_cent) / self.psdnorm
 
         cov = np.sum(np.array([p * c for p, c in zip(psd, self.cos_integral)]), axis=0)
         return cov
 
     def cov_matrix_deriv(self, params, delta):
-        if self.psd_model is None:
+        if self.model is None:
             psd = np.exp(np.array([params[p].value for p in params])) / self.psdnorm
 
             # in this simple case, the covariance matrix is just a linear sum of each frequency term
             # so the derivative is simple - we multiply by p when we're talking about the log
             return np.stack([c * p for c, p in zip(self.cos_integral, psd)], axis=-1)
         else:
-            psd_deriv = self.psd_model.eval_gradient(params, self.fbins.bin_cent) / self.psdnorm
+            psd_deriv = self.model.eval_gradient(params, self.fbins.bin_cent) / self.psdnorm
             return np.stack([np.sum([c * p for c, p in zip(self.cos_integral, psd_deriv[:, par])], axis=0) for par in range(psd_deriv.shape[-1])], axis=-1)
 
     def log_likelihood(self, params, eval_gradient=True, delta=1e-3):
@@ -123,22 +116,13 @@ class MLPSD(object):
         return (-1 * log_likelihood, -1 * gradient) if eval_gradient else -1 * log_likelihood
 
     def get_params(self, comp_name=''):
-        if self.psd_model is None:
+        if self.model is None:
             params = lmfit.Parameters()
             for i in range(len(self.fbins)):
                 params.add('%sln_psd%01d' % (comp_name, i), 1., vary=True, min=-30., max=30.)
             return params
         else:
-            return self.psd_model.get_params()
-
-    def get_psd(self, params=None):
-        if params is None:
-            params = self.params
-
-        if self.psd_model is None:
-            return np.array([self.params[p].value for p in self.params])
-        else:
-            return np.log(self.psd_model(self.params, self.fbins.bin_cent))
+            return self.model.get_params()
 
     def _dofit(self, init_params, method='L-BFGS-B', **kwargs):
         initial_par_arr = np.array([init_params[p].value for p in init_params if init_params[p].vary])
@@ -163,16 +147,45 @@ class MLPSD(object):
         if self.fit_result.success and update_params:
             for par, value in zip([p for p in init_params if init_params[p].vary], self.fit_result.x):
                 self.params[par].value = value
-            self.psd = self.get_psd()
-            if self.psd_model is None:
-                self.psd_error = self.fit_result.hess_inv(self.fit_result.x)**0.5
-            else:
-                # calculate the error on each PSD point from the error on each parameter
-                self.param_error = self.fit_result.hess_inv(self.fit_result.x)**0.5
-                psd_deriv = self.psd_model.eval_gradient(self.params, self.fbins.bin_cent)
-                self.psd_error = np.sum([e*psd_deriv[..., i] for i, e in enumerate(self.param_error)], axis=0) / self.psd
-                if np.any(np.isnan(self.psd_error)):
-                    self.psd_error = None
+            self.param_error = self.fit_result.hess_inv(self.fit_result.x) ** 0.5
+            self.process_fit_results(self.fit_result, self.params)
+
+
+class MLPSD(MLFit):
+    def __init__(self, lc, **kwargs):
+        t = np.array(lc.time)
+
+        y = np.array(lc.rate)
+        # to fit a Gaussian process, we should make sure our data has zero mean
+        y -= np.mean(y)
+
+        # RMS normalisation for PSD
+        psdnorm = 2 * np.min(np.diff(lc.time)) / (lc.mean() ** 2 * lc.length)
+
+        MLFit.__init__(self, t, y, psdnorm=psdnorm, **kwargs)
+
+        self.psd = self.get_psd()
+        self.psd_error = None
+
+    def process_fit_results(self, fit_result, params):
+        self.psd = self.get_psd()
+        if self.model is None:
+            self.psd_error = result.hess_inv(fit_result.x) ** 0.5
+        else:
+            # calculate the error on each PSD point from the error on each parameter
+            psd_deriv = self.model.eval_gradient(params, self.fbins.bin_cent)
+            self.psd_error = np.sum([e * psd_deriv[..., i] for i, e in enumerate(self.param_error)], axis=0) / self.psd
+            if np.any(np.isnan(self.psd_error)):
+                self.psd_error = None
+
+    def get_psd(self, params=None):
+        if params is None:
+            params = self.params
+
+        if self.model is None:
+            return np.array([self.params[p].value for p in self.params])
+        else:
+            return np.log(self.model(self.params, self.fbins.bin_cent))
 
     def _getplotdata(self):
         x = (self.fbins.bin_cent, self.fbins.x_error())
