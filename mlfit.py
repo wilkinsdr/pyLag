@@ -92,11 +92,11 @@ class MLFit(object):
         try:
             L = cholesky(c, lower=True, check_finite=False)
         except np.linalg.LinAlgError:
-            try:
-                # if the matrix is sibgular, perturb the diagonal and try again
-                L = cholesky(c + 1e-6 * np.eye(c.shape[0]), lower=True, check_finite=False)
-            except np.linalg.LinAlgError:
-                return (-np.inf, np.zeros(len(params))) if eval_gradient else -np.inf
+            # try:
+            # if the matrix is sibgular, perturb the diagonal and try again
+            L = cholesky(c + 1e-3 * np.eye(c.shape[0]), lower=True, check_finite=False)
+            # except np.linalg.LinAlgError:
+            #     return (-np.inf, np.zeros(len(params))) if eval_gradient else -np.inf
         except ValueError:
             return (-np.inf, np.zeros(len(params))) if eval_gradient else -np.inf
 
