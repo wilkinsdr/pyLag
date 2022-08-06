@@ -58,10 +58,10 @@ class MLFit(object):
         elif isinstance(model, Model):
             self.model = model
         else:
-            self.model = model(**model_args)
+            self.model = model(component_name=comp_name, **model_args)
 
         self.comp_name = comp_name
-        self.params = self.get_params(comp_name=self.comp_name)
+        self.params = self.get_params()
 
         self.fit_result = None
 
