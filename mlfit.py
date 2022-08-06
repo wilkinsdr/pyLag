@@ -13,13 +13,16 @@ from scipy.linalg import cholesky, cho_solve
 from scipy.optimize import minimize
 
 import lmfit
+import copy
 
 from .lightcurve import *
 from .binning import *
 from .fit import *
+from .plotter import *
+from .model import *
 
 class MLPSD(object):
-    def __init__(self, lc, Nf=10, fbins=None, psd_model=None):
+    def __init__(self, lc, Nf=10, fbins=None, psd_model=None, comp_name='', model_args={}):
         self.time = np.array(lc.time)
         self.dt = np.min(np.diff(self.time))
 
@@ -40,6 +43,9 @@ class MLPSD(object):
         else:
             self.fbins = fbins
 
+        self.freq = self.fbins.bin_cent
+        self.freq_error = self.fbins.x_error()
+
         # RMS normalisation for PSD
         self.psdnorm = 2 * self.dt / (lc.mean() ** 2 * lc.length)
 
@@ -55,30 +61,46 @@ class MLPSD(object):
             self.psd_model = None
         elif isinstance(psd_model, Model):
             self.psd_model = psd_model
+        else:
+            self.psd_model = psd_model(**model_args)
 
-        self.params = self.get_params()
+        self.comp_name = comp_name
+        self.params = self.get_params(comp_name=self.comp_name)
 
-    def cov_matrix(params):
+        self.psd = self.get_psd()
+        self.psd_error = None
+
+        self.fit_result = None
+
+    def cov_matrix(self, params):
         # if no model is specified, the PSD model is just the PSD value in each frequency bin
-        psd = np.exp(params[:Nf])
-        cov = np.sum(np.array([p * c for p, c in zip(psd, cos_integral)]), axis=0)
+        if self.psd_model is None:
+            psd = np.exp(np.array([params[p].value for p in params])) / self.psdnorm
+        else:
+            psd = self.psd_model(params, self.fbins.bin_cent) / self.psdnorm
+
+        cov = np.sum(np.array([p * c for p, c in zip(psd, self.cos_integral)]), axis=0)
         return cov
 
-    def cov_matrix_deriv(params, delta):
-        psd = np.exp(params[:Nf])
+    def cov_matrix_deriv(self, params, delta):
+        if self.psd_model is None:
+            psd = np.exp(np.array([params[p].value for p in params])) / self.psdnorm
 
-        # in this simple case, the covariance matrix is just a linear sum of each frequency term
-        # so the derivative is simple - we multiply by p when we're talking about the log
-        return np.stack([c * p for c, p in zip(cos_integral, psd)], axis=-1)
+            # in this simple case, the covariance matrix is just a linear sum of each frequency term
+            # so the derivative is simple - we multiply by p when we're talking about the log
+            return np.stack([c * p for c, p in zip(self.cos_integral, psd)], axis=-1)
+        else:
+            psd_deriv = self.psd_model.eval_gradient(params, self.fbins.bin_cent) / self.psdnorm
+            return np.stack([np.sum([c * p for c, p in zip(self.cos_integral, psd_deriv[:, par])], axis=0) for par in range(psd_deriv.shape[-1])], axis=-1)
 
-    def log_likelihood(params, eval_gradient=True, delta=1e-3):
+    def log_likelihood(self, params, eval_gradient=True, delta=1e-3):
         c = self.cov_matrix(params)
 
         try:
             L = cholesky(c, lower=True, check_finite=False)
         except np.linalg.LinAlgError:
             # if the matrix is sibgular, perturb the diagonal and try again
-            L = cholesky(c + 1e-6 * np.eye(c.shape[0]), lower=True, check_finite=False)
+            L = cholesky(c + 1e-3 * np.eye(c.shape[0]), lower=True, check_finite=False)
             # return (-np.inf, np.zeros(len(params))) if eval_gradient else -np.inf
         except ValueError:
             return (-np.inf, np.zeros(len(params))) if eval_gradient else -np.inf
@@ -100,17 +122,62 @@ class MLPSD(object):
         # note we return -log_likelihood, so we can minimize it!
         return (-1 * log_likelihood, -1 * gradient) if eval_gradient else -1 * log_likelihood
 
-    def get_params(self):
+    def get_params(self, comp_name=''):
         if self.psd_model is None:
             params = lmfit.Parameters()
             for i in range(len(self.fbins)):
-                params.add('%sln_psd%01d' % i, 1., vary=True, min=-50., max=50.)
+                params.add('%sln_psd%01d' % (comp_name, i), 1., vary=True, min=-30., max=30.)
             return params
         else:
             return self.psd_model.get_params()
 
-    def fit(self, init_params=None):
+    def get_psd(self, params=None):
+        if params is None:
+            params = self.params
+
+        if self.psd_model is None:
+            return np.array([self.params[p].value for p in self.params])
+        else:
+            return np.log(self.psd_model(self.params, self.fbins.bin_cent))
+
+    def _dofit(self, init_params, method='L-BFGS-B', **kwargs):
+        initial_par_arr = np.array([init_params[p].value for p in init_params if init_params[p].vary])
+        bounds = [(init_params[p].min, init_params[p].max) for p in init_params if init_params[p].vary]
+
+        def objective(par_arr):
+            fit_params = copy.copy(init_params)
+            for par, value in zip([p for p in init_params if init_params[p].vary], par_arr):
+                fit_params[par].value = value
+            return self.log_likelihood(fit_params, eval_gradient=True)
+
+        result = minimize(objective, initial_par_arr, method=method, jac=True, bounds=bounds, **kwargs)
+        return result
+
+    def fit(self, init_params=None, update_params=True, **kwargs):
         if init_params is None:
             init_params = self.params
 
+        self.fit_result = self._dofit(init_params, **kwargs)
+        print(self.fit_result)
 
+        if self.fit_result.success and update_params:
+            for par, value in zip([p for p in init_params if init_params[p].vary], self.fit_result.x):
+                self.params[par].value = value
+            self.psd = self.get_psd()
+            if self.psd_model is None:
+                self.psd_error = self.fit_result.hess_inv(self.fit_result.x)**0.5
+            else:
+                # calculate the error on each PSD point from the error on each parameter
+                self.param_error = self.fit_result.hess_inv(self.fit_result.x)**0.5
+                psd_deriv = self.psd_model.eval_gradient(self.params, self.fbins.bin_cent)
+                self.psd_error = np.sum([e*psd_deriv[..., i] for i, e in enumerate(self.param_error)], axis=0) / self.psd
+                if np.any(np.isnan(self.psd_error)):
+                    self.psd_error = None
+
+    def _getplotdata(self):
+        x = (self.fbins.bin_cent, self.fbins.x_error())
+        y = (np.exp(self.psd), np.vstack([np.exp(self.psd) - np.exp(self.psd - self.psd_error), np.exp(self.psd + self.psd_error) - np.exp(self.psd)])) if self.psd_error is not None else np.exp(self.psd)
+        return x, y
+
+    def _getplotaxes(self):
+        return 'Frequency / Hz', 'log', 'PSD', 'log'
