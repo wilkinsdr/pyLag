@@ -65,27 +65,6 @@ class MLFit(object):
 
         self.fit_result = None
 
-    def cov_matrix(self, params):
-        # if no model is specified, the PSD model is just the PSD value in each frequency bin
-        if self.model is None:
-            psd = np.exp(np.array([params[p].value for p in params])) / self.psdnorm
-        else:
-            psd = self.model(params, self.fbins.bin_cent) / self.psdnorm
-
-        cov = np.sum(np.array([p * c for p, c in zip(psd, self.cos_integral)]), axis=0)
-        return cov
-
-    def cov_matrix_deriv(self, params, delta):
-        if self.model is None:
-            psd = np.exp(np.array([params[p].value for p in params])) / self.psdnorm
-
-            # in this simple case, the covariance matrix is just a linear sum of each frequency term
-            # so the derivative is simple - we multiply by p when we're talking about the log
-            return np.stack([c * p for c, p in zip(self.cos_integral, psd)], axis=-1)
-        else:
-            psd_deriv = self.model.eval_gradient(params, self.fbins.bin_cent) / self.psdnorm
-            return np.stack([np.sum([c * p for c, p in zip(self.cos_integral, psd_deriv[:, par])], axis=0) for par in range(psd_deriv.shape[-1])], axis=-1)
-
     def log_likelihood(self, params, eval_gradient=True, delta=1e-3):
         c = self.cov_matrix(params)
 
@@ -168,6 +147,27 @@ class MLPSD(MLFit):
 
         self.psd = self.get_psd()
         self.psd_error = None
+
+    def cov_matrix(self, params):
+        # if no model is specified, the PSD model is just the PSD value in each frequency bin
+        if self.model is None:
+            psd = np.exp(np.array([params[p].value for p in params])) / self.psdnorm
+        else:
+            psd = self.model(params, self.fbins.bin_cent) / self.psdnorm
+
+        cov = np.sum(np.array([p * c for p, c in zip(psd, self.cos_integral)]), axis=0)
+        return cov
+
+    def cov_matrix_deriv(self, params, delta):
+        if self.model is None:
+            psd = np.exp(np.array([params[p].value for p in params])) / self.psdnorm
+
+            # in this simple case, the covariance matrix is just a linear sum of each frequency term
+            # so the derivative is simple - we multiply by p when we're talking about the log
+            return np.stack([c * p for c, p in zip(self.cos_integral, psd)], axis=-1)
+        else:
+            psd_deriv = self.model.eval_gradient(params, self.fbins.bin_cent) / self.psdnorm
+            return np.stack([np.sum([c * p for c, p in zip(self.cos_integral, psd_deriv[:, par])], axis=0) for par in range(psd_deriv.shape[-1])], axis=-1)
 
     def process_fit_results(self, fit_result, params):
         self.psd = self.get_psd()
