@@ -33,6 +33,10 @@ def psd_sho(freq, S0, f0, Q):
     return np.sqrt(2./np.pi) * (S0 * f0**4) / ((freq**2 - f0**2)**2 + freq**2 * (f0/Q)**2)
 
 
+def psd_bendingpl(freq, alow, bend, ahigh):
+    return freq**-alow  / (1. + (freq/bend)**(ahigh-alow))
+
+
 class SimLightCurve(LightCurve):
     """
     pylag.SimLightCurve
