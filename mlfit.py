@@ -49,7 +49,7 @@ class MLFit(object):
         # so we don't have to do this for every change in parameter values
         # note the factor of 2 to integrate over the negative frequencies too!
         self.cos_integral = np.array([np.array([(1. / (np.pi * t)) * (np.sin(2*np.pi*fmax*t) - np.sin(2*np.pi*fmin*t))
-                                                if t > 0 else 2.*(fmax - fmin)
+                                                if t > 0 else (fmax - fmin)
                                                 for t in self.tau.flatten()]).reshape(self.tau.shape)
                                       for fmin, fmax in zip(self.fbins.bin_start, self.fbins.bin_end)])
 
@@ -96,11 +96,11 @@ class MLFit(object):
         # note we return -log_likelihood, so we can minimize it!
         return (-1 * log_likelihood, -1 * gradient) if eval_gradient else -1 * log_likelihood
 
-    def get_params(self, comp_name=''):
+    def get_params(self):
         if self.model is None:
             params = lmfit.Parameters()
             for i in range(len(self.fbins)):
-                params.add('%sln_psd%01d' % (comp_name, i), 1., vary=True, min=-30., max=30.)
+                params.add('%sln_psd%01d' % (self.comp_name, i), 1., vary=True, min=-30., max=30.)
             return params
         else:
             return self.model.get_params()
@@ -150,6 +150,7 @@ class MLPSD(MLFit):
 
     def cov_matrix(self, params):
         # if no model is specified, the PSD model is just the PSD value in each frequency bin
+        # note the factor of 2 to integrate over the negative frequencies too!
         if self.model is None:
             psd = np.exp(np.array([params[p].value for p in params])) / self.psdnorm
         else:
@@ -196,3 +197,103 @@ class MLPSD(MLFit):
 
     def _getplotaxes(self):
         return 'Frequency / Hz', 'log', 'PSD', 'log'
+
+
+class MLCrossSpectrum(MLFit):
+    def __init__(self, lc1, lc2, mlpsd1=None, mlpsd2=None, psd_model=None, cpsd_model=None, lag_model=None, freeze_psd=True, cpsd_model_args={}, lag_model_args={}, **kwargs):
+        t = np.array(lc1.time)
+
+        y1 = np.array(lc1.rate)
+        y1 -= np.mean(y1)
+        y2 = np.array(lc2.rate)
+        y2 -= np.mean(y2)
+        # to fit a cross spectrum, we stack the data vectors
+        y = np.concatenate([y1, y2])
+
+        cpsdnorm = 2 * np.min(np.diff(lc1.time)) / (np.mean(np.concatenate([lc1.rate, lc2.rate])) ** 2 * lc1.length)
+
+        if mlpsd1 is not None:
+            self.mlpsd1 = mlpsd1
+        else:
+            self.mlpsd1 = MLPSD(lc1, model=psd_model, comp_name='psd1', **kwargs)
+
+        if mlpsd2 is not None:
+            self.mlpsd2 = mlpsd2
+        else:
+            self.mlpsd2 = MLPSD(lc2, model=psd_model, comp_name='psd2', **kwargs)
+
+        self.freeze_psd = freeze_psd
+
+        self.autocov1 = None
+        self.autocov2 = None
+
+        if cpsd_model is None:
+            self.cpsd_model = None
+        elif isinstance(cpsd_model, Model):
+            self.cpsd_model = cpsd_model
+        else:
+            self.cpsd_model = cpsd_model(component_name='cpsd_', **cpsd_model_args)
+
+        if lag_model is None:
+            self.lag_model = None
+        elif isinstance(lag_model, Model):
+            self.lag_model = lag_model
+        else:
+            self.lag_model = lag_model(component_name='lag_', **lag_model_args)
+
+        MLFit.__init__(self, t, y, psdnorm=cpsdnorm, **kwargs)
+
+        # we probably don't need the sine integrals since they go to zero when we integrate over -ve frequencies
+        # self.sin_integral = np.array(
+        #     [np.array([(1. / (2. * np.pi * t)) * (np.cos(2 * np.pi * fmin * t) - np.cos(2 * np.pi * fmax * t))
+        #                if t > 0 else 0.
+        #                for t in self.tau.flatten()]).reshape(self.tau.shape)
+        #      for fmin, fmax in zip(self.fbins.bin_start, self.fbins.bin_end)])
+
+    def get_params(self):
+        params = lmfit.Parameters()
+        if not self.freeze_psd:
+            params += self.mlpsd1.get_params()
+            params += self.mlpsd2.get_params()
+        if self.cpsd_model is None:
+            for i in range(len(self.fbins)):
+                params.add('%sln_cpsd%01d' % (self.comp_name, i), 1., vary=True, min=-30., max=30.)
+        else:
+            params += self.cpsd_model.get_params()
+        if self.lag_model is None:
+            for i in range(len(self.fbins)):
+                params.add('%slag%01d' % (self.comp_name, i), 1., vary=True, min=-np.pi, max=np.pi)
+        else:
+            params += self.lag_model.get_params()
+
+        return params
+
+    def cross_cov_matrix(self, params):
+        # if no model is specified, the PSD model is just the PSD value in each frequency bin
+        if self.cpsd_model is None:
+            cpsd = np.exp(np.array([params['%sln_cpsd%01d' % (self.comp_name, i)].value for i in range(len(self.fbins))])) / self.psdnorm
+        else:
+            cpsd = self.cpsd_model(params, self.fbins.bin_cent) / self.psdnorm
+
+        # likewise for the (phase) lags
+        if self.lag_model is None:
+            lags = np.array([params['%slag%01d' % (self.comp_name, i)].value for i in range(len(self.fbins))])
+        else:
+            lags = self.lag_model(params, self.fbins.bin_cent)
+
+        # TODO: is this correct or do we need the sine terms? (I think we don't if we're integrating over the -ve freq terms)
+        #cov = np.sum(np.array([p * (c * np.cos(phi) + s * np.sin(phi)) for p, c, s, phi in zip(cpsd, self.cos_integral, self.sin_integral, lags)]), axis=0)
+        cov = np.sum(np.array([2. * p * c * np.cos(phi) for p, c, phi in zip(cpsd, self.cos_integral, lags)]), axis=0)
+        return cov
+
+    def cov_matrix(self, params):
+        if self.freeze_psd:
+            ac1 = self.autocov1
+            ac2 = self.autocov2
+        else:
+            ac1 = self.mlpsd1.cov_matrix(params)
+            ac2 - self.mlpsd2.cov_matrix(params)
+
+        cc = self.cross_cov_matrix(params)
+
+        return np.vstack([np.hstack([ac1, cc.T]), np.hstack([cc, ac2])])
