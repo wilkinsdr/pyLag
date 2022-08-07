@@ -283,7 +283,7 @@ class MLCrossSpectrum(MLFit):
 
         # TODO: is this correct or do we need the sine terms? (I think we don't if we're integrating over the -ve freq terms)
         #cov = np.sum(np.array([p * (c * np.cos(phi) + s * np.sin(phi)) for p, c, s, phi in zip(cpsd, self.cos_integral, self.sin_integral, lags)]), axis=0)
-        cov = np.sum(np.array([2. * p * c * np.cos(phi) for p, c, phi in zip(cpsd, self.cos_integral, lags)]), axis=0)
+        cov = np.sum(np.array([p * c * np.cos(phi) for p, c, phi in zip(cpsd, self.cos_integral, lags)]), axis=0)
         return cov
 
     def cov_matrix(self, params):
