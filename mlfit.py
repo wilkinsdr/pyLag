@@ -44,6 +44,7 @@ class MLFit(object):
         # matrix of pairwise separations of time bins
         self.tau = squareform(pdist(np.array([[t] for t in self.time])))
         #self.tau[np.tril(self.tau) > 0] *= -1
+        #self.tau = self.time - np.expand_dims(self.time, 1)
 
         if fbins is None:
             # set up frequency bins to span
