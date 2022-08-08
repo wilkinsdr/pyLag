@@ -43,6 +43,7 @@ class MLFit(object):
 
         # matrix of pairwise separations of time bins
         self.tau = squareform(pdist(np.array([[t] for t in self.time])))
+        #self.tau[np.tril(self.tau) > 0] *= -1
 
         if fbins is None:
             # set up frequency bins to span
@@ -97,7 +98,7 @@ class MLFit(object):
             except np.linalg.LinAlgError:
                 par_str = ", ".join(["%s: %g" % (p, params[p].value) for p in params])
                 print("WARNING: Couldn't invert covariance matrix with parameters " + par_str)
-                return (1e6, np.zeros(len(params)) - 1e6) if eval_gradient else -np.inf
+                return (1e6, np.zeros(len(params))) if eval_gradient else -np.inf
                 # raise np.linalg.LinAlgError("Couldn't invert covariance matrix with parameters " + par_str)
             # except np.linalg.LinAlgError:
             #     return (-np.inf, np.zeros(len(params))) if eval_gradient else -np.inf
