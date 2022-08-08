@@ -8,6 +8,29 @@ v1.0 05/07/2019 - D.R. Wilkins
 
 import numpy as np
 import lmfit
+import copy
+
+def param2array(params, variable_only=False):
+    """
+    Convert a Parameters object into an array of the parameter values
+    """
+    if variable_only:
+        return np.array([params[p].value for p in params if params[p].vary])
+    else:
+        return np.array([params[p].value for p in params])
+
+def array2param(values, params, variable_only=False):
+    """
+    Create a new Parameters object from a prototype object params, with values from an aeeay
+    """
+    out_params = copy.copy(params)
+    if variable_only:
+        for p, v in zip([p for p in out_params if out_params[p].vary], values):
+            out_params[p].value = v
+    else:
+        for p, v in zip(params, values):
+            out_params[p].value = v
+    return out_params
 
 
 class Model(object):
