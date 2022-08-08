@@ -21,7 +21,7 @@ from .model import *
 from .plotter import *
 
 class MLFit(object):
-    def __init__(self, t, y, yerr=None, psdnorm=1., Nf=10, fbins=None, model=None, component_name=None, model_args={}, noise='errors'):
+    def __init__(self, t, y, yerr=None, psdnorm=1., Nf=10, fbins=None, model=None, component_name=None, model_args={}, noise='errors', eval_sin=False):
         self.time = np.array(t)
         self.dt = np.min(np.diff(self.time))
 
@@ -42,9 +42,7 @@ class MLFit(object):
         self.psdnorm = psdnorm
 
         # matrix of pairwise separations of time bins
-        self.tau = squareform(pdist(np.array([[t] for t in self.time])))
-        #self.tau[np.tril(self.tau) > 0] *= -1
-        #self.tau = self.time - np.expand_dims(self.time, 1)
+        self.tau = self.time - np.expand_dims(self.time, 1)
 
         if fbins is None:
             # set up frequency bins to span
@@ -57,18 +55,19 @@ class MLFit(object):
         self.freq = self.fbins.bin_cent
         self.freq_error = self.fbins.x_error()
 
-        # pre-compute the integral of the cosine term in the autocorrelation for each frequency bin
+        # pre-compute the integral of the cosine and sine term in the correlation for each frequency bin
         # so we don't have to do this for every change in parameter values
         # note the factor of 2 to integrate over the negative frequencies too!
-        self.cos_integral = np.array([np.array([(1. / (np.pi * t)) * (np.sin(2*np.pi*fmax*t) - np.sin(2*np.pi*fmin*t))
-                                                if t > 0 else 2. * (fmax - fmin)
-                                                for t in self.tau.flatten()]).reshape(self.tau.shape)
-                                      for fmin, fmax in zip(self.fbins.bin_start, self.fbins.bin_end)])
-
-        # self.cos_integral = np.array([np.array([(1. / (2. * np.pi * t)) * (np.sin(2*np.pi*fmax*t) - np.sin(2*np.pi*fmin*t))
-        #                                         if t > 0 else (fmax - fmin)
-        #                                         for t in self.tau.flatten()]).reshape(self.tau.shape)
-        #                               for fmin, fmax in zip(self.fbins.bin_start, self.fbins.bin_end)])
+        self.cos_integral = np.zeros((len(self.fbins), self.tau.shape[0], self.tau.shape[1]))
+        self.sin_integral = np.zeros((len(self.fbins), self.tau.shape[0], self.tau.shape[1])) if eval_sin else None
+        diag = np.eye(self.tau.shape[0], dtype=bool)
+        for i, (fmin, fmax) in enumerate(zip(self.fbins.bin_start, self.fbins.bin_end)):
+            self.cos_integral[i, ~diag] = (1. / (np.pi * self.tau[~diag])) * (
+                        np.sin(2. * np.pi * fmax * self.tau[~diag]) - np.sin(2. * np.pi * fmin * self.tau[~diag]))
+            self.cos_integral[i, diag] = 2. * (fmax - fmin)
+            if eval_sin:
+                self.sin_integral[i, ~diag] = (1. / (np.pi * self.tau[~diag])) * (
+                            np.cos(2. * np.pi * fmin * self.tau[~diag]) - np.cos(2. * np.pi * fmax * self.tau[~diag]))
 
         if model is None:
             self.model = None
@@ -95,11 +94,11 @@ class MLFit(object):
             # try:
             # if the matrix is sibgular, perturb the diagonal and try again
             try:
-                L = cholesky(c + 1e-3 * np.eye(c.shape[0]), lower=True, check_finite=False)
+                L = cholesky(c + 1. * np.eye(c.shape[0]), lower=True, check_finite=False)
             except np.linalg.LinAlgError:
                 par_str = ", ".join(["%s: %g" % (p, params[p].value) for p in params])
                 print("WARNING: Couldn't invert covariance matrix with parameters " + par_str)
-                return (1e6, np.zeros(len(params))) if eval_gradient else -np.inf
+                return (1e6, np.zeros(len(params)) - 1e6) if eval_gradient else -np.inf
                 # raise np.linalg.LinAlgError("Couldn't invert covariance matrix with parameters " + par_str)
             # except np.linalg.LinAlgError:
             #     return (-np.inf, np.zeros(len(params))) if eval_gradient else -np.inf
@@ -280,14 +279,7 @@ class MLCrossSpectrum(MLFit):
         else:
             self.lag_model = lag_model(component_name='lag', **lag_model_args)
 
-        MLFit.__init__(self, t, y, psdnorm=cpsdnorm, **kwargs)
-
-        #we probably don't need the sine integrals since they go to zero when we integrate over -ve frequencies
-        # self.sin_integral = np.array(
-        #     [np.array([(1. / (2. * np.pi * t)) * (np.cos(2 * np.pi * fmin * t) - np.cos(2 * np.pi * fmax * t))
-        #                if t > 0 else 0.
-        #                for t in self.tau.flatten()]).reshape(self.tau.shape)
-        #      for fmin, fmax in zip(self.fbins.bin_start, self.fbins.bin_end)])
+        MLFit.__init__(self, t, y, psdnorm=cpsdnorm, eval_sin=True, **kwargs)
 
     def get_params(self):
         params = lmfit.Parameters()
@@ -335,8 +327,8 @@ class MLCrossSpectrum(MLFit):
             lags = self.lag_model(params, self.fbins.bin_cent)
 
         # TODO: is this correct or do we need the sine terms? (I think we don't if we're integrating over the -ve freq terms)
-        #cov = np.sum(np.array([p * (c * np.cos(phi) - s * np.sin(phi)) for p, c, s, phi in zip(cpsd, self.cos_integral, self.sin_integral, lags)]), axis=0)
-        cov = np.sum(np.array([p * c * np.cos(phi) for p, c, phi in zip(cpsd, self.cos_integral, lags)]), axis=0)
+        cov = np.sum(np.array([p * (c * np.cos(phi) - s * np.sin(phi)) for p, c, s, phi in zip(cpsd, self.cos_integral, self.sin_integral, lags)]), axis=0)
+        #cov = np.sum(np.array([p * c * np.cos(phi) for p, c, phi in zip(cpsd, self.cos_integral, lags)]), axis=0)
         return cov
 
     def cov_matrix(self, params):
@@ -369,15 +361,15 @@ class MLCrossSpectrum(MLFit):
                 lags = self.lag_model(params, self.fbins.bin_cent)
 
             if self.cpsd_model is None:
-                cpsd_derivs = [c * np.cos(phi) * p for p, c, phi in zip(cpsd, self.cos_integral, lags)]
-                #cpsd_derivs = [(c * np.cos(phi) + s * np.sin(phi)) * p for p, c, s, phi in zip(cpsd, self.cos_integral, self.sin_integral, lags)]
+                #cpsd_derivs = [c * np.cos(phi) * p for p, c, phi in zip(cpsd, self.cos_integral, lags)]
+                cpsd_derivs = [(c * np.cos(phi) + s * np.sin(phi)) * p for p, c, s, phi in zip(cpsd, self.cos_integral, self.sin_integral, lags)]
             else:
                 # TODO: implement chain rule derivatives for functions
                 return NotImplemented
 
             if self.lag_model is None:
-                lag_derivs = [-1 * p * c * np.sin(phi) for p, c, phi in zip(cpsd, self.cos_integral, lags)]
-                #lag_derivs = [-1 * p * (c * np.sin(phi) + s * np.cos(phi)) for p, c, s, phi in zip(cpsd, self.cos_integral, self.sin_integral, lags)]
+                #lag_derivs = [-1 * p * c * np.sin(phi) for p, c, phi in zip(cpsd, self.cos_integral, lags)]
+                lag_derivs = [-1 * p * (c * np.sin(phi) + s * np.cos(phi)) for p, c, s, phi in zip(cpsd, self.cos_integral, self.sin_integral, lags)]
             else:
                 # TODO: implement chain rule derivatives for functions
                 return NotImplemented
