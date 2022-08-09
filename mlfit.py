@@ -9,7 +9,7 @@ v2.0 05/07/2019 - D.R. Wilkins
 import numpy as np
 
 from scipy.spatial.distance import pdist, cdist, squareform
-from scipy.linalg import cholesky, cho_solve
+from scipy.linalg import cholesky, cho_solve, cho_factor, blas
 from scipy.optimize import minimize
 
 import lmfit
@@ -21,23 +21,14 @@ from .model import *
 from .plotter import *
 
 class MLFit(object):
-    def __init__(self, t, y, yerr=None, psdnorm=1., Nf=10, fbins=None, model=None, component_name=None, model_args={}, noise='errors', eval_sin=False):
+    def __init__(self, t, y, noise=None, psdnorm=1., Nf=10, fbins=None, model=None, component_name=None, model_args={}, eval_sin=False, extend_freq=1.):
         self.time = np.array(t)
         self.dt = np.min(np.diff(self.time))
 
         # the linear algebra we'll be doing requires the data points as a column vector (in matrix form)
         self.data = y[:, np.newaxis]
 
-        self.yerr = yerr
-
-        if noise == 'errors' and yerr is not None:
-            self.noise = self.yerr**2
-        elif noise == 'mean':
-            self.noise = np.ones_like(self.time) * np.mean(self.yerr)**2
-        elif isinstance(noise, (float, int)):
-            self.noise = noise * np.ones_like(self.time)
-        else:
-            self.noise = None
+        self.noise = noise
 
         self.psdnorm = psdnorm
 
@@ -46,7 +37,7 @@ class MLFit(object):
 
         if fbins is None:
             # set up frequency bins to span
-            min_freq = 0.5 / (np.max(self.time) - np.min(self.time))
+            min_freq = (0.5 / (np.max(self.time) - np.min(self.time))) / extend_freq
             max_freq = 0.5 / self.dt
             self.fbins = LogBinning(min_freq, max_freq, Nf)
         else:
@@ -62,11 +53,11 @@ class MLFit(object):
         self.sin_integral = np.zeros((len(self.fbins), self.tau.shape[0], self.tau.shape[1])) if eval_sin else None
         diag = np.eye(self.tau.shape[0], dtype=bool)
         for i, (fmin, fmax) in enumerate(zip(self.fbins.bin_start, self.fbins.bin_end)):
-            self.cos_integral[i, ~diag] = (1. / (np.pi * self.tau[~diag])) * (
+            self.cos_integral[i, ~diag] = (1. / (2. * np.pi * self.tau[~diag])) * (
                         np.sin(2. * np.pi * fmax * self.tau[~diag]) - np.sin(2. * np.pi * fmin * self.tau[~diag]))
-            self.cos_integral[i, diag] = 2. * (fmax - fmin)
+            self.cos_integral[i, diag] = fmax - fmin
             if eval_sin:
-                self.sin_integral[i, ~diag] = (1. / (np.pi * self.tau[~diag])) * (
+                self.sin_integral[i, ~diag] = (1. / (2. * np.pi * self.tau[~diag])) * (
                             np.cos(2. * np.pi * fmin * self.tau[~diag]) - np.cos(2. * np.pi * fmax * self.tau[~diag]))
 
         if model is None:
@@ -88,13 +79,20 @@ class MLFit(object):
 
         c = self.cov_matrix(params)
 
+        # add white noise along the leading diagonal
+        # this should be the Poisson noise term when calculating a PSD
+        if self.noise is not None:
+            c += np.diag(self.noise)
+
         try:
-            L = cholesky(c, lower=True, check_finite=False)
+            #print(c.shape)
+            L = cho_factor(c, lower=True, check_finite=False)[0]
+            #print(L.shape)
         except np.linalg.LinAlgError:
             # try:
             # if the matrix is sibgular, perturb the diagonal and try again
             try:
-                L = cholesky(c + 1. * np.eye(c.shape[0]), lower=True, check_finite=False)
+                L = cho_factor(c + np.diag(self.noise), lower=True, check_finite=False)[0]
             except np.linalg.LinAlgError:
                 par_str = ", ".join(["%s: %g" % (p, params[p].value) for p in params])
                 print("WARNING: Couldn't invert covariance matrix with parameters " + par_str)
@@ -133,7 +131,7 @@ class MLFit(object):
 
     def _dofit(self, init_params, method='L-BFGS-B', **kwargs):
         initial_par_arr = np.array([init_params[p].value for p in init_params if init_params[p].vary])
-        bounds = [(init_params[p].min, init_params[p].max) for p in init_params if init_params[p].vary]
+        bounds = [(init_params[p].min, init_params[p].max) for p in init_params if init_params[p].vary] if method == 'L-BFGS-B' else None
 
         def objective(par_arr):
             fit_params = copy.copy(init_params)
@@ -159,22 +157,31 @@ class MLFit(object):
 
 
 class MLPSD(MLFit):
-    def __init__(self, lc, **kwargs):
+    def __init__(self, lc, noise='errors', **kwargs):
         t = np.array(lc.time)
 
         y = np.array(lc.rate)
         # to fit a Gaussian process, we should make sure our data has zero mean
         y -= np.mean(y)
 
-        yerr = lc.error
+        if noise == 'poisson':
+            noise_arr = (1. / lc.mean()**2) * np.ones_like(lc.rate)
+        elif noise == 'errors':
+            noise_arr = lc.error ** 2
+        elif isinstance(noise, (float, int)):
+            noise_arr = noise * np.ones_like(lc.rate)
+        else:
+            noise_arr = None
 
         # RMS normalisation for PSD
         psdnorm = 2 * np.min(np.diff(lc.time)) / (lc.mean() ** 2 * lc.length)
 
-        MLFit.__init__(self, t, y, yerr, psdnorm=psdnorm, **kwargs)
+        MLFit.__init__(self, t, y, noise=noise_arr, psdnorm=psdnorm, **kwargs)
 
         self.psd = self.get_psd()
         self.psd_error = None
+
+        self.noise_level = (2. / lc.mean()**2) * np.ones_like(self.fbins.bin_cent)
 
     def cov_matrix(self, params):
         # if no model is specified, the PSD model is just the PSD value in each frequency bin
@@ -185,11 +192,6 @@ class MLPSD(MLFit):
             psd = self.model(params, self.fbins.bin_cent) / self.psdnorm
 
         cov = np.sum(np.array([p * c for p, c in zip(psd, self.cos_integral)]), axis=0)
-
-        # add white noise along the leading diagonal
-        # this should be the Poisson noise term when calculating a PSD
-        if self.noise is not None:
-            cov += np.diag(self.noise)
 
         return cov
 
@@ -234,7 +236,7 @@ class MLPSD(MLFit):
 
 
 class MLCrossSpectrum(MLFit):
-    def __init__(self, lc1, lc2, mlpsd1=None, mlpsd2=None, psd_model=None, cpsd_model=None, lag_model=None, freeze_psd=True, cpsd_model_args={}, lag_model_args={}, **kwargs):
+    def __init__(self, lc1, lc2, mlpsd1=None, mlpsd2=None, psd_model=None, cpsd_model=None, lag_model=None, freeze_psd=True, noise='errors', cpsd_model_args={}, lag_model_args={}, **kwargs):
         t = np.array(lc1.time)
 
         y1 = np.array(lc1.rate)
@@ -244,7 +246,14 @@ class MLCrossSpectrum(MLFit):
         # to fit a cross spectrum, we stack the data vectors
         y = np.concatenate([y1, y2])
 
-        #cpsdnorm = 2 * np.min(np.diff(lc1.time)) / (np.mean(np.concatenate([lc1.rate, lc2.rate])) ** 2 * lc1.length)
+        if noise == 'poisson':
+            noise_arr = np.concatenate([(1. / lc1.mean() ** 2) * np.ones_like(lc1.rate), (1. / lc2.mean() ** 2) * np.ones_like(lc2.rate)])
+        elif noise == 'errors':
+            noise_arr = np.concatenate([lc1.error ** 2, lc2.error ** 2])
+        elif isinstance(noise, (float, int)):
+            noise_arr = noise * np.ones_like(np.concatenate([lc1.rate, lc2.rate]))
+        else:
+            noise_arr = None
 
         cpsdnorm = 2 * np.min(np.diff(lc1.time)) / (lc1.mean() * lc2.mean() * lc1.length)
 
@@ -255,13 +264,13 @@ class MLCrossSpectrum(MLFit):
             self.mlpsd1 = mlpsd1
             self.ac1 = self.mlpsd1.cov_matrix(self.mlpsd1.params)
         else:
-            self.mlpsd1 = MLPSD(lc1, model=psd_model, component_name='psd1', **kwargs)
+            self.mlpsd1 = MLPSD(lc1, noise=noise, model=psd_model, component_name='psd1', **kwargs)
 
         if mlpsd2 is not None:
             self.mlpsd2 = mlpsd2
             self.ac2 = self.mlpsd2.cov_matrix(self.mlpsd2.params)
         else:
-            self.mlpsd2 = MLPSD(lc2, model=psd_model, component_name='psd2', **kwargs)
+            self.mlpsd2 = MLPSD(lc2, noise=noise, model=psd_model, component_name='psd2', **kwargs)
 
         self.freeze_psd = freeze_psd
 
@@ -279,7 +288,7 @@ class MLCrossSpectrum(MLFit):
         else:
             self.lag_model = lag_model(component_name='lag', **lag_model_args)
 
-        MLFit.__init__(self, t, y, psdnorm=cpsdnorm, eval_sin=True, **kwargs)
+        MLFit.__init__(self, t, y, noise=noise_arr, psdnorm=cpsdnorm, eval_sin=True, **kwargs)
 
     def get_params(self):
         params = lmfit.Parameters()
@@ -288,7 +297,7 @@ class MLCrossSpectrum(MLFit):
             params += self.mlpsd2.get_params()
         if self.cpsd_model is None:
             for i in range(len(self.fbins)):
-                params.add('%sln_cpsd%01d' % (self.prefix, i), 1., vary=True, min=-30., max=30.)
+                params.add('%sln_cpsd%01d' % (self.prefix, i), -1., vary=True, min=-30., max=30.)
         else:
             params += self.cpsd_model.get_params()
         if self.lag_model is None:
@@ -310,8 +319,8 @@ class MLCrossSpectrum(MLFit):
 
         # set an initial estimate of the cross power spectrum as the average of the two band powers
         # this helps avoid uninvertable matrices in the first step of the fit!
-        for i in range(len(self.fbins)):
-            self.params['ln_cpsd%01d' % i].value = 0.5 * (self.mlpsd1.psd[i] + self.mlpsd2.psd[i])
+        # for i in range(len(self.fbins)):
+        #     self.params['ln_cpsd%01d' % i].value = 0.5 * (self.mlpsd1.psd[i] + self.mlpsd2.psd[i])
 
     def cross_cov_matrix(self, params):
         # if no model is specified, the PSD model is just the PSD value in each frequency bin
