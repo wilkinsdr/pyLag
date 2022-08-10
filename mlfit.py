@@ -451,9 +451,11 @@ class MLCrossSpectrum(MLFit):
         return lag / (2. * np.pi * self.fbins.bin_cent) if time_lag else lag
 
     def process_fit_results(self, fit_result, params):
+        hess = fit_result.hess_inv(fit_result.x) if callable(fit_result.hess_inv) else np.diag(fit_result.hess_inv)
+
         self.cpsd = self.get_cpsd()
         if self.cpsd_model is None:
-            self.cpsd_error = fit_result.hess_inv(fit_result.x)[:len(self.fbins)] ** 0.5
+            self.cpsd_error = hess[:len(self.fbins)] ** 0.5
         else:
             return NotImplemented
             # # calculate the error on each PSD point from the error on each parameter
@@ -464,6 +466,6 @@ class MLCrossSpectrum(MLFit):
 
         self.lag = self.get_lag()
         if self.cpsd_model is None:
-            self.lag_error = fit_result.hess_inv(fit_result.x)[len(self.fbins):] ** 0.5 / (2. * np.pi * self.fbins.bin_cent)
+            self.lag_error = hess[len(self.fbins):] ** 0.5 / (2. * np.pi * self.fbins.bin_cent)
         else:
             return NotImplemented
