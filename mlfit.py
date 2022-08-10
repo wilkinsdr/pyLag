@@ -152,7 +152,8 @@ class MLFit(object):
         if True or self.fit_result.success and update_params:
             for par, value in zip([p for p in init_params if init_params[p].vary], self.fit_result.x):
                 self.params[par].value = value
-            self.param_error = self.fit_result.hess_inv(self.fit_result.x) ** 0.5
+            hess = self.fit_result.hess_inv(self.fit_result.x) if callable(self.fit_result.hess_inv) else np.diag(self.fit_result.hess_inv)
+            self.param_error =  hess ** 0.5
             self.process_fit_results(self.fit_result, self.params)
 
 
