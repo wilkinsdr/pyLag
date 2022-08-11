@@ -174,7 +174,8 @@ class MLPSD(MLFit):
         y = r - np.mean(r)
 
         dt = np.min(np.diff(t))
-        length = (np.max(t) - np.min(t)) // dt
+        #length = (np.max(t) - np.min(t)) // dt
+        length = len(r)
 
         if noise == 'poisson':
             noise_arr = (1. / lc.mean()**2) * np.ones_like(lc.rate)
@@ -272,15 +273,15 @@ class MLCrossSpectrum(MLFit):
         # to fit a cross spectrum, we stack the data vectors
         y = np.concatenate([y1, y2])
 
-        if noise == 'poisson':
-            noise_arr = np.concatenate([(1. / lc1.mean() ** 2) * np.ones_like(lc1.rate), (1. / lc2.mean() ** 2) * np.ones_like(lc2.rate)])
-        elif noise == 'errors':
-            # note: RMS normalisation
-            noise_arr = np.concatenate([e1 ** 2 * lc1.length / (2.*np.min(np.diff(lc1.time))), e2 ** 2 * lc2.length / (2.*np.min(np.diff(lc2.time)))])
-        elif isinstance(noise, (float, int)):
-            noise_arr = noise * np.ones_like(np.concatenate([lc1.rate, lc2.rate]))
-        else:
-            noise_arr = None
+        # if noise == 'poisson':
+        #     noise_arr = np.concatenate([(1. / lc1.mean() ** 2) * np.ones_like(lc1.rate), (1. / lc2.mean() ** 2) * np.ones_like(lc2.rate)])
+        # elif noise == 'errors':
+        #     # note: RMS normalisation
+        #     noise_arr = np.concatenate([e1 ** 2 * lc1.length / (2.*np.min(np.diff(lc1.time))), e2 ** 2 * lc2.length / (2.*np.min(np.diff(lc2.time)))])
+        # elif isinstance(noise, (float, int)):
+        #     noise_arr = noise * np.ones_like(np.concatenate([lc1.rate, lc2.rate]))
+        # else:
+        #     noise_arr = None
 
         cpsdnorm = (lc1.mean() * lc2.mean() * lc1.length) / (2 * np.min(np.diff(lc1.time)))
 
@@ -298,6 +299,8 @@ class MLCrossSpectrum(MLFit):
             self.ac2 = self.mlpsd2.cov_matrix(self.mlpsd2.params)
         else:
             self.mlpsd2 = MLPSD(t=t, r=r2, e=e2, noise=noise, model=psd_model, component_name='psd2', **kwargs)
+
+        noise_arr = np.concatenate([self.mlpsd1.noise, self.mlpsd1.noise])
 
         self.freeze_psd = freeze_psd
 
