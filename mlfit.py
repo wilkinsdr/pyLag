@@ -1,8 +1,14 @@
 """
 pylag.mlfit
 
-Implements the method of Zoghbi et al. 2013 to fit correlation functions/covariance matrices
-to light curves in the time domain to estimate power and lag spectra
+Implements the method of Zoghbi et al. 2013, ApJ 777, 24 (https://ui.adsabs.harvard.edu/abs/2013ApJ...777...24Z/abstract)
+to fit correlation functions/covariance matrices to light curves in the time domain to estimate power and lag spectra.
+
+These classes employ the method set out by Zoghbi et al. 2013, and make use the algorithms of Rasmussen & Williams
+"Gaussian Processes for Machine Learning", the MIT Press, 2006 and implemented in the scikit-learn
+GaussainProcessRegressor (https://scikit-learn.org/stable/modules/generated/sklearn.gaussian_process.GaussianProcessRegressor.html)
+
+If you make use of this code in any publications, please be sure to cite Zoghbi et al. 2013 and Rasmussen & Williams 2006!
 
 v2.0 05/07/2019 - D.R. Wilkins
 """
@@ -21,7 +27,39 @@ from .model import *
 from .plotter import *
 
 class MLFit(object):
-    def __init__(self, t, y, noise=None, psdnorm=1., Nf=10, fbins=None, model=None, component_name=None, model_args={}, eval_sin=False, extend_freq=1.):
+    """
+    pylag.mlfit.MLFit
+
+    Base class for fitting timing products to light curves in the time domain.
+
+    This class is not typically used on its own, rather the MLPSD and MLCovariance classes inherit their common
+    functionality from here (setting up integrals, evaluating likelihood function, fitting, etc.)
+
+    Constructor arguments:
+    :param t: ndarray: array of time points at which light curves are evaluated (for a cross spectrum, this should
+    just be the time points from one light curve, not a stacked vector).
+    :param y: ndarray: data vector to which the covariance matrix is fit (either the count rate in each time bin for a
+    power spectrum, or a stacked data vector of the two light curves for a cross spectrum)
+    :param noise: ndarray: array of noise terms to be added to the covariance matrix along the leading diagonal. Each
+    element should correspond to each bin in the data vector (and shoud be stacked for a cross spectrum).
+    :param psdnorm: float, optional (default=1.): normalisation factor for the power or cross spectrum
+    :param Nf: int, optional (default=10): number of frequency bins to use in the fit between the minimum and Nyquist
+    frequencies. If a model fucntion is specified, the model will be evaluated at these frequencies when calculating
+    the covariance integrals.
+    :param fbins: Binning, optional (default=None). A Binning object to use defining the frequency bins, instead of
+    constructing bins automatically (this will override Nf)
+    :param model: Model, optional (default=None). If set, a Model object to use to model the power spectrum as a
+    function of frequency, using the model's parameters instead of treating each frequency bin as a parameter
+    :param component_name: str, optional (default=None): If set, the name of this model component to prefix onto all
+    of the parameter names (when multiple components are combined into a single model).
+    :param model_args: dict, optional (default={}): Arguments to pass to constructor of Model object
+    :param eval_sin: bool, optional (default=False): If True, evaluate the integrals of the sin terms (in addition to
+    the cos terms). Required for a cross spectrum with lags.
+    :param extend_freq: float, optional (default=None). If True, create an additional low frequecy bin extending to
+    this factor times the minimum frequency. Adding a low frequency bin reduces bias in the lowest frequency bin due
+    to red noise leak (see Zoghbi et al. 2013).
+    """
+    def __init__(self, t, y, noise=None, psdnorm=1., Nf=10, fbins=None, model=None, component_name=None, model_args={}, eval_sin=False, extend_freq=None):
         self.time = np.array(t)
         self.dt = np.min(np.diff(self.time))
 
@@ -43,6 +81,10 @@ class MLFit(object):
         else:
             self.fbins = fbins
 
+        if extend_freq is not None:
+            # TODO: need to implement frequenhcy bin extension
+            pass
+
         self.freq = self.fbins.bin_cent
         self.freq_error = self.fbins.x_error()
 
@@ -58,7 +100,7 @@ class MLFit(object):
             self.cos_integral[i, diag] = fmax - fmin
             if eval_sin:
                 self.sin_integral[i, ~diag] = (1. / (2. * np.pi * self.tau[~diag])) * (
-                            np.cos(2. * np.pi * fmin * self.tau[~diag]) - np.cos(2. * np.pi * fmax * self.tau[~diag]))
+                            np.cos(2. * np.pi * fmax * self.tau[~diag]) - np.cos(2. * np.pi * fmin * self.tau[~diag]))
 
         if model is None:
             self.model = None
@@ -74,6 +116,23 @@ class MLFit(object):
         self.fit_result = None
 
     def log_likelihood(self, params, eval_gradient=True):
+        """
+        mloglike, grad = pylag.mlfit.MLFit.log_likelihood(params, eval_gradient=True)
+
+        Evaluate -log(marginal likelihood), as well as its gradient, for the covariance matrix defined by some set of
+        input parameters, applied to the data points we have.
+
+        Based on the Algorithm 2.1 of Rasmussen & Williams "Gaussian Processes for Machine Learning", the MIT Press,
+        2006 and implemented in the scikit-learn GaussainProcessRegressor
+        (https://scikit-learn.org/stable/modules/generated/sklearn.gaussian_process.GaussianProcessRegressor.html)
+
+        :param params: Parameters() object containing the set of parameter values the likelihood function is to be
+        evaluated for.
+        :param eval_gradient: bool, optional (default=True): whether to return the gradient (derviative/Jacobian) of
+        the likelihood, or just the likelihood
+        :return mloglike: float: -log(likelihood) value
+        :return grad: ndarray: derivative of -log(likelihood)
+        """
         c = self.cov_matrix(params)
 
         # add white noise along the leading diagonal
@@ -118,6 +177,12 @@ class MLFit(object):
         return (-1 * log_likelihood, -1 * gradient) if eval_gradient else -1 * log_likelihood
 
     def get_params(self):
+        """
+        param = pylag.mlfit.MLFit.get_params()
+
+        Create a new set of parameters for the model used to construct the covariance matrix
+        :return param: Parameters() object containing the parameters
+        """
         if self.model is None:
             params = lmfit.Parameters()
             for i in range(len(self.fbins)):
@@ -127,10 +192,26 @@ class MLFit(object):
             return self.model.get_params()
 
     def _dofit(self, init_params, method='L-BFGS-B', **kwargs):
+        """
+        result = pylag.mlfit.MLFit._dofit(init_params, method='L-BFGS-B', **kwargs)
+
+        Function to actually perform the minimisation of -log(likelihood).
+
+        This method is not normally called on its own, rather it is called by the fit() or steppar() method.
+
+        :param init_params: Parameters() object containing the parameter values to use as the starting point
+        :param method: str, optional (default='L-BFGS-B'): scipy.optimize.minimize minimisation method to use for the fit
+        :param kwargs: additional arguments to pass to scipy.optimize.minimize
+        :return result: scipy.optimise fit_result object containing the results of the fit
+        """
         initial_par_arr = np.array([init_params[p].value for p in init_params if init_params[p].vary])
         bounds = [(init_params[p].min, init_params[p].max) for p in init_params if init_params[p].vary] if method == 'L-BFGS-B' else None
 
         def objective(par_arr):
+            """
+            wrapper around log_likelihood method to evaluate for an array of just the variable parameters,
+            which can be used directly with scipy.optimise methods.
+            """
             fit_params = copy.copy(init_params)
             for par, value in zip([p for p in init_params if init_params[p].vary], par_arr):
                 fit_params[par].value = value
@@ -143,6 +224,21 @@ class MLFit(object):
         return result
 
     def fit(self, init_params=None, update_params=True, **kwargs):
+        """
+        pylag.mlfit.MLFit._dofit(init_params, method='L-BFGS-B', **kwargs)
+
+        Fit the model covariance matrix to the data by minimising -log(likelihood). Once the fit is complete, the
+        parameters stored in the member variable params will be updated, the uncertainties will be estimated from
+        the Hessian matrix, and the process_fit_results() method will be called from the derived class to update
+        calculate power and lag spectra from the best-fitting parameter values.
+
+        The actual minimisation is done by the _dofit() method.
+
+        :param init_params: Parameters() object containing the parameter values to use as the starting point
+        :param update_params: bool, optional (default=True): whether to update the stored parameter values after the fit,
+        and to calculate the resulting power and/or lag spectra
+        :param kwargs: additional arguments to pass to _dofit() method.
+        """
         if init_params is None:
             init_params = self.params
 
@@ -158,6 +254,22 @@ class MLFit(object):
 
 
 class MLPSD(MLFit):
+    """
+    pylag.mlfit.MLPSD
+
+    Class to fit the power spectrum to light curves via the autocovariance matrix.
+
+    Fitting functionality is inherited from the MLFit class.
+
+    Constructor arguments:
+    :param lc: LightCurve, optional (default=None): LightCurve object to for which the power spectrum is to be calculated
+    :param t: array, optional (default=None). If lc=None, array containing the observed time bins
+    :param r: array, optional (default=None). If lc=None, array containing the count rate in each time bin
+    :param e: array, optional (default=None). If lc=None, array containing the error for each time bin
+    :param noise: stry, optional (default='errors'). Method for computing the noise (diagonal) term in the covariace matrix.
+    The default is to use the error bars of the original light curve.
+    :param kwargs: additional arguments passed to MLFit constructor.
+    """
     def __init__(self, lc=None, t=None, r=None, e=None, noise='errors', **kwargs):
         if lc is not None:
             t = np.array(lc.time)
@@ -165,9 +277,9 @@ class MLPSD(MLFit):
             e = np.array(lc.error)
 
             # remove the time bins with zero counts
-            nonzero = (y > 0)
+            nonzero = (r > 0)
             t = t[nonzero]
-            r = y[nonzero]
+            r = r[nonzero]
             e = e[nonzero]
 
         # to fit a Gaussian process, we should make sure our data has zero mean
@@ -181,14 +293,16 @@ class MLPSD(MLFit):
             noise_arr = (1. / lc.mean()**2) * np.ones_like(lc.rate)
         elif noise == 'errors':
             # Note: RMS normalisation
-            noise_arr = e ** 2 * length / (2.*dt)
+            #noise_arr = e ** 2 * length / (2.*dt)
+            noise_arr = e**2
         elif isinstance(noise, (float, int)):
             noise_arr = noise * np.ones_like(lc.rate)
         else:
             noise_arr = None
 
         # RMS normalisation for PSD
-        psdnorm = (np.mean(r) ** 2 * length) / (2 * dt)
+        #psdnorm = (np.mean(r) ** 2 * length) / (2 * dt)
+        psdnorm = np.mean(r)**2
 
         MLFit.__init__(self, t, y, noise=noise_arr, psdnorm=psdnorm, **kwargs)
 
@@ -198,6 +312,15 @@ class MLPSD(MLFit):
         self.noise_level = (2. / np.mean(r)**2) * np.ones_like(self.fbins.bin_cent)
 
     def cov_matrix(self, params):
+        """
+        c = pylag.mlfit.MLPSD.cov_matrix(params)
+
+        Calculate the model covariance matrix for the specified parameter values.
+
+        :param params: Parameters() object containing the set of parameter values for which the covariance matrix is
+        to be calculated
+        :return c: ndarray (N * N): the covariance matrix
+        """
         # if no model is specified, the PSD model is just the PSD value in each frequency bin
         # note the factor of 2 to integrate over the negative frequencies too!
         if self.model is None:
@@ -209,7 +332,16 @@ class MLPSD(MLFit):
 
         return cov
 
-    def cov_matrix_deriv(self, params, delta=1e-6):
+    def cov_matrix_deriv(self, params):
+        """
+        dc = pylag.mlfit.MLPSD.cov_matrix_deriv(params)
+
+        Calculate the first derivative of the covariance matrix wrt the parameters
+
+        :param params: Parameters() object containing the set of parameter values at which thederivative is to be
+        calculated
+        :return c: ndarray (N * N * Npar): the derivative of the covariance matrix wrt each parameter
+        """
         if self.model is None:
             psd = np.exp(np.array([params[p].value for p in params])) * self.psdnorm
 
@@ -220,7 +352,35 @@ class MLPSD(MLFit):
             psd_deriv = self.model.eval_gradient(params, self.fbins.bin_cent) * self.psdnorm
             return np.stack([np.sum([c * p for c, p in zip(self.cos_integral, psd_deriv[:, par])], axis=0) for par in range(psd_deriv.shape[-1])], axis=-1)
 
+    def get_psd(self, params=None):
+        """
+        psd = pylag.mlfit.MLPSD.get_psd(params)
+
+        Calculate the power spectrum in each frequency bin for a given set of parameters.
+
+        :param params: Parameters, optional (default=None): Parameters object containing the parameters from which to
+        calculate the power spectrum. If none, will use the current values of the params member variable (which
+        will either be the initial values or the results of the last fit).
+        :return psd: ndarray: the power spectrum in each frequency bin
+        """
+        if params is None:
+            params = self.params
+
+        if self.model is None:
+            return np.array([self.params[p].value for p in self.params])
+        else:
+            return np.log(self.model(self.params, self.fbins.bin_cent))
+
     def process_fit_results(self, fit_result, params):
+        """
+        pylag.mlfit.MLPSD.process_fit_results(fit_result, params)
+
+        Process a scipy.optimise fit result to calculate the best-fitting power spectrum and error from the model.
+
+        :param fit_result: scipy.optimise fit result to be processed
+        :param params: Parameters() object containing the best-fitting parameters (including the frozen parameters,
+        which are not included in fit_result.x)
+        """
         self.psd = self.get_psd()
         if self.model is None:
             self.psd_error = fit_result.hess_inv(fit_result.x) ** 0.5
@@ -230,15 +390,6 @@ class MLPSD(MLFit):
             self.psd_error = np.sum([e * psd_deriv[..., i] for i, e in enumerate(self.param_error)], axis=0) / self.psd
             if np.any(np.isnan(self.psd_error)):
                 self.psd_error = None
-
-    def get_psd(self, params=None):
-        if params is None:
-            params = self.params
-
-        if self.model is None:
-            return np.array([self.params[p].value for p in self.params])
-        else:
-            return np.log(self.model(self.params, self.fbins.bin_cent))
 
     def _getplotdata(self):
         x = (self.fbins.bin_cent, self.fbins.x_error())
@@ -250,6 +401,37 @@ class MLPSD(MLFit):
 
 
 class MLCrossSpectrum(MLFit):
+    """
+    pylag.mlfit.MLCrossSpectrum
+
+    Class to fit the cross spectrum to a pair of light curves via the covariance matrix.
+
+    The MLCrossSpectrum will contain an MLPSD object for each of the light curves, which are used to calculate the
+    autocovariance (i.e. top left and bottom right) components of the covariance matrix. The power spectrum of each
+    light curve can be fit separately, and these fit results can be used to pre-populate and freeze these parts of the
+    matrix (or the whole set can be fit simultaneously).
+
+    Fitting functionality is inherited from the MLFit class.
+
+    Constructor arguments:
+    :param lc1: LightCurve, optional (default=None): First LightCurve object
+    :param lc2: LightCurve, optional (default=None): Second LightCurve object
+    :param mlpsd1: (optional, default=None) MLPSD object which can be pre-fit to the first light curve
+    :param mlpsd2: (optional, default=None) MLPSD object which can be pre-fit to the second light curve
+    :param psd_model: (optional, default=None) Model object to model the power spectra as a function of frequency,
+    rather than fitting each bin as a free parameter
+    :param cpsd_model: (optional, default=None) Model object to model the cross spectrum as a function of frequency,
+    rather than fitting each bin as a free parameter
+    :param lag_model: (optional, default=None) Model object to model the lag as a function of frequency,
+    rather than fitting each bin as a free parameter
+    :param freeze_psd: bool (optional, default=True): If True, the power spectra of each light curve is fit separately
+    and the autocovariance components of the matrix are frozen to these values during the fit.
+    :param noise: stry, optional (default='errors'). Method for computing the noise (diagonal) term in the covariace matrix.
+    The default is to use the error bars of the original light curve.
+    :param cpsd_model_args: dict (optional, default={}): arguments to pass to constructor for cross spectrum model
+    :param lag_model_args: dict (optional, default={}): arguments to pass to constructor for lag model
+    :param kwargs: additional arguments passed to MLFit constructor.
+    """
     def __init__(self, lc1, lc2, mlpsd1=None, mlpsd2=None, psd_model=None, cpsd_model=None, lag_model=None, freeze_psd=True, noise='errors', cpsd_model_args={}, lag_model_args={}, **kwargs):
         t = np.array(lc1.time)
 
@@ -273,17 +455,8 @@ class MLCrossSpectrum(MLFit):
         # to fit a cross spectrum, we stack the data vectors
         y = np.concatenate([y1, y2])
 
-        # if noise == 'poisson':
-        #     noise_arr = np.concatenate([(1. / lc1.mean() ** 2) * np.ones_like(lc1.rate), (1. / lc2.mean() ** 2) * np.ones_like(lc2.rate)])
-        # elif noise == 'errors':
-        #     # note: RMS normalisation
-        #     noise_arr = np.concatenate([e1 ** 2 * lc1.length / (2.*np.min(np.diff(lc1.time))), e2 ** 2 * lc2.length / (2.*np.min(np.diff(lc2.time)))])
-        # elif isinstance(noise, (float, int)):
-        #     noise_arr = noise * np.ones_like(np.concatenate([lc1.rate, lc2.rate]))
-        # else:
-        #     noise_arr = None
-
-        cpsdnorm = (lc1.mean() * lc2.mean() * lc1.length) / (2 * np.min(np.diff(lc1.time)))
+        #cpsdnorm = (lc1.mean() * lc2.mean() * lc1.length) / (2 * np.min(np.diff(lc1.time)))
+        cpsdnorm = np.mean(r1) * np.mean(r2)
 
         self.ac1 = None
         self.ac2 = None
@@ -300,6 +473,7 @@ class MLCrossSpectrum(MLFit):
         else:
             self.mlpsd2 = MLPSD(t=t, r=r2, e=e2, noise=noise, model=psd_model, component_name='psd2', **kwargs)
 
+        # use the noise terms from the individual power spectra, since they only apply across the leading diagonal
         noise_arr = np.concatenate([self.mlpsd1.noise, self.mlpsd1.noise])
 
         self.freeze_psd = freeze_psd
@@ -321,6 +495,13 @@ class MLCrossSpectrum(MLFit):
         MLFit.__init__(self, t, y, noise=noise_arr, psdnorm=cpsdnorm, eval_sin=True, **kwargs)
 
     def get_params(self):
+        """
+        param = pylag.mlfit.MLCrossSpectrum.get_params()
+
+        Create a new set of parameters for the model used to construct the covariance matrix
+
+        :return param: Parameters() object containing the parameters
+        """
         params = lmfit.Parameters()
         if not self.freeze_psd:
             params += self.mlpsd1.get_params()
@@ -339,6 +520,15 @@ class MLCrossSpectrum(MLFit):
         return params
 
     def fit_psd(self):
+        """
+        pylag.mlfit.MLCrossSpectrum.fit_psd()
+
+        Perform preliminary fits of the power spectra to the individual light curves. This function will pre-populate
+        the stored autocovariance components of the matrix (when the psd is frozen) and will set an initial estimate
+        of the cross spectral powers to use as the starting point for fitting the full cross spectral model.
+
+        Unless you're fitting the power and cross spectra simultaneously, this method should be run before running fit().
+        """
         print("Fitting PSD of light curve 1...")
         self.mlpsd1.fit()
         self.ac1 = self.mlpsd1.cov_matrix(self.mlpsd1.params)
@@ -348,11 +538,21 @@ class MLCrossSpectrum(MLFit):
         self.ac2 = self.mlpsd1.cov_matrix(self.mlpsd2.params)
 
         # set an initial estimate of the cross power spectrum as the average of the two band powers
-        # this helps avoid uninvertable matrices in the first step of the fit!
-        # for i in range(len(self.fbins)):
-        #     self.params['ln_cpsd%01d' % i].value = 0.5 * (self.mlpsd1.psd[i] + self.mlpsd2.psd[i])
+        # minus a little bit - this helps the fit on its way!
+        for i in range(len(self.fbins)):
+            self.params['ln_cpsd%01d' % i].value = 0.5 * (self.mlpsd1.psd[i] + self.mlpsd2.psd[i]) - 1.
 
     def cross_cov_matrix(self, params):
+        """
+        cc = pylag.mlfit.MLCrossSpectrum.cross_cov_matrix(params)
+
+        Calculate the cross component of the covariance matrix for the model cross spectrum (i.e. the upper right and
+        lower left quadrants of the matrix for the terms that use rates from both light curves).
+
+        :param params: Parameters() object containing the set of parameter values for which the covariance matrix is
+        to be calculated
+        :return cc: ndarray (N * N): the cross-covariance matrix
+        """
         # if no model is specified, the PSD model is just the PSD value in each frequency bin
         if self.cpsd_model is None:
             cpsd = np.exp(np.array([params['%sln_cpsd%01d' % (self.prefix, i)].value for i in range(len(self.fbins))])) * self.psdnorm
@@ -369,6 +569,20 @@ class MLCrossSpectrum(MLFit):
         return cov
 
     def cov_matrix(self, params):
+        """
+        c = pylag.mlfit.MLCrossSpectrum.cov_matrix(params)
+
+        Calculate the cross spectral model covariance matrix for the specified parameter values. The cross spectral
+        covariance matrix is the stack of the autocovariance and cross-covariance matrices, and is applicable to the
+        stacked data vector.
+
+        If the freeze_psd member variable is True, the stored autocovariance matrices will be used, otherwise they
+        will be computed for the current model parameters.
+
+        :param params: Parameters() object containing the set of parameter values for which the covariance matrix is
+        to be calculated
+        :return c: ndarray (2N * 2N): the covariance matrix
+        """
         if self.freeze_psd:
             if self.ac1 is None or self.ac2 is None:
                 raise AssertionError("Autocovariance matrices are not available. Did you fit the PSDs?")
@@ -382,7 +596,16 @@ class MLCrossSpectrum(MLFit):
 
         return np.vstack([np.hstack([ac1, cc.T]), np.hstack([cc, ac2])])
 
-    def cross_cov_matrix_deriv(self, params, delta=1e-6):
+    def cross_cov_matrix_deriv(self, params):
+        """
+        dc = pylag.mlfit.MLPSD.cross_cov_matrix_deriv(params)
+
+        Calculate the first derivative of the cross components of the covariance matrix wrt the parameters
+
+        :param params: Parameters() object containing the set of parameter values at which thederivative is to be
+        calculated
+        :return c: ndarray (N * N * Npar): the derivative of the covariance matrix wrt each parameter
+        """
         if self.cpsd_model is None:
             # if no model is specified, the PSD model is just the PSD value in each frequency bin
             if self.cpsd_model is None:
@@ -414,6 +637,16 @@ class MLCrossSpectrum(MLFit):
             return np.stack(cpsd_derivs + lag_derivs, axis=-1)
 
     def cov_matrix_deriv(self, params):
+        """
+        dc = pylag.mlfit.MLPSD.cov_matrix_deriv(params)
+
+        Calculate the first derivative of the covariance matrix wrt the parameters by stacking the derivatives of the
+        four quadrants of the covariance matrix (the autocovariance and cross-covariance matrices)
+
+        :param params: Parameters() object containing the set of parameter values at which thederivative is to be
+        calculated
+        :return c: ndarray (2N * 2N * Npar): the derivative of the covariance matrix wrt each parameter
+        """
         cc = self.cross_cov_matrix_deriv(params)
 
         if self.freeze_psd:
@@ -429,11 +662,19 @@ class MLCrossSpectrum(MLFit):
                 [np.vstack([np.hstack([ac1[..., p], cc[..., p].T]), np.hstack([cc[..., p], ac2[..., p]])]) for p in
                  range(len(self.params))], axis=-1)
 
-
-
         return np.stack([np.vstack([np.hstack([ac1[...,p], cc[...,p].T]), np.hstack([cc[...,p], ac2[...,p]])]) for p in range(len(self.params))], axis=-1)
 
     def get_cpsd(self, params=None):
+        """
+        cpsd = pylag.mlfit.MLCrossSpectrum.get_cpsd(params)
+
+        Calculate the cross power spectrum in each frequency bin from the model for a given set of parameters.
+
+        :param params: Parameters, optional (default=None): Parameters object containing the parameters from which to
+        calculate the cross power spectrum. If none, will use the current values of the params member variable (which
+        will either be the initial values or the results of the last fit).
+        :return cpsd: ndarray: the power spectrum in each frequency bin
+        """
         if params is None:
             params = self.params
 
@@ -443,6 +684,18 @@ class MLCrossSpectrum(MLFit):
             return np.log(self.cpsd_model(self.params, self.fbins.bin_cent))
 
     def get_lag(self, params=None, time_lag=True):
+        """
+        lag = pylag.mlfit.MLCrossSpectrum.get_cpsd(params)
+
+        Calculate the lag in each frequency bin from the model for a given set of parameters.
+
+        :param params: Parameters, optional (default=None): Parameters object containing the parameters from which to
+        calculate the lags. If none, will use the current values of the params member variable (which
+        will either be the initial values or the results of the last fit).
+        :param time_lag: bool, optional (default=True): If True, return the time lag (in seconds), otherwise return the
+        phase lag (in radians)
+        :return lag: ndarray: the lag in each frequency bin
+        """
         if params is None:
             params = self.params
 
@@ -454,6 +707,16 @@ class MLCrossSpectrum(MLFit):
         return lag / (2. * np.pi * self.fbins.bin_cent) if time_lag else lag
 
     def process_fit_results(self, fit_result, params):
+        """
+        pylag.mlfit.MLCrossSpectrum.process_fit_results(fit_result, params)
+
+        Process a scipy.optimise fit result to calculate the best-fitting cross spectrum, lag spectrum and errors
+        from the model.
+
+        :param fit_result: scipy.optimise fit result to be processed
+        :param params: Parameters() object containing the best-fitting parameters (including the frozen parameters,
+        which are not included in fit_result.x)
+        """
         hess = fit_result.hess_inv(fit_result.x) if callable(fit_result.hess_inv) else np.diag(fit_result.hess_inv)
 
         self.cpsd = self.get_cpsd()
@@ -472,3 +735,50 @@ class MLCrossSpectrum(MLFit):
             self.lag_error = hess[len(self.fbins):] ** 0.5 / (2. * np.pi * self.fbins.bin_cent)
         else:
             return NotImplemented
+
+
+class StackedMLPSD(MLPSD):
+    """
+    pylag.mlfit.StackedMLPSD
+
+    Class for simultaneosuly fitting the power spectrum to multiple lgith curve segments.
+
+    The StackedMLPSD constains MLPSD objects for each light curve (in the mlpsd member variable). The log(likelihood)
+    is evaluated as the sum of log(likelihood) for each light curve, and is evaluated using the parameter values tied
+    between the set of light cures.
+
+    Constructor arguments:
+    :param lclist: list of LightCurve objects to fit
+    :param Nf: int, optional (default=10): number of frequency bins to use in the fit between the minimum and Nyquist
+    frequencies. The lowest minimum and highest Nyquist frequencies are selected across the set of light curves
+    :param fbins: Binning, optional (default=None). A Binning object to use defining the frequency bins, instead of
+    constructing bins automatically (this will override Nf)
+    :param kwargs: Arguments passed to MLPSD constructor for each of th elight curves
+    """
+    def __init__(self, lclist, Nf=10, fbins=None, **kwargs):
+        if fbins is None:
+            # set up frequency bins to span min and max frequencies for the entire list
+            T = np.max([lc.time.max() - lc.time.min() for lc in lclist])
+            dt = np.min([np.min(np.diff(lc.time)) for lc in lclist])
+            min_freq = (1. / T) / extend_freq
+            max_freq = 0.5 / dt
+            self.fbins = LogBinning(min_freq, max_freq, Nf)
+        else:
+            self.fbins = fbins
+
+        self.mlpsd = [MLPSD(lc, fbins=self.fbins, **kwargs) for lc in lclist]
+
+        self.params = self.get_params()
+
+        self.freq = self.fbins.bin_cent
+        self.freq_error = self.fbins.x_error()
+
+        self.psd = None
+        self.psd_error = None
+
+    def get_params(self):
+        return self.mlpsd1[0].get_params()
+
+    def log_likelihood(self, params, eval_gradient=True):
+        return np.sum([p.log_likelihood(params, eval_gradient) for p in self.mlpsd])
+
