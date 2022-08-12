@@ -338,7 +338,7 @@ class MLPSD(MLFit):
 
         Calculate the first derivative of the covariance matrix wrt the parameters
 
-        :param params: Parameters() object containing the set of parameter values at which thederivative is to be
+        :param params: Parameters() object containing the set of parameter values at which the derivative is to be
         calculated
         :return c: ndarray (N * N * Npar): the derivative of the covariance matrix wrt each parameter
         """
