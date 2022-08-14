@@ -21,7 +21,7 @@ def param2array(params, variable_only=False):
 
 def array2param(values, params, variable_only=False):
     """
-    Create a new Parameters object from a prototype object params, with values from an aeeay
+    Create a new Parameters object from a prototype object params, with values from an array
     """
     out_params = copy.copy(params)
     if variable_only:
@@ -34,6 +34,26 @@ def array2param(values, params, variable_only=False):
 
 
 class Model(object):
+    """
+    pylag.model.Model
+
+    Base class for deriving models that can be fit to data. Models are defined as a class that inhertis from this class.
+    The model class contains definitions of all the model parameters, and the means to evaluate the model for some set
+    of parameter values. Parameters are handled via lmfit Parameters objects to store parameter values and limits, and
+    to enable parameters to be free or frozen during the fit.
+
+    Each model class should define the following functions that override the functions in this base class:
+
+    get_params(): returns a new Parameters() objects containing all of the aprameters required for this model.
+
+    eval(params, x): evaluates the model for the parameter values stored in params at points x along the x-axis. The
+    eval function should return an array containing the model value at each point x.
+
+    Optionally, the class can also provide the method eval_gradient(params, x) to evalate the derivative of the model
+    with respect to each parameter. This function should return a 2-dimensional array of dimension (Nx, Npar), containing
+    the derivative at each point x with respect to each parameter. Providing an eval_gradient method enables more
+    precise analytic derivatives to be used during fitting, rather than having to evauate numberical derivatives.
+    """
     def __init__(self, component_name=None, **kwargs):
         self.prefix = component_name + "_" if component_name is not None else ''
         self.params = self.get_params(**kwargs)
@@ -44,7 +64,7 @@ class Model(object):
     def eval(self, params, x):
         raise AssertionError("I should be overriden")
 
-    def eval_gradient(self, x):
+    def eval_gradient(self, params, x):
         raise AssertionError("I should be overriden")
 
     def __call__(self, *args):
