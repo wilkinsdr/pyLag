@@ -130,8 +130,8 @@ class MLFit(object):
         evaluated for.
         :param eval_gradient: bool, optional (default=True): whether to return the gradient (derviative/Jacobian) of
         the likelihood, or just the likelihood
-        :return mloglike: float: -log(likelihood) value
-        :return grad: ndarray: derivative of -log(likelihood)
+        
+        :return: mloglike: float: -log(likelihood) value, grad: ndarray: derivative of -log(likelihood)
         """
         c = self.cov_matrix(params)
 
@@ -141,21 +141,14 @@ class MLFit(object):
             c += np.diag(self.noise)
 
         try:
-            #print(c.shape)
             L = cho_factor(c, lower=True, check_finite=False)[0]
-            #print(L.shape)
         except np.linalg.LinAlgError:
-            # try:
-            # if the matrix is sibgular, perturb the diagonal and try again
             try:
+                # try doubling the noise first
                 L = cho_factor(c + np.diag(self.noise), lower=True, check_finite=False)[0]
             except np.linalg.LinAlgError:
-                #par_str = ", ".join(["%s: %g" % (p, params[p].value) for p in params])
-                #print("WARNING: Couldn't invert covariance matrix with parameters " + par_str)
+                printmsg(2, "WARNING: Couldn't invert covariance matrix with parameters " + par_str)
                 return (1e6, np.zeros(len(params)) - 1e6) if eval_gradient else -np.inf
-                # raise np.linalg.LinAlgError("Couldn't invert covariance matrix with parameters " + par_str)
-            # except np.linalg.LinAlgError:
-            #     return (-np.inf, np.zeros(len(params))) if eval_gradient else -np.inf
         except ValueError:
             return (np.inf, np.zeros(len(params))) if eval_gradient else -np.inf
 
@@ -181,7 +174,8 @@ class MLFit(object):
         param = pylag.mlfit.MLFit.get_params()
 
         Create a new set of parameters for the model used to construct the covariance matrix
-        :return param: Parameters() object containing the parameters
+        
+        :return: param: Parameters() object containing the parameters
         """
         if self.model is None:
             params = lmfit.Parameters()
@@ -202,7 +196,8 @@ class MLFit(object):
         :param init_params: Parameters() object containing the parameter values to use as the starting point
         :param method: str, optional (default='L-BFGS-B'): scipy.optimize.minimize minimisation method to use for the fit
         :param kwargs: additional arguments to pass to scipy.optimize.minimize
-        :return result: scipy.optimise fit_result object containing the results of the fit
+        
+        :return: result: scipy.optimise fit_result object containing the results of the fit
         """
         initial_par_arr = np.array([init_params[p].value for p in init_params if init_params[p].vary])
         bounds = [(init_params[p].min, init_params[p].max) for p in init_params if init_params[p].vary] if method == 'L-BFGS-B' else None
@@ -319,7 +314,8 @@ class MLPSD(MLFit):
 
         :param params: Parameters() object containing the set of parameter values for which the covariance matrix is
         to be calculated
-        :return c: ndarray (N * N): the covariance matrix
+        
+        :return: c: ndarray (N * N): the covariance matrix
         """
         # if no model is specified, the PSD model is just the PSD value in each frequency bin
         # note the factor of 2 to integrate over the negative frequencies too!
@@ -340,7 +336,8 @@ class MLPSD(MLFit):
 
         :param params: Parameters() object containing the set of parameter values at which the derivative is to be
         calculated
-        :return c: ndarray (N * N * Npar): the derivative of the covariance matrix wrt each parameter
+        
+        :return: c: ndarray (N * N * Npar): the derivative of the covariance matrix wrt each parameter
         """
         if self.model is None:
             psd = np.exp(np.array([params[p].value for p in params])) * self.psdnorm
@@ -361,7 +358,8 @@ class MLPSD(MLFit):
         :param params: Parameters, optional (default=None): Parameters object containing the parameters from which to
         calculate the power spectrum. If none, will use the current values of the params member variable (which
         will either be the initial values or the results of the last fit).
-        :return psd: ndarray: the power spectrum in each frequency bin
+        
+        :return: psd: ndarray: the power spectrum in each frequency bin
         """
         if params is None:
             params = self.params
@@ -500,7 +498,7 @@ class MLCrossSpectrum(MLFit):
 
         Create a new set of parameters for the model used to construct the covariance matrix
 
-        :return param: Parameters() object containing the parameters
+        :return: param: Parameters() object containing the parameters
         """
         params = lmfit.Parameters()
         if not self.freeze_psd:
@@ -551,7 +549,8 @@ class MLCrossSpectrum(MLFit):
 
         :param params: Parameters() object containing the set of parameter values for which the covariance matrix is
         to be calculated
-        :return cc: ndarray (N * N): the cross-covariance matrix
+
+        :return: cc: ndarray (N * N): the cross-covariance matrix
         """
         # if no model is specified, the PSD model is just the PSD value in each frequency bin
         if self.cpsd_model is None:
@@ -581,7 +580,8 @@ class MLCrossSpectrum(MLFit):
 
         :param params: Parameters() object containing the set of parameter values for which the covariance matrix is
         to be calculated
-        :return c: ndarray (2N * 2N): the covariance matrix
+
+        :return: c: ndarray (2N * 2N): the covariance matrix
         """
         if self.freeze_psd:
             if self.ac1 is None or self.ac2 is None:
@@ -604,7 +604,8 @@ class MLCrossSpectrum(MLFit):
 
         :param params: Parameters() object containing the set of parameter values at which thederivative is to be
         calculated
-        :return c: ndarray (N * N * Npar): the derivative of the covariance matrix wrt each parameter
+
+        :return: c: ndarray (N * N * Npar): the derivative of the covariance matrix wrt each parameter
         """
         if self.cpsd_model is None:
             # if no model is specified, the PSD model is just the PSD value in each frequency bin
@@ -645,7 +646,8 @@ class MLCrossSpectrum(MLFit):
 
         :param params: Parameters() object containing the set of parameter values at which thederivative is to be
         calculated
-        :return c: ndarray (2N * 2N * Npar): the derivative of the covariance matrix wrt each parameter
+
+        :return: c: ndarray (2N * 2N * Npar): the derivative of the covariance matrix wrt each parameter
         """
         cc = self.cross_cov_matrix_deriv(params)
 
@@ -673,7 +675,8 @@ class MLCrossSpectrum(MLFit):
         :param params: Parameters, optional (default=None): Parameters object containing the parameters from which to
         calculate the cross power spectrum. If none, will use the current values of the params member variable (which
         will either be the initial values or the results of the last fit).
-        :return cpsd: ndarray: the power spectrum in each frequency bin
+
+        :return: cpsd: ndarray: the power spectrum in each frequency bin
         """
         if params is None:
             params = self.params
@@ -694,7 +697,8 @@ class MLCrossSpectrum(MLFit):
         will either be the initial values or the results of the last fit).
         :param time_lag: bool, optional (default=True): If True, return the time lag (in seconds), otherwise return the
         phase lag (in radians)
-        :return lag: ndarray: the lag in each frequency bin
+
+        :return: lag: ndarray: the lag in each frequency bin
         """
         if params is None:
             params = self.params
@@ -777,8 +781,25 @@ class StackedMLPSD(MLPSD):
         self.psd_error = None
 
     def get_params(self):
+        """
+        param = pylag.mlfit.StackedMLPSD.get_params()
+
+        Create a new set of parameters for the model used to construct the covariance matrix. Note that the same
+        parameter values are used to evaluate the covariance matrix for each of the light curves.
+
+        :return: param: Parameters() object containing the parameters
+        """
         return self.mlpsd1[0].get_params()
 
     def log_likelihood(self, params, eval_gradient=True):
+        """
+        mloglike, grad = pylag.mlfit.MLFit.log_likelihood(params, eval_gradient=True)
+
+        Evaluate -log(marginal likelihood), as well as its gradient, for the covariance matrix defined by some set of
+        input parameters. The log(likelihood) for the stack of light curves is the sum of the log(likelihood)
+        evaluated for each light curve
+        
+        :return: mloglike: float: -log(likelihood) value, grad: ndarray: derivative of -log(likelihood)
+        """
         return np.sum([p.log_likelihood(params, eval_gradient) for p in self.mlpsd])
 
