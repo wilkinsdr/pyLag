@@ -1839,6 +1839,26 @@ class EnergyLCList(object):
 
         return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
 
+    def to_array(self):
+        if isinstance(self.lclist[0], list):
+            Nen = len(self.lclist)
+            Nseg = len(self.lclist[0])
+            return [np.vstack([self.lclist[ien][iseg].rate for ien in range(Nen)]) for iseg in range(Nseg)]
+
+        elif isinstance(self.lclist[0], LightCurve):
+            return np.vstack([lc.rate for lc in self.lclist])
+
+    def write_grid(self, filename, fmt='%15.8g', delimiter=' '):
+        arr = self.to_array()
+        if isinstance(arr, list):
+            for n, a in enumerate(arr):
+                t = self.lclist[0][n].time
+                np.savetxt('%s_%02d.dat' % (filename, n), np.vstack([t, a]).T, fmt=fmt, delimiter=delimiter)
+        else:
+            t = self.lclist[0].time
+            np.savetxt(filenmae, np.vstack(t, arr).T, fmt=fmt, delimiter=delimiter)
+
+
     def __getitem__(self, index):
         return self.lclist[index]
 
