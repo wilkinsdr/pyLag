@@ -355,7 +355,9 @@ class StackedPeriodogram(Periodogram):
             stacked_per = np.mean(np.vstack([p.periodogram for p in self.periodograms]), axis=0)
             err = np.std(np.vstack([p.periodogram for p in self.periodograms]), axis=0)
         except ValueError:
-            raise ValueError("pylag StackedPeriodogram ERROR: Input light curves must have same length and time binning.")
+            # if the time bins don't line up and we're not averaging the periodogram into bins, it doesn't
+            # make sense to evaluate the periodogram at individual frequency points, so just return NaN
+            return np.nan, np.nan
 
         return stacked_per, err
 
