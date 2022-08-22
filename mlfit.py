@@ -770,6 +770,10 @@ class StackedMLPSD(MLPSD):
         else:
             self.fbins = fbins
 
+        if extend_freq is not None:
+            # create a new set of bins with an extra one at the start, going down to extend_freq * the previous minimum
+            self.fbins = Binning(bin_edges=np.insert(self.fbins.bin_edges, 0, extend_freq*self.fbins.bin_edges.min()))
+
         self.mlpsd = [MLPSD(lc, fbins=self.fbins, **kwargs) for lc in lclist]
 
         self.params = self.get_params()
@@ -789,7 +793,7 @@ class StackedMLPSD(MLPSD):
 
         :return: param: Parameters() object containing the parameters
         """
-        return self.mlpsd1[0].get_params()
+        return self.mlpsd[0].get_params()
 
     def log_likelihood(self, params, eval_gradient=True):
         """
