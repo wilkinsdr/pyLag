@@ -166,6 +166,8 @@ class BendingPowerLaw(Model):
         return np.stack([norm * x ** slope1 / (1. + (x / fbend) ** (slope1 - slope2)),
                          norm * x ** slope1 * (np.log(x) + (x / fbend) ** (slope1 - slope2) + np.log(fbend)) / (
                              (1 + (x / fbend) ** (slope1 - slope2))**2),
+                         norm * x ** (2*slope1 - slope2) * fbend(slope2 - slope1 - 1) * (slope2 - slope1) / (
+                             (1 + (x / fbend) ** (slope1 - slope2))**2),
                          norm * x ** slope1 * (x / fbend) ** (slope1 - slope2) * (np.log(x) - np.log(fbend)) / (
                                  (1 + (x / fbend) ** (slope1 - slope2)) ** 2)
                          ], axis=-1)
