@@ -437,7 +437,7 @@ class MLPSD(MLFit):
         """
         self.psd = self.get_psd()
         if self.model is None:
-            self.psd_error = fit_result.hess_inv(fit_result.x) ** 0.5
+            self.psd_error = self.param_error
         else:
             # calculate the error on each PSD point from the error on each parameter
             psd_deriv = self.model.eval_gradient(params, self.fbins.bin_cent)
