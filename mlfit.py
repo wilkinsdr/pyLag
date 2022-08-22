@@ -147,7 +147,7 @@ class MLFit(object):
                 # try doubling the noise first
                 L = cho_factor(c + np.diag(self.noise), lower=True, check_finite=False)[0]
             except np.linalg.LinAlgError:
-                printmsg(2, "WARNING: Couldn't invert covariance matrix with parameters " + par_str)
+                #printmsg(2, "WARNING: Couldn't invert covariance matrix with parameters " + param2array(params))
                 return (1e6, np.zeros(len(params)) - 1e6) if eval_gradient else -np.inf
         except ValueError:
             return (np.inf, np.zeros(len(params))) if eval_gradient else -np.inf
@@ -184,6 +184,27 @@ class MLFit(object):
             return params
         else:
             return self.model.get_params()
+
+    def set_param(self, param, value=None, min=None, max=None, vary=None):
+        """
+        pylag.mlfit.MLFit.set_param(param, value, min, max)
+
+        Set the value, lower and upper bounds for a parameter. If any of value, min or max are None, these values will
+        not be altered.
+
+        :param param: str: name of the parameter to set
+        :param value: float, optional (default=None): new value of parameter
+        :param min: float, optional (default=None): lower bound for parameter
+        :param max: float, optional (default=None): upper bound for parameter
+        """
+        if value is not None:
+            self.params[param].value = value
+        if min is not None:
+            self.params[param].min = min
+        if max is not None:
+            self.params[param].max = max
+        if vary is not None:
+            self.params[param].vary = vary
 
     def _dofit(self, init_params, method='L-BFGS-B', **kwargs):
         """
@@ -759,7 +780,7 @@ class StackedMLPSD(MLPSD):
     constructing bins automatically (this will override Nf)
     :param kwargs: Arguments passed to MLPSD constructor for each of th elight curves
     """
-    def __init__(self, lclist, Nf=10, fbins=None, extend_freq=None, **kwargs):
+    def __init__(self, lclist, Nf=10, fbins=None, model=None, model_args={}, component_name=None, extend_freq=None, **kwargs):
         if fbins is None:
             # set up frequency bins to span min and max frequencies for the entire list
             T = np.max([lc.time.max() - lc.time.min() for lc in lclist])
@@ -774,7 +795,14 @@ class StackedMLPSD(MLPSD):
             # create a new set of bins with an extra one at the start, going down to extend_freq * the previous minimum
             self.fbins = Binning(bin_edges=np.insert(self.fbins.bin_edges, 0, extend_freq*self.fbins.bin_edges.min()))
 
-        self.mlpsd = [MLPSD(lc, fbins=self.fbins, **kwargs) for lc in lclist]
+        self.mlpsd = [MLPSD(lc, fbins=self.fbins, model=model, **kwargs) for lc in lclist]
+
+        if model is None:
+            self.model = None
+        elif isinstance(model, Model):
+            self.model = model
+        else:
+            self.model = model(component_name=component_name, **model_args)
 
         self.params = self.get_params()
 
