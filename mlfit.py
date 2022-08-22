@@ -36,26 +36,26 @@ class MLFit(object):
     functionality from here (setting up integrals, evaluating likelihood function, fitting, etc.)
 
     Constructor arguments:
-    :param t: ndarray: array of time points at which light curves are evaluated (for a cross spectrum, this should
+    t: ndarray: array of time points at which light curves are evaluated (for a cross spectrum, this should
     just be the time points from one light curve, not a stacked vector).
-    :param y: ndarray: data vector to which the covariance matrix is fit (either the count rate in each time bin for a
+    y: ndarray: data vector to which the covariance matrix is fit (either the count rate in each time bin for a
     power spectrum, or a stacked data vector of the two light curves for a cross spectrum)
-    :param noise: ndarray: array of noise terms to be added to the covariance matrix along the leading diagonal. Each
+    noise: ndarray: array of noise terms to be added to the covariance matrix along the leading diagonal. Each
     element should correspond to each bin in the data vector (and shoud be stacked for a cross spectrum).
-    :param psdnorm: float, optional (default=1.): normalisation factor for the power or cross spectrum
-    :param Nf: int, optional (default=10): number of frequency bins to use in the fit between the minimum and Nyquist
+    psdnorm: float, optional (default=1.): normalisation factor for the power or cross spectrum
+    Nf: int, optional (default=10): number of frequency bins to use in the fit between the minimum and Nyquist
     frequencies. If a model fucntion is specified, the model will be evaluated at these frequencies when calculating
     the covariance integrals.
-    :param fbins: Binning, optional (default=None). A Binning object to use defining the frequency bins, instead of
+    fbins: Binning, optional (default=None). A Binning object to use defining the frequency bins, instead of
     constructing bins automatically (this will override Nf)
-    :param model: Model, optional (default=None). If set, a Model object to use to model the power spectrum as a
+    model: Model, optional (default=None). If set, a Model object to use to model the power spectrum as a
     function of frequency, using the model's parameters instead of treating each frequency bin as a parameter
-    :param component_name: str, optional (default=None): If set, the name of this model component to prefix onto all
+    component_name: str, optional (default=None): If set, the name of this model component to prefix onto all
     of the parameter names (when multiple components are combined into a single model).
-    :param model_args: dict, optional (default={}): Arguments to pass to constructor of Model object
-    :param eval_sin: bool, optional (default=False): If True, evaluate the integrals of the sin terms (in addition to
+    model_args: dict, optional (default={}): Arguments to pass to constructor of Model object
+    eval_sin: bool, optional (default=False): If True, evaluate the integrals of the sin terms (in addition to
     the cos terms). Required for a cross spectrum with lags.
-    :param extend_freq: float, optional (default=None). If True, create an additional low frequecy bin extending to
+    extend_freq: float, optional (default=None). If True, create an additional low frequecy bin extending to
     this factor times the minimum frequency. Adding a low frequency bin reduces bias in the lowest frequency bin due
     to red noise leak (see Zoghbi et al. 2013).
     """
@@ -257,13 +257,13 @@ class MLPSD(MLFit):
     Fitting functionality is inherited from the MLFit class.
 
     Constructor arguments:
-    :param lc: LightCurve, optional (default=None): LightCurve object to for which the power spectrum is to be calculated
-    :param t: array, optional (default=None). If lc=None, array containing the observed time bins
-    :param r: array, optional (default=None). If lc=None, array containing the count rate in each time bin
-    :param e: array, optional (default=None). If lc=None, array containing the error for each time bin
-    :param noise: stry, optional (default='errors'). Method for computing the noise (diagonal) term in the covariace matrix.
+    lc: LightCurve, optional (default=None): LightCurve object to for which the power spectrum is to be calculated
+    t: array, optional (default=None). If lc=None, array containing the observed time bins
+    r: array, optional (default=None). If lc=None, array containing the count rate in each time bin
+    e: array, optional (default=None). If lc=None, array containing the error for each time bin
+    noise: stry, optional (default='errors'). Method for computing the noise (diagonal) term in the covariace matrix.
     The default is to use the error bars of the original light curve.
-    :param kwargs: additional arguments passed to MLFit constructor.
+    kwargs: additional arguments passed to MLFit constructor.
     """
     def __init__(self, lc=None, t=None, r=None, e=None, noise='errors', **kwargs):
         if lc is not None:
@@ -412,23 +412,23 @@ class MLCrossSpectrum(MLFit):
     Fitting functionality is inherited from the MLFit class.
 
     Constructor arguments:
-    :param lc1: LightCurve, optional (default=None): First LightCurve object
-    :param lc2: LightCurve, optional (default=None): Second LightCurve object
-    :param mlpsd1: (optional, default=None) MLPSD object which can be pre-fit to the first light curve
-    :param mlpsd2: (optional, default=None) MLPSD object which can be pre-fit to the second light curve
-    :param psd_model: (optional, default=None) Model object to model the power spectra as a function of frequency,
+    lc1: LightCurve, optional (default=None): First LightCurve object
+    lc2: LightCurve, optional (default=None): Second LightCurve object
+    mlpsd1: (optional, default=None) MLPSD object which can be pre-fit to the first light curve
+    mlpsd2: (optional, default=None) MLPSD object which can be pre-fit to the second light curve
+    psd_model: (optional, default=None) Model object to model the power spectra as a function of frequency,
     rather than fitting each bin as a free parameter
-    :param cpsd_model: (optional, default=None) Model object to model the cross spectrum as a function of frequency,
+    cpsd_model: (optional, default=None) Model object to model the cross spectrum as a function of frequency,
     rather than fitting each bin as a free parameter
-    :param lag_model: (optional, default=None) Model object to model the lag as a function of frequency,
+    lag_model: (optional, default=None) Model object to model the lag as a function of frequency,
     rather than fitting each bin as a free parameter
-    :param freeze_psd: bool (optional, default=True): If True, the power spectra of each light curve is fit separately
+    freeze_psd: bool (optional, default=True): If True, the power spectra of each light curve is fit separately
     and the autocovariance components of the matrix are frozen to these values during the fit.
-    :param noise: stry, optional (default='errors'). Method for computing the noise (diagonal) term in the covariace matrix.
+    noise: stry, optional (default='errors'). Method for computing the noise (diagonal) term in the covariace matrix.
     The default is to use the error bars of the original light curve.
-    :param cpsd_model_args: dict (optional, default={}): arguments to pass to constructor for cross spectrum model
-    :param lag_model_args: dict (optional, default={}): arguments to pass to constructor for lag model
-    :param kwargs: additional arguments passed to MLFit constructor.
+    cpsd_model_args: dict (optional, default={}): arguments to pass to constructor for cross spectrum model
+    lag_model_args: dict (optional, default={}): arguments to pass to constructor for lag model
+    kwargs: additional arguments passed to MLFit constructor.
     """
     def __init__(self, lc1, lc2, mlpsd1=None, mlpsd2=None, psd_model=None, cpsd_model=None, lag_model=None, freeze_psd=True, noise='errors', cpsd_model_args={}, lag_model_args={}, **kwargs):
         t = np.array(lc1.time)
