@@ -801,5 +801,16 @@ class StackedMLPSD(MLPSD):
         
         :return: mloglike: float: -log(likelihood) value, grad: ndarray: derivative of -log(likelihood)
         """
-        return np.sum([p.log_likelihood(params, eval_gradient) for p in self.mlpsd])
+        if eval_gradient:
+            segment_loglike = [p.log_likelihood(params, eval_gradient) for p in self.mlpsd]
+            # separate and sum the likelihoods and the gradients
+            like = np.array([l[0] for l in segment_loglike])
+            grad = np.array([l[1] for l in segment_loglike])
+            if np.all(np.isfinite(like)):
+                return np.sum(like), grad.sum(axis=0)
+            else:
+                return (1e6, np.zeros(len(params)) - 1e6)
+        else:
+            return np.sum([p.log_likelihood(params, eval_gradient) for p in self.mlpsd])
+
 
