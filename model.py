@@ -70,6 +70,7 @@ class Model(object):
     def __call__(self, *args):
         return self.eval(*args)
 
+
 class AdditiveModel(Model):
     def __init__(self, components):
         self.components = [c(component_name='add%0d'%n) for n, c in enumerate(components)]
@@ -82,6 +83,16 @@ class AdditiveModel(Model):
 
     def eval(self, params, x):
         return np.sum(np.vstack([c.eval(params, x) for c in self.components]), axis=0)
+
+    def eval_gradient(self, params, x):
+        return np.hstack([c.eval_gradient(params, x) for c in self.components])
+
+    def __getitem__(self, item):
+        """
+        Overload the [] operator to return the specified component number
+        """
+        return self.components[item]
+
 
 class Linear(Model):
     def get_params(self, slope=1., intercept=0.):
@@ -98,27 +109,33 @@ class Linear(Model):
 
         return slope*x + intercept
 
+    def eval_gradient(self, params, x):
+        slope = params['%sslope' % self.prefix].value
+        intercept = params['%sintercept' % self.prefix].value
+
+        return np.stack([x, np.ones_like(x)], axis=-1)
+
 
 class PowerLaw(Model):
     def get_params(self, slope=1., intercept=0.):
         params = lmfit.Parameters()
 
-        params.add('%snorm' % self.prefix, value=slope, min=1e-10, max=1e10)
+        params.add('%snorm' % self.prefix, value=slope, min=-50, max=50)
         params.add('%sslope' % self.prefix, value=slope, min=-10, max=10)
 
         return params
 
     def eval(self, params, x):
-        norm = params['%snorm' % self.prefix].value
+        norm = np.exp(params['%snorm' % self.prefix].value)
         slope = params['%sslope' % self.prefix].value
 
         return norm * x**slope
 
     def eval_gradient(self, params, x):
-        norm = params['%snorm' % self.prefix].value
+        norm = np.exp(params['%snorm' % self.prefix].value)
         slope = params['%sslope' % self.prefix].value
 
-        return np.stack([x**slope, norm * x**slope * np.log(x)], axis=-1)
+        return np.stack([norm * x**slope, norm * x**slope * np.log(x)], axis=-1)
 
 
 class BendingPowerLaw(Model):
@@ -133,13 +150,25 @@ class BendingPowerLaw(Model):
         return params
 
     def eval(self, params, x):
-        norm = params['%snorm' % self.prefix].value
+        norm = np.exp(params['%snorm' % self.prefix].value)
         slope1 = params['%sslope1' % self.prefix].value
         fbend = 10. ** params['%sfbend' % self.prefix].value
         slope2 = params['%sslope2' % self.prefix].value
 
-        return np.exp(norm) * x ** slope1 / (
-                    1. + (x / fbend) ** (slope1 - slope2))
+        return norm * x ** slope1 / (1. + (x / fbend) ** (slope1 - slope2))
+
+    def eval_gradient(self, params, x):
+        norm = np.exp(params['%snorm' % self.prefix].value)
+        slope1 = params['%sslope1' % self.prefix].value
+        fbend = 10. ** params['%sfbend' % self.prefix].value
+        slope2 = params['%sslope2' % self.prefix].value
+
+        return np.stack([norm * x ** slope1 / (1. + (x / fbend) ** (slope1 - slope2)),
+                         norm * x ** slope1 * (np.log(x) + (x / fbend) ** (slope1 - slope2) + np.log(fbend)) / (
+                             (1 + (x / fbend) ** (slope1 - slope2))**2),
+                         norm * x ** slope1 * (x / fbend) ** (slope1 - slope2) * (np.log(x) - np.log(fbend)) / (
+                                 (1 + (x / fbend) ** (slope1 - slope2)) ** 2)
+                         ], axis=-1)
 
 
 class Lorentzian(Model):
@@ -153,21 +182,23 @@ class Lorentzian(Model):
         return params
 
     def eval(self, params, x):
-        norm = params['%snorm' % self.prefix].value
+        norm = np.exp(params['%snorm' % self.prefix].value)
         centre = 10. ** params['%scentre' % self.prefix].value
         width = params['%swidth' % self.prefix].value
 
         return norm * (1./np.pi) * 0.5 * width / ((x - centre)**2 + 0.25*width**2)
 
     def eval_gradient(self, params, x):
-        norm = params['%snorm' % self.prefix].value
+        norm = np.exp(params['%snorm' % self.prefix].value)
         centre = 10. ** params['%scentre' % self.prefix].value
         width = params['%swidth' % self.prefix].value
 
-        return np.stack([(1./np.pi) * 0.5 * width / ((x - centre)**2 + 0.25*width**2),
-                centre * np.log(10) * (width / np.pi) * (x - centre) / ((x - centre)**2 + 0.25*width**2)**2,
-                         (1./(2.*np.pi)) * ( ((x - centre)**2 + 0.25*width**2) - 0.5*width**2 ) / ((x - centre)**2 + 0.25*width**2)**2
-        ], axis=-1)
+        return np.stack([norm * (1. / np.pi) * 0.5 * width / ((x - centre) ** 2 + 0.25 * width ** 2),
+                         centre * np.log(10) * (norm * width / np.pi) * (x - centre) / (
+                                     (x - centre) ** 2 + 0.25 * width ** 2) ** 2,
+                         norm * (1. / (2. * np.pi)) * (((x - centre) ** 2 + 0.25 * width ** 2) - width ** 2) / (
+                                     (x - centre) ** 2 + 0.25 * width ** 2) ** 2
+                         ], axis=-1)
 
 
 class Constant(Model):
@@ -182,3 +213,6 @@ class Constant(Model):
         constant = params['%sconstant' % self.prefix].value
 
         return constant * np.ones_like(x)
+
+    def eval_gradient(self, params, x):
+        return np.ones_like(x)[:, np.newaxis]   # add a dimension to match the shape of gradients from other models
