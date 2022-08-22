@@ -115,6 +115,9 @@ class MLFit(object):
 
         self.fit_result = None
 
+        self.mcmc_minimizer = None
+        self.mcmc_result = None
+
     def log_likelihood(self, params, eval_gradient=True):
         """
         mloglike, grad = pylag.mlfit.MLFit.log_likelihood(params, eval_gradient=True)
@@ -268,6 +271,33 @@ class MLFit(object):
             self.param_error =  hess ** 0.5
             self.process_fit_results(self.fit_result, self.params)
 
+    def run_mcmc(self, init_params=None, burn=300, steps=1000, thin=1, walkers=50, **kwargs):
+        """
+        pylag.mlfit.MLFit.run_mcmc(init_params=None, burn=300, steps=1000, thin=1, walkers=50, **kwargs)
+
+        Run MCMC to obtain the posterior distributions of the model parameters. MCMC calculation is run using the
+        Goodman-Weare algorithm, via emcee, called via lmfit's Minimzer class.
+
+        :param init_params: Parameters, optional (default=None): location in parameter space about which to start the
+        chains. If none, will use the params member variable, which will either contain the initial values or the results
+        of the most recent fit.
+        :param burn: int, optional (default=300): number of chain steps to discard (burn) at the start
+        :param steps: int, optional (default=300): number of chain steps to run
+        :param thin:  int, optional (default=1): keep every nth step in the chain to reduce correlation between adjacent
+        chain points
+        :param walkers:  int, optional (default=50): number of walkers to use. Should be much larger than the number of
+        free parameters
+        :param kwargs: passed to lmfit.Minimizer.emcee()
+        """
+        if init_params is None:
+            init_params = self.params
+
+        # we initialise a Minimizer object, but only if there isn't one already, so we can
+        if self.mcmc_minimizer is None:
+            self.mcmc_minimizer = lmfit.Minimizer(lambda p: self.log_likelihood(p, eval_gradient=False), params=init_params,
+                                                  nan_policy='propagate')
+
+        self.mcmc_result = self.mcmc_minimizer.emcee(init_params, burn=burn, steps=steps, thin=thin, nwalkers=walkers, **kwargs)
 
 class MLPSD(MLFit):
     """
@@ -811,6 +841,9 @@ class StackedMLPSD(MLPSD):
 
         self.psd = None
         self.psd_error = None
+
+        self.mcmc_minimizer = None
+        self.mcmc_result = None
 
     def get_params(self):
         """
