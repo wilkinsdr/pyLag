@@ -759,7 +759,7 @@ class StackedMLPSD(MLPSD):
     constructing bins automatically (this will override Nf)
     :param kwargs: Arguments passed to MLPSD constructor for each of th elight curves
     """
-    def __init__(self, lclist, Nf=10, fbins=None, **kwargs):
+    def __init__(self, lclist, Nf=10, fbins=None, extend_freq=None, **kwargs):
         if fbins is None:
             # set up frequency bins to span min and max frequencies for the entire list
             T = np.max([lc.time.max() - lc.time.min() for lc in lclist])
