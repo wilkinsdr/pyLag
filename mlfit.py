@@ -82,8 +82,8 @@ class MLFit(object):
             self.fbins = fbins
 
         if extend_freq is not None:
-            # TODO: need to implement frequenhcy bin extension
-            pass
+            # create a new set of bins with an extra one at the start, going down to extend_freq * the previous minimum
+            self.fbins = Binning(bin_edges=np.insert(self.fbins.bin_edges, 0, extend_freq*self.fbins.bin_edges.min()))
 
         self.freq = self.fbins.bin_cent
         self.freq_error = self.fbins.x_error()
@@ -812,5 +812,3 @@ class StackedMLPSD(MLPSD):
                 return (1e6, np.zeros(len(params)) - 1e6)
         else:
             return np.sum([p.log_likelihood(params, eval_gradient) for p in self.mlpsd])
-
-
