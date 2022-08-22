@@ -764,7 +764,7 @@ class StackedMLPSD(MLPSD):
             # set up frequency bins to span min and max frequencies for the entire list
             T = np.max([lc.time.max() - lc.time.min() for lc in lclist])
             dt = np.min([np.min(np.diff(lc.time)) for lc in lclist])
-            min_freq = (1. / T) / extend_freq
+            min_freq = (1. / T)
             max_freq = 0.5 / dt
             self.fbins = LogBinning(min_freq, max_freq, Nf)
         else:
