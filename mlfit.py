@@ -120,9 +120,9 @@ class MLFit(object):
 
     def log_likelihood(self, params, eval_gradient=True):
         """
-        mloglike, grad = pylag.mlfit.MLFit.log_likelihood(params, eval_gradient=True)
+        loglike, grad = pylag.mlfit.MLFit.log_likelihood(params, eval_gradient=True)
 
-        Evaluate -log(marginal likelihood), as well as its gradient, for the covariance matrix defined by some set of
+        Evaluate log(marginal likelihood), as well as its gradient, for the covariance matrix defined by some set of
         input parameters, applied to the data points we have.
 
         Based on the Algorithm 2.1 of Rasmussen & Williams "Gaussian Processes for Machine Learning", the MIT Press,
@@ -134,7 +134,7 @@ class MLFit(object):
         :param eval_gradient: bool, optional (default=True): whether to return the gradient (derviative/Jacobian) of
         the likelihood, or just the likelihood
         
-        :return: mloglike: float: -log(likelihood) value, grad: ndarray: derivative of -log(likelihood)
+        :return: loglike: float: log(likelihood) value, grad: ndarray: derivative of -log(likelihood)
         """
         c = self.cov_matrix(params)
 
@@ -151,7 +151,7 @@ class MLFit(object):
                 L = cho_factor(c + np.diag(self.noise), lower=True, check_finite=False)[0]
             except np.linalg.LinAlgError:
                 #printmsg(2, "WARNING: Couldn't invert covariance matrix with parameters " + param2array(params))
-                return (1e6, np.zeros(len(params)) - 1e6) if eval_gradient else -np.inf
+                return (-1e6, np.zeros(len(params)) + 1e6) if eval_gradient else -1e6
         except ValueError:
             return (np.inf, np.zeros(len(params))) if eval_gradient else -np.inf
 
@@ -170,7 +170,7 @@ class MLFit(object):
             gradient = gradient_dims.sum(-1)
 
         # note we return -log_likelihood, so we can minimize it!
-        return (-1 * log_likelihood, -1 * gradient) if eval_gradient else -1 * log_likelihood
+        return (log_likelihood, gradient) if eval_gradient else log_likelihood
 
     def get_params(self):
         """
@@ -236,7 +236,7 @@ class MLFit(object):
                 fit_params[par].value = value
             l, g = self.log_likelihood(fit_params, eval_gradient=True)
             print("\r-log(L) = %6.3g" % l + " for parameters: " + ' '.join(['%6.3g' % p for p in param2array(fit_params)]), end="")
-            return l, g
+            return -l, -g
 
         result = minimize(objective, initial_par_arr, method=method, jac=True, bounds=bounds, **kwargs)
         print("\r-log(L) = %6.3g" % result.fun + " for parameters: " + " ".join(['%6.3g' % p for p in param2array(array2param(result.x, init_params))]))
