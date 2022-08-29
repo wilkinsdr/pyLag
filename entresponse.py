@@ -797,7 +797,7 @@ class ENTResponse(object):
         :return: ent_weight: ENTResponse with effective area weighting applied
         """
         ent_weight = np.array(self.ent)
-        bin_frac = arf.bin_fraction(enrange=(self.en_bins.bin_start.min(), self.en_bins.bin_end.max()))
+        bin_frac = arf.bin_fraction(self.en_bins, enrange=(self.en_bins.bin_start.min(), self.en_bins.bin_end.max()))
         for ien in range(len(self.en_bins)):
             ent_weight[ien, :] *= bin_frac[ien]
         return ENTResponse(en_bins=self.en_bins, ent=ent_weight)
