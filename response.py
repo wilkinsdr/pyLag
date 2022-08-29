@@ -13,6 +13,7 @@ v1.0 29/08/2022 - D.R. Wilkins
 import numpy as np
 from astropy.io import fits
 from scipy.integrate import simpson
+from scipy.interpolate import interp1d
 
 from .binning import *
 
@@ -39,6 +40,12 @@ class Arf(object):
         else:
             self.enbins = enbins
             self.arf = arf
+
+        self.interpolator = None
+
+    def interpolate(self, en):
+        if self.interpolator is None:
+            self.interpolator = interp1d(self.enbins.bin_cent, self.arf)
 
     def integrate(self, enrange=None):
         """
@@ -78,6 +85,8 @@ class Arf(object):
         :return: arf_bin: Arf: the binned effective area curve
         """
         arf_bin = np.array([self.integrate((enmin, enmax)) for enmin, enmax in zip(bins.bin_start, bins.bin_end)]) / bins.x_width()
+        bin_points = bis.num_points_in_bins(self.enbins.bin_cent)
+        arf_bin[bin_points==0] = self.interpolate(bins.bin_cent[bin_points==0])
         return Arf(enbins=bins, arf=arf_bin)
 
     def bin_fraction(self, bins, enrange=None):
