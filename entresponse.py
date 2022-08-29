@@ -500,7 +500,7 @@ class ENTResponse(object):
         """
         return ImagePlot(self.time, self.en_bins.bin_cent, self.ent, cmap=cmap, log_scale=log_scale, vmin=vmin, vmax=vmax, mult_scale=mult_scale, xlabel='Time / GM c$^{-3}$', ylabel='Energy / keV')
 
-    def spectrum(self, time=None, index=False, from_start=True):
+    def spectrum(self, time=None, index=False, from_start=True, perkev=True):
         """
         spec = pylag.ENTResponse.spectrum(time=None, index=False, from_start=True)
 
@@ -535,6 +535,9 @@ class ENTResponse(object):
         else:
             ti = self.t_index(time, from_start)
             spec = np.array(self.ent[:, ti])
+
+        if perkev:
+            spec /= self.en_bins.x_width()
 
         return Spectrum(self.en_bins.bin_cent, spec)
 
