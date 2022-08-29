@@ -76,7 +76,7 @@ class Arf(object):
 
         return simpson(y, x)
 
-    def bin(self, bins):
+    def bin(self, bins, interp_below=30):
         """
         arf_bin = pylag.response.Arf.bin(bins)
 
@@ -88,7 +88,7 @@ class Arf(object):
         """
         arf_bin = np.array([self.integrate((enmin, enmax)) for enmin, enmax in zip(bins.bin_start, bins.bin_end)]) / bins.x_width()
         bin_points = bins.num_points_in_bins(self.enbins.bin_cent)
-        arf_bin[bin_points<2] = self.interpolate(bins.bin_cent[bin_points<2])
+        arf_bin[bin_points<interp_below] = self.interpolate(bins.bin_cent[bin_points<interp_below])
         return Arf(enbins=bins, arf=arf_bin)
 
     def bin_fraction(self, bins, enrange=None):
