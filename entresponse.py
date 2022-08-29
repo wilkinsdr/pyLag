@@ -800,7 +800,7 @@ class ENTResponse(object):
         bin_frac = arf.bin_fraction(self.en_bins, enrange=(self.en_bins.bin_start.min(), self.en_bins.bin_end.max()))
         for ien in range(len(self.en_bins)):
             ent_weight[ien, :] *= bin_frac[ien]
-        return ENTResponse(en_bins=self.en_bins, ent=ent_weight)
+        return ENTResponse(t=self.time, en_bins=self.en_bins, ent=ent_weight, tstart=self.tstart)
 
     def simulate_lc_list(self, tmax, plslope, std, lcmean, add_noise=False, rebin_time=None, lc=None, arf=None):
         """
