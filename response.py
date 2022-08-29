@@ -26,26 +26,26 @@ class Arf(object):
 
     Constructor arguments:
     filename: str, optional (default=None): FITS file to load the response from
-    enbins: Binning, optional (default=None): if not laoding from a FITS file, the energy bins for the response
+    en_bins: Binning, optional (default=None): if not laoding from a FITS file, the energy bins for the response
     arf: ndarray, optional (default=None): if not loading from a FITS file, the effective area in each bin
     """
-    def __init__(self, filename=None, enbins=None, arf=None):
+    def __init__(self, filename=None, en_bins=None, arf=None):
         if filename is not None:
             with fits.open(filename) as f:
                 elow = f['SPECRESP'].data['ENERG_LO']
                 ehigh = f['SPECRESP'].data['ENERG_HI']
                 self.arf = f['SPECRESP'].data['SPECRESP']
 
-            self.enbins = Binning(bin_start=elow, bin_end=ehigh, bin_cent=0.5*(elow + ehigh))
+            self.en_bins = Binning(bin_start=elow, bin_end=ehigh, bin_cent=0.5*(elow + ehigh))
         else:
-            self.enbins = enbins
+            self.en_bins = en_bins
             self.arf = arf
 
         self.interpolator = None
 
     def interpolate(self, en):
         if self.interpolator is None:
-            self.interpolator = interp1d(self.enbins.bin_cent, self.arf, fill_value='extrapolate')
+            self.interpolator = interp1d(self.en_bins.bin_cent, self.arf, fill_value='extrapolate')
 
         return self.interpolator(en)
 
@@ -60,10 +60,10 @@ class Arf(object):
         :return: integral: float: the integral of the effective area curve
         """
         if isinstance(enrange, tuple):
-                x = self.enbins.bin_cent[np.logical_and(self.enbins.bin_start>=enrange[0], self.enbins.bin_end<enrange[1])]
-                y = self.arf[np.logical_and(self.enbins.bin_start >= enrange[0], self.enbins.bin_end < enrange[1])]
+                x = self.en_bins.bin_cent[np.logical_and(self.en_bins.bin_start>=enrange[0], self.en_bins.bin_end<enrange[1])]
+                y = self.arf[np.logical_and(self.en_bins.bin_start >= enrange[0], self.en_bins.bin_end < enrange[1])]
         else:
-            x = self.enbins.bin_cent
+            x = self.en_bins.bin_cent
             y = self.arf
 
         if len(x) < 1:
@@ -89,9 +89,9 @@ class Arf(object):
         :return: arf_bin: Arf: the binned effective area curve
         """
         arf_bin = np.array([self.integrate((enmin, enmax)) for enmin, enmax in zip(bins.bin_start, bins.bin_end)]) / bins.x_width()
-        bin_points = bins.num_points_in_bins(self.enbins.bin_cent)
+        bin_points = bins.num_points_in_bins(self.en_bins.bin_cent)
         arf_bin[bin_points<interp_below] = self.interpolate(bins.bin_cent[bin_points<interp_below])
-        return Arf(enbins=bins, arf=arf_bin)
+        return Arf(en_bins=bins, arf=arf_bin)
 
     def bin_fraction(self, bins, enrange=None, interp_below=30):
         """
@@ -108,13 +108,13 @@ class Arf(object):
         """
         integral = self.integrate(enrange)
         bin_frac = np.array([self.integrate((enmin, enmax)) for enmin, enmax in zip(bins.bin_start, bins.bin_end)]) / integral
-        bin_points = bins.num_points_in_bins(self.enbins.bin_cent)
+        bin_points = bins.num_points_in_bins(self.en_bins.bin_cent)
         bin_frac[bin_points < interp_below] = self.interpolate(bins.bin_cent[bin_points < interp_below]) * \
                                              bins.x_width()[bin_points < interp_below] / integral
         return bin_frac
 
     def _getplotdata(self):
-        return (self.enbins.bin_cent, self.enbins.x_error()), self.arf
+        return (self.en_bins.bin_cent, self.en_bins.x_error()), self.arf
 
     def _getplotaxes(self):
         return 'Energy / keV', 'log', 'Effective Area / cm$^2$', 'linear'
