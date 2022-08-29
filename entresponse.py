@@ -783,7 +783,26 @@ class ENTResponse(object):
 
         return ImagePlot(fbins.bin_cent, self.en_bins.bin_cent, lagfreq.T, log_scale=False, vmin=lagfreq.min(), vmax=lagfreq.max(), mult_scale=False, xscale='log', yscale='log')
 
-    def simulate_lc_list(self, tmax, plslope, std, lcmean, add_noise=False, rebin_time=None, lc=None):
+    def weight_arf(self, arf):
+        """
+        ent_weight = pylag.entresponse.ENTResponse.weight_arf(arf)
+
+        Weight the count rate in each energy band by an effective area curve (Arf) to simulate count rates
+        seen in telescopes with realistic effective area curves. Note that this will only scale the count rate
+        in each band by the fraction of the effective area in those bands, it will not apply the absolute count
+        rate scaling. To apply this, you should normalise the whole response for the desired count rate for whatever
+        luminosity you require.
+
+        :param arf: Arf object contraining the effective area curve to be applied
+        :return: ent_weight: ENTResponse with effective area weighting applied
+        """
+        ent_weight = np.array(self.ent)
+        bin_frac = arf.bin_fraction(enrange=(self.en_bins.bin_start.min(), self.en_bins.bin_end.max()))
+        for ien in range(len(self.en_bins)):
+            ent_weight[ien, :] *= bin_frac[ien]
+        return ENTResponse(en_bins=self.en_bins, ent=ent_weight)
+
+    def simulate_lc_list(self, tmax, plslope, std, lcmean, add_noise=False, rebin_time=None, lc=None, arf=None):
         """
         lclist = pylag.ENTResponse.simulate_lc_list(tmax, plslope, std, lcmean, add_noise=False, rebin_time=None, lc=None)
 
@@ -812,6 +831,8 @@ class ENTResponse(object):
                      the time bin size of an observation.
         lc         : LightCurve, optional (default=None)
                      If set, use this as the driving light curve, instead of generating a random one.
+        arf        : Arf, optional (default-None)
+                     If set, weight the count rate in each band by the effective area curve
 
         Returns
         --------
@@ -821,8 +842,14 @@ class ENTResponse(object):
         lclist = []
         if lc is None:
             lc = SimLightCurve(self.time[1] - self.time[0], tmax, plslope, std, lcmean)
+
+        # weight each energy band by the ARF if we're using one, otherwise just use self
+        ent = self.weight_arf(arf) if arf is not None else self
+        # and make sure the response is normalised so lcmean will actually set the summed mean count rate
+        ent = ent.norm()
+
         for ien in range(len(self.en_bins)):
-            enlc = self.time_response(index=ien).convolve(lc)
+            enlc = ent.time_response(index=ien).convolve(lc)
             if rebin_time is not None:
                 enlc = enlc.rebin(rebin_time)
             if add_noise:
