@@ -12,7 +12,7 @@ v1.0 29/08/2022 - D.R. Wilkins
 """
 import numpy as np
 from astropy.io import fits
-from scipy.integrate import simpson
+from scipy.integrate import trapezoid
 from scipy.interpolate import interp1d
 
 from .binning import *
@@ -74,7 +74,7 @@ class Arf(object):
             # (left to its own devices, simpson() returns zero for just one point)
             return y[0] * (enrange[1] - enrange[0])
 
-        return simpson(y, x)
+        return trapezoid(y, x)
 
     def bin(self, bins, interp_below=30):
         """
