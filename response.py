@@ -93,7 +93,7 @@ class Arf(object):
         arf_bin[bin_points<interp_below] = self.interpolate(bins.bin_cent[bin_points<interp_below])
         return Arf(enbins=bins, arf=arf_bin)
 
-    def bin_fraction(self, bins, enrange=None):
+    def bin_fraction(self, bins, enrange=None, interp_below=30):
         """
         bin_frac = pylag.response.Arf.bin_fraction(bins)
 
@@ -102,10 +102,15 @@ class Arf(object):
         :param bins: Binning: Binning object sepcifying the bins for which the area fractions are to be calculated
         :param enrange: tuple, optional (default=None): lower and upper energy bounds for denominator of the area
         fraction. If None, the fraction will be calculated with respect to the entire effective area
+        :param interp_below: int, optionl (default=30): inteprolate the ARF instead of integrating for bins below
+        this many energy points, to produce a smoother function
         :return: bin_frac: ndarray: array of the effective area fractions in each bin
         """
         integral = self.integrate(enrange)
         bin_frac = np.array([self.integrate((enmin, enmax)) for enmin, enmax in zip(bins.bin_start, bins.bin_end)]) / integral
+        bin_points = bins.num_points_in_bins(self.enbins.bin_cent)
+        bin_frac[bin_points < interp_below] = self.interpolate(bins.bin_cent[bin_points < interp_below]) * \
+                                             bins.x_width()[bin_points < interp_below] / integral
         return bin_frac
 
     def _getplotdata(self):
