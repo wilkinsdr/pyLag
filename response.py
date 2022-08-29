@@ -60,6 +60,10 @@ class Arf(object):
         if len(x) < 1:
             # make sure we actually have points to integrate, otherwise simpson() isn't happy!
             return 0;
+        elif len(x) == 1:
+            # if we just have one bin, the integral is that value times the width
+            # (left to its own devices, simpson() returns zero for just one point)
+            return y[0] * (enrange[1] - enrange[0])
 
         return simpson(y, x)
 
