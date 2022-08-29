@@ -47,6 +47,8 @@ class Arf(object):
         if self.interpolator is None:
             self.interpolator = interp1d(self.enbins.bin_cent, self.arf)
 
+        return self.interpolator(en)
+
     def integrate(self, enrange=None):
         """
         integral = pylag.response.Arf.integrate(enrange=None)
