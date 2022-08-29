@@ -84,6 +84,8 @@ class Arf(object):
         bin to account for variations in the effective area.
 
         :param bins: Binning: Binning object sepcifying the new bins
+        :param interp_below: int, optionl (default=30): inteprolate the ARF instead of integrating for bins below
+        this many energy points, to produce a smoother function
         :return: arf_bin: Arf: the binned effective area curve
         """
         arf_bin = np.array([self.integrate((enmin, enmax)) for enmin, enmax in zip(bins.bin_start, bins.bin_end)]) / bins.x_width()
