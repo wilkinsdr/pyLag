@@ -863,13 +863,13 @@ class StackedMLPSD(MLPSD):
 
     def log_likelihood(self, params, eval_gradient=True):
         """
-        mloglike, grad = pylag.mlfit.MLFit.log_likelihood(params, eval_gradient=True)
+        loglike, grad = pylag.mlfit.MLFit.log_likelihood(params, eval_gradient=True)
 
-        Evaluate -log(marginal likelihood), as well as its gradient, for the covariance matrix defined by some set of
+        Evaluate log(marginal likelihood), as well as its gradient, for the covariance matrix defined by some set of
         input parameters. The log(likelihood) for the stack of light curves is the sum of the log(likelihood)
         evaluated for each light curve
         
-        :return: mloglike: float: -log(likelihood) value, grad: ndarray: derivative of -log(likelihood)
+        :return: mloglike: float: log(likelihood) value, grad: ndarray: derivative of -log(likelihood)
         """
         if eval_gradient:
             segment_loglike = [p.log_likelihood(params, eval_gradient) for p in self.mlpsd]
@@ -879,6 +879,6 @@ class StackedMLPSD(MLPSD):
             if np.all(np.isfinite(like)):
                 return np.sum(like), grad.sum(axis=0)
             else:
-                return (1e6, np.zeros(len(params)) - 1e6)
+                return (-1e6, np.zeros(len(params)) + 1e6)
         else:
             return np.sum([p.log_likelihood(params, eval_gradient) for p in self.mlpsd])
