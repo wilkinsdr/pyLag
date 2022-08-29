@@ -151,7 +151,8 @@ class Plot(object):
     """
 
     def __init__(self, data_object=None, xdata=None, ydata=None, xscale='', yscale='', xlabel='',
-                 ylabel='', title='', series_labels=[], grid='minor', lines=False, errorbar=True, preset=None, figsize=None, show_plot=True):
+                 ylabel='', title='', series_labels=[], grid='minor', lines=False, marker_series=None, colour_series=None,
+                 errorbar=True, preset=None, figsize=None, show_plot=True):
         self._fig = None
         self._ax = None
 
@@ -173,11 +174,18 @@ class Plot(object):
         self._figsize = figsize
 
         # variables to set plot formatting
-        self._colour_series = ['k', 'b', 'g', 'r', 'c', 'm']
-        if lines:
+        if colour_series is not None:
+            self._colour_series = colour_series
+        else:
+            self._colour_series = ['k', 'tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple']
+
+        if marker_series is not None:
+            self._marker_series = marker_series
+        elif lines:
             self._marker_series = ['-']
         else:
             self._marker_series = ['+', 'x', 'o', 's']
+
         self._font_face = None
         self._font_size = None
         self._tick_scale = 0.88
