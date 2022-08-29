@@ -518,6 +518,8 @@ class ENTResponse(object):
                      Whether the specified time is defined as the total light travel time from
                      the source to disc to image plane (default yes) or, if false, relative to the
                      zero time on the time axis.
+        perkev     : bool, optional (default=True)
+                     Divide the spectrum by the energy bin width for counts/sec/keV
 
         Returns
         --------
