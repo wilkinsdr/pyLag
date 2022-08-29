@@ -45,7 +45,7 @@ class Arf(object):
 
     def interpolate(self, en):
         if self.interpolator is None:
-            self.interpolator = interp1d(self.enbins.bin_cent, self.arf)
+            self.interpolator = interp1d(self.enbins.bin_cent, self.arf, fill_value='extrapolate')
 
         return self.interpolator(en)
 
