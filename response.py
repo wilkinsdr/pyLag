@@ -85,7 +85,7 @@ class Arf(object):
         :return: arf_bin: Arf: the binned effective area curve
         """
         arf_bin = np.array([self.integrate((enmin, enmax)) for enmin, enmax in zip(bins.bin_start, bins.bin_end)]) / bins.x_width()
-        bin_points = bis.num_points_in_bins(self.enbins.bin_cent)
+        bin_points = bins.num_points_in_bins(self.enbins.bin_cent)
         arf_bin[bin_points==0] = self.interpolate(bins.bin_cent[bin_points==0])
         return Arf(enbins=bins, arf=arf_bin)
 
