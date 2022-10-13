@@ -304,6 +304,60 @@ class MLFit(object):
 
         self.mcmc_result = self.mcmc_minimizer.emcee(init_params, burn=burn, steps=steps, thin=thin, nwalkers=walkers, **kwargs)
 
+    def process_mcmc(self, mcmc_result):
+        maxprob = np.argmax(mcmc_result.lnprob)
+        for p in self.params:
+            self.params[p].value = mcmc_result.flatchain[p][maxprob]
+        self.param_error = np.array([np.percentile(mcmc_result.flatchain[p], [15.9, 84.2]) for p in self.params])
+
+    def nested_sample(self, params=None, prior_fn=None, log_dir=None, resume=True, step='adaptive', **kwargs):
+        try:
+            import ultranest
+            import ultranest.stepsampler
+        except ImportError:
+            raise ImportError("nested_sample requires package ultranest to be installed")
+
+        if params is None:
+            if self.fit_params is not None:
+                params = self.fit_params
+            else:
+                params = self.params
+
+        var_params = [k for k in params.keys() if params[k].vary]
+
+        def objective(par_arr):
+            """
+            wrapper around log_likelihood method to evaluate for an array of just the variable parameters,
+            which can be used directly with scipy.optimise methods.
+            """
+            fit_params = copy.copy(params)
+            for par, value in zip([p for p in params if params[p].vary], par_arr):
+                fit_params[par].value = value
+            return self.log_likelihood(fit_params, eval_gradient=False)
+
+        if prior_fn is None:
+            def prior_fn(quantiles):
+                uniform_dist = lambda q, hi, lo: q * (hi - lo) + lo
+                return np.array([uniform_dist(q, params[p].max, params[p].min) for q, p in zip(quantiles, var_params)])
+
+        self.nest_sampler = ultranest.ReactiveNestedSampler(var_params, objective, prior_fn, log_dir=log_dir, resume=resume)
+
+        if step == 'adaptive':
+            region_filter = kwargs.pop('region_filter', True)
+            self.nest_sampler.run(max_ncalls=40000, **kwargs)
+            self.nest_sampler.stepsampler = ultranest.stepsampler.SliceSampler(nsteps=1000,
+                                            generate_direction=ultranest.stepsampler.generate_mixture_random_direction,
+                                            adaptive_nsteps='move-distance',
+                                            region_filter=region_filer)
+        elif isinstance(step, int) and step > 0:
+            self.nest_sampler.stepsampler = ultranest.stepsampler.SliceSampler(nsteps=step,
+                                            generate_direction=ultranest.stepsampler.generate_mixture_random_direction,
+                                            adaptive_nsteps=False,
+                                            region_filter=False)
+
+        self.nest_result = self.nest_sampler.run(**kwargs)
+        self.nest_sampler.print_results()
+
 class MLPSD(MLFit):
     """
     pylag.mlfit.MLPSD
