@@ -209,6 +209,12 @@ class MLFit(object):
         if vary is not None:
             self.params[param].vary = vary
 
+    def save_params(self, filename):
+        self.params.dump(open(filename, 'w'))
+
+    def load_params(self, filename):
+        self.params.load(open(filename, 'r'))
+
     def _dofit(self, init_params, method='L-BFGS-B', **kwargs):
         """
         result = pylag.mlfit.MLFit._dofit(init_params, method='L-BFGS-B', **kwargs)
@@ -310,7 +316,7 @@ class MLFit(object):
             self.params[p].value = mcmc_result.flatchain[p][maxprob]
         self.param_error = np.array([np.percentile(mcmc_result.flatchain[p], [15.9, 84.2]) for p in self.params])
 
-    def nested_sample(self, params=None, prior_fn=None, log_dir=None, resume=True, step='adaptive', **kwargs):
+    def nested_sample(self, params=None, prior_fn=None, log_dir=None, resume=True, frac_remain=None, step='adaptive', **kwargs):
         try:
             import ultranest
             import ultranest.stepsampler
@@ -318,9 +324,6 @@ class MLFit(object):
             raise ImportError("nested_sample requires package ultranest to be installed")
 
         if params is None:
-            if self.fit_params is not None:
-                params = self.fit_params
-            else:
                 params = self.params
 
         var_params = [k for k in params.keys() if params[k].vary]
@@ -348,14 +351,14 @@ class MLFit(object):
             self.nest_sampler.stepsampler = ultranest.stepsampler.SliceSampler(nsteps=1000,
                                             generate_direction=ultranest.stepsampler.generate_mixture_random_direction,
                                             adaptive_nsteps='move-distance',
-                                            region_filter=region_filer)
+                                            region_filter=region_filter)
         elif isinstance(step, int) and step > 0:
             self.nest_sampler.stepsampler = ultranest.stepsampler.SliceSampler(nsteps=step,
                                             generate_direction=ultranest.stepsampler.generate_mixture_random_direction,
                                             adaptive_nsteps=False,
                                             region_filter=False)
 
-        self.nest_result = self.nest_sampler.run(**kwargs)
+        self.nest_result = self.nest_sampler.run(frac_remain=frac_remain, **kwargs)
         self.nest_sampler.print_results()
 
 class MLPSD(MLFit):
