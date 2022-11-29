@@ -3,4 +3,5 @@ __pycache__
 .idea
 .vscode
 .fleet
-
+dist
+*.egg-info
