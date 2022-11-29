@@ -16,7 +16,7 @@ pyLag runs in python 2 or 3.
 
 Getting Started
 ---------------
-1) pyLag can be installed from PyPI using pip: `pip install pylag' (or `pip install --user pylag' if you do not have write access to system-level directories and/or would like to install pyLag only for the current user)
+1) pyLag can be installed from PyPI using pip: `pip install pylag` (or `pip install --user pylag` if you do not have write access to system-level directories and/or would like to install pyLag only for the current user)
 2) `import pylag`
 3) Make some cool discoveries!
 
