@@ -735,10 +735,11 @@ class MLCrossSpectrum(MLFit):
             lags = self.lag_model(params, self.fbins.bin_cent)
 
         if self.cpsd_model is None:
-            cpsd_derivs = [(c * np.cos(phi) + s * np.sin(phi)) * p for p, c, s, phi in zip(cpsd, self.cos_integral, self.sin_integral, lags)]
+            cpsd_derivs = [(c * np.cos(phi) - s * np.sin(phi)) * p for p, c, s, phi in zip(cpsd, self.cos_integral, self.sin_integral, lags)]
         else:
-            # TODO: implement chain rule derivatives for functions
-            return NotImplemented
+            psd_deriv = self.cpsd_model.eval_gradient(params, self.fbins.bin_cent) * self.psdnorm
+            cpsd_derivs = np.stack([np.sum([c * p for c, p in zip(self.cos_integral, psd_deriv[:, par])], axis=0) for par in
+                             range(psd_deriv.shape[-1])], axis=-1)
 
         if self.lag_model is None:
             lag_derivs = [-1 * p * (c * np.sin(phi) + s * np.cos(phi)) for p, c, s, phi in zip(cpsd, self.cos_integral, self.sin_integral, lags)]
