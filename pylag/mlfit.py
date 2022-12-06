@@ -648,10 +648,11 @@ class MLCrossSpectrum(MLFit):
         self.mlpsd2.fit()
         self.ac2 = self.mlpsd1.cov_matrix(self.mlpsd2.params)
 
-        # set an initial estimate of the cross power spectrum as the average of the two band powers
-        # minus a little bit - this helps the fit on its way!
-        for i in range(len(self.fbins)):
-            self.params['ln_cpsd%01d' % i].value = 0.5 * (self.mlpsd1.psd[i] + self.mlpsd2.psd[i]) - 1.
+        if self.cpsd_model is None:
+            # set an initial estimate of the cross power spectrum as the average of the two band powers
+            # minus a little bit - this helps the fit on its way!
+            for i in range(len(self.fbins)):
+                self.params['ln_cpsd%01d' % i].value = 0.5 * (self.mlpsd1.psd[i] + self.mlpsd2.psd[i]) - 1.
 
     def cross_cov_matrix(self, params):
         """
@@ -858,7 +859,7 @@ class StackedMLPSD(MLPSD):
     """
     pylag.mlfit.StackedMLPSD
 
-    Class for simultaneosuly fitting the power spectrum to multiple lgith curve segments.
+    Class for simultaneosuly fitting the power spectrum to multiple light curve segments.
 
     The StackedMLPSD constains MLPSD objects for each light curve (in the mlpsd member variable). The log(likelihood)
     is evaluated as the sum of log(likelihood) for each light curve, and is evaluated using the parameter values tied
@@ -870,7 +871,7 @@ class StackedMLPSD(MLPSD):
     frequencies. The lowest minimum and highest Nyquist frequencies are selected across the set of light curves
     :param fbins: Binning, optional (default=None). A Binning object to use defining the frequency bins, instead of
     constructing bins automatically (this will override Nf)
-    :param kwargs: Arguments passed to MLPSD constructor for each of th elight curves
+    :param kwargs: Arguments passed to MLPSD constructor for each of the light curves
     """
     def __init__(self, lclist, Nf=10, fbins=None, model=None, model_args={}, component_name=None, extend_freq=None, **kwargs):
         if fbins is None:
@@ -907,6 +908,8 @@ class StackedMLPSD(MLPSD):
         self.mcmc_minimizer = None
         self.mcmc_result = None
 
+        self.prefix = component_name + "_" if component_name is not None else ''
+
     def get_params(self):
         """
         param = pylag.mlfit.StackedMLPSD.get_params()
@@ -939,3 +942,129 @@ class StackedMLPSD(MLPSD):
                 return (-1e6, np.zeros(len(params)) + 1e6)
         else:
             return np.sum([p.log_likelihood(params, eval_gradient) for p in self.mlpsd])
+
+
+class StackedMLCrossSpectrum(MLCrossSpectrum):
+    """
+    pylag.mlfit.StackedMLCrossSpectrum
+
+    Class for simultaneosuly fitting the power spectrum to multiple pairs of light curve segments.
+
+    The StackedMLPSD contains MLCrossSpectrum objects for each light curve pair (in the mlcross_spec member variable).
+    The log(likelihood) is evaluated as the sum of log(likelihood) for each light curve pair, and is evaluated using
+    the parameter values tied between the set of light curve pairs.
+
+    Constructor arguments:
+    :param lclist1: list of LightCurve objects for energy band 1
+    :param lclist2: list of LightCurve objects for energy band 2
+    :param Nf: int, optional (default=10): number of frequency bins to use in the fit between the minimum and Nyquist
+    frequencies. The lowest minimum and highest Nyquist frequencies are selected across the set of light curves
+    :param fbins: Binning, optional (default=None). A Binning object to use defining the frequency bins, instead of
+    constructing bins automatically (this will override Nf)
+    :param kwargs: Arguments passed to MLCrossSpectrum constructor for each of the light curve pairs
+    """
+
+    def __init__(self, lclist1, lclist2, Nf=10, fbins=None, cpsd_model=None, lag_model=None, cpsd_model_args={}, lag_model_args={},
+                 psd_model=None, psd_model_args={}, extend_freq=None, freeze_psd=True, component_name=None, **kwargs):
+        if fbins is None:
+            # set up frequency bins to span min and max frequencies for the entire list
+            T = np.max([lc.time.max() - lc.time.min() for lc in lclist1])
+            dt = np.min([np.min(np.diff(lc.time)) for lc in lclist1])
+            min_freq = (1. / T)
+            max_freq = 0.5 / dt
+            self.fbins = LogBinning(min_freq, max_freq, Nf)
+        else:
+            self.fbins = fbins
+
+        if extend_freq is not None:
+            # create a new set of bins with an extra one at the start, going down to extend_freq * the previous minimum
+            self.fbins = Binning(bin_edges=np.insert(self.fbins.bin_edges, 0, extend_freq * self.fbins.bin_edges.min()))
+
+        self.mlcross_spec = [MLCrossSpectrum(lc1, lc2, fbins=self.fbins, cpsd_model=cpsd_model, lag_model=lag_model,
+                                cpsd_model_args=cpsd_model_args, lag_model_args=lag_model_args, **kwargs)
+                             for (lc1, lc2) in zip(lclist1, lclist2)]
+
+        # if we're freezing the PSD we'll also need the machinery to perform the pre-fit to the PSD of each light curve
+        if freeze_psd:
+            self.mlpsd1 = StackedMLPSD(lclist1, Nf=Nf, fbins=fbins, model=psd_model, model_args=psd_model_args,
+                                       component_name='psd1', extend_freq=extend_freq)
+            self.mlpsd2 = StackedMLPSD(lclist2, Nf=Nf, fbins=fbins, model=psd_model, model_args=psd_model_args,
+                                       component_name='psd2', extend_freq=extend_freq)
+
+        if cpsd_model is None:
+            self.cpsd_model = None
+        elif isinstance(cpsd_model, Model):
+            self.cpsd_model = cpsd_model
+        else:
+            self.cpsd_model = cpsd_model(component_name='cpsd', **cpsd_model_args)
+
+        if lag_model is None:
+            self.lag_model = None
+        elif isinstance(lag_model, Model):
+            self.lag_model = lag_model
+        else:
+            self.lag_model = lag_model(component_name='lag', **lag_model_args)
+
+        self.params = self.get_params()
+
+        self.freq = self.fbins.bin_cent
+        self.freq_error = self.fbins.x_error()
+
+        self.psd = None
+        self.psd_error = None
+
+        self.mcmc_minimizer = None
+        self.mcmc_result = None
+
+        self.prefix = component_name + "_" if component_name is not None else ''
+
+    def get_params(self):
+        """
+        param = pylag.mlfit.StackedMLCrossSpectrum.get_params()
+
+        Create a new set of parameters for the model used to construct the covariance matrix. Note that the same
+        parameter values are used to evaluate the covariance matrix for each of the light curve pairs.
+
+        :return: param: Parameters() object containing the parameters
+        """
+        return self.mlcross_spec[0].get_params()
+
+    def fit_psd(self):
+        print("Fitting PSD of light curve 1...")
+        self.mlpsd1.fit()
+
+        print("Fitting PSD of light curve 2...")
+        self.mlpsd2.fit()
+
+        # we need to initialise the autocovariance matrix for each light curve
+        for c in self.mlcross_spec:
+            c.ac1 = c.mlpsd1.cov_matrix(self.mlpsd1.params)
+            c.ac2 = c.mlpsd2.cov_matrix(self.mlpsd2.params)
+
+        if self.cpsd_model is None:
+            # set an initial estimate of the cross power spectrum as the average of the two band powers
+            # minus a little bit - this helps the fit on its way!
+            for i in range(len(self.fbins)):
+                self.params['ln_cpsd%01d' % i].value = 0.5 * (self.mlpsd1.psd[i] + self.mlpsd2.psd[i]) - 1.
+
+    def log_likelihood(self, params, eval_gradient=True):
+        """
+        loglike, grad = pylag.mlfit.StackedMLCrossSpectrum.log_likelihood(params, eval_gradient=True)
+
+        Evaluate log(marginal likelihood), as well as its gradient, for the covariance matrix defined by some set of
+        input parameters. The log(likelihood) for the stack of light curve pairs is the sum of the log(likelihood)
+        evaluated for each pair of light curves
+
+        :return: mloglike: float: log(likelihood) value, grad: ndarray: derivative of -log(likelihood)
+        """
+        if eval_gradient:
+            segment_loglike = [c.log_likelihood(params, eval_gradient) for c in self.mlcross_spec]
+            # separate and sum the likelihoods and the gradients
+            like = np.array([l[0] for l in segment_loglike])
+            grad = np.array([l[1] for l in segment_loglike])
+            if np.all(np.isfinite(like)):
+                return np.sum(like), grad.sum(axis=0)
+            else:
+                return (-1e6, np.zeros(len(params)) + 1e6)
+        else:
+            return np.sum([c.log_likelihood(params, eval_gradient) for c in self.mlcross_spec])
