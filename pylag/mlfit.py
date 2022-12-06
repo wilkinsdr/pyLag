@@ -721,35 +721,34 @@ class MLCrossSpectrum(MLFit):
 
         :return: c: ndarray (N * N * Npar): the derivative of the covariance matrix wrt each parameter
         """
+        # if no model is specified, the PSD model is just the PSD value in each frequency bin
         if self.cpsd_model is None:
-            # if no model is specified, the PSD model is just the PSD value in each frequency bin
-            if self.cpsd_model is None:
-                cpsd = np.exp(np.array(
-                    [params['%sln_cpsd%01d' % (self.prefix, i)].value for i in range(len(self.fbins))])) * self.psdnorm
-            else:
-                cpsd = self.cpsd_model(params, self.fbins.bin_cent) * self.psdnorm
+            cpsd = np.exp(np.array(
+                [params['%sln_cpsd%01d' % (self.prefix, i)].value for i in range(len(self.fbins))])) * self.psdnorm
+        else:
+            cpsd = self.cpsd_model(params, self.fbins.bin_cent) * self.psdnorm
 
-            # likewise for the (phase) lags
-            if self.lag_model is None:
-                lags = np.array([params['%slag%01d' % (self.prefix, i)].value for i in range(len(self.fbins))])
-            else:
-                lags = self.lag_model(params, self.fbins.bin_cent)
+        # likewise for the (phase) lags
+        if self.lag_model is None:
+            lags = np.array([params['%slag%01d' % (self.prefix, i)].value for i in range(len(self.fbins))])
+        else:
+            lags = self.lag_model(params, self.fbins.bin_cent)
 
-            if self.cpsd_model is None:
-                cpsd_derivs = [(c * np.cos(phi) + s * np.sin(phi)) * p for p, c, s, phi in zip(cpsd, self.cos_integral, self.sin_integral, lags)]
-            else:
-                # TODO: implement chain rule derivatives for functions
-                return NotImplemented
+        if self.cpsd_model is None:
+            cpsd_derivs = [(c * np.cos(phi) + s * np.sin(phi)) * p for p, c, s, phi in zip(cpsd, self.cos_integral, self.sin_integral, lags)]
+        else:
+            # TODO: implement chain rule derivatives for functions
+            return NotImplemented
 
-            if self.lag_model is None:
-                lag_derivs = [-1 * p * (c * np.sin(phi) + s * np.cos(phi)) for p, c, s, phi in zip(cpsd, self.cos_integral, self.sin_integral, lags)]
-            else:
-                # TODO: implement chain rule derivatives for functions
-                return NotImplemented
+        if self.lag_model is None:
+            lag_derivs = [-1 * p * (c * np.sin(phi) + s * np.cos(phi)) for p, c, s, phi in zip(cpsd, self.cos_integral, self.sin_integral, lags)]
+        else:
+            # TODO: implement chain rule derivatives for functions
+            return NotImplemented
 
-            # this is the stack of (1) the derivatives w.r.t. the cross powers (multiplied by p when we're using the log)
-            # and (2) the phases
-            return np.stack(cpsd_derivs + lag_derivs, axis=-1)
+        # this is the stack of (1) the derivatives w.r.t. the cross powers (multiplied by p when we're using the log)
+        # and (2) the phases
+        return np.stack(cpsd_derivs + lag_derivs, axis=-1)
 
     def cov_matrix_deriv(self, params):
         """
@@ -888,7 +887,7 @@ class StackedMLPSD(MLPSD):
             # create a new set of bins with an extra one at the start, going down to extend_freq * the previous minimum
             self.fbins = Binning(bin_edges=np.insert(self.fbins.bin_edges, 0, extend_freq*self.fbins.bin_edges.min()))
 
-        self.mlpsd = [MLPSD(lc, fbins=self.fbins, model=model, **kwargs) for lc in lclist]
+        self.mlpsd = [MLPSD(lc, fbins=self.fbins, model=model, component_name=component_name, **kwargs) for lc in lclist]
 
         if model is None:
             self.model = None
