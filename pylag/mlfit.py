@@ -929,7 +929,7 @@ class StackedMLPSD(MLPSD):
         input parameters. The log(likelihood) for the stack of light curves is the sum of the log(likelihood)
         evaluated for each light curve
         
-        :return: mloglike: float: log(likelihood) value, grad: ndarray: derivative of -log(likelihood)
+        :return: loglike: float: log(likelihood) value, grad: ndarray: derivative of -log(likelihood)
         """
         if eval_gradient:
             segment_loglike = [p.log_likelihood(params, eval_gradient) for p in self.mlpsd]
@@ -1055,7 +1055,7 @@ class StackedMLCrossSpectrum(MLCrossSpectrum):
         input parameters. The log(likelihood) for the stack of light curve pairs is the sum of the log(likelihood)
         evaluated for each pair of light curves
 
-        :return: mloglike: float: log(likelihood) value, grad: ndarray: derivative of -log(likelihood)
+        :return: loglike: float: log(likelihood) value, grad: ndarray: derivative of -log(likelihood)
         """
         if eval_gradient:
             segment_loglike = [c.log_likelihood(params, eval_gradient) for c in self.mlcross_spec]
