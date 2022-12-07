@@ -113,7 +113,13 @@ class Linear(Model):
         slope = params['%sslope' % self.prefix].value
         intercept = params['%sintercept' % self.prefix].value
 
-        return np.stack([x, np.ones_like(x)], axis=-1)
+        gradients = []
+        if params['%sslope' % self.prefix].vary:
+            gradients.append(x)
+        if params['%sintercept' % self.prefix].vary:
+            gradients.append(np.ones_like(x))
+
+        return np.stack(gradients, axis=-1)
 
 
 class PowerLaw(Model):
