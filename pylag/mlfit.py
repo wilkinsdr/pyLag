@@ -151,9 +151,9 @@ class MLFit(object):
                 L = cho_factor(c + np.diag(self.noise), lower=True, check_finite=False)[0]
             except np.linalg.LinAlgError:
                 #printmsg(2, "WARNING: Couldn't invert covariance matrix with parameters " + param2array(params))
-                return (-1e6, np.zeros(len(params)) + 1e6) if eval_gradient else -1e6
+                return (-1e6, np.zeros(len([p for p in params if params[p].vary])) - 1e6) if eval_gradient else -1e6
         except ValueError:
-            return (np.inf, np.zeros(len(params))) if eval_gradient else -np.inf
+            return (np.inf, np.zeros(len([p for p in params if params[p].vary]))) if eval_gradient else -np.inf
 
         alpha = cho_solve((L, True), self.data, check_finite=False)
 
@@ -735,21 +735,24 @@ class MLCrossSpectrum(MLFit):
             lags = self.lag_model(params, self.fbins.bin_cent)
 
         if self.cpsd_model is None:
-            cpsd_derivs = [(c * np.cos(phi) - s * np.sin(phi)) * p for p, c, s, phi in zip(cpsd, self.cos_integral, self.sin_integral, lags)]
+            cpsd_derivs = np.stack([(c * np.cos(phi) - s * np.sin(phi)) * p for p, c, s, phi in zip(cpsd, self.cos_integral, self.sin_integral, lags)], axis=-1)
         else:
-            psd_deriv = self.cpsd_model.eval_gradient(params, self.fbins.bin_cent) * self.psdnorm
-            cpsd_derivs = np.stack([np.sum([c * p for c, p in zip(self.cos_integral, psd_deriv[:, par])], axis=0) for par in
-                             range(psd_deriv.shape[-1])], axis=-1)
+            psd_model_deriv = self.cpsd_model.eval_gradient(params, self.fbins.bin_cent) * self.psdnorm
+            cpsd_derivs = np.stack([np.sum([pd * (c * np.cos(phi) - s * np.sin(phi)) for pd, c, s, phi
+                                            in zip(psd_model_deriv[:, par], self.cos_integral, self.sin_integral, lags)],
+                                           axis=0) for par in range(psd_model_deriv.shape[-1])], axis=-1)
 
         if self.lag_model is None:
-            lag_derivs = [-1 * p * (c * np.sin(phi) + s * np.cos(phi)) for p, c, s, phi in zip(cpsd, self.cos_integral, self.sin_integral, lags)]
+            lag_derivs = np.stack([-1 * p * (c * np.sin(phi) + s * np.cos(phi)) for p, c, s, phi in zip(cpsd, self.cos_integral, self.sin_integral, lags)], axis=-1)
         else:
-            # TODO: implement chain rule derivatives for functions
-            return NotImplemented
+            lag_model_deriv = self.lag_model.eval_gradient(params, self.fbins.bin_cent) * self.psdnorm
+            lag_derivs = np.stack([np.sum([-1 * phid * p * (c * np.sin(phi) + s * np.cos(phi)) for p, c, s, phi, phid
+                                            in zip(cpsd, self.cos_integral, self.sin_integral, lags, lag_model_deriv[:, par])],
+                                           axis=0) for par in range(lag_model_deriv.shape[-1])], axis=-1)
 
         # this is the stack of (1) the derivatives w.r.t. the cross powers (multiplied by p when we're using the log)
         # and (2) the phases
-        return np.stack(cpsd_derivs + lag_derivs, axis=-1)
+        return np.concatenate([cpsd_derivs, lag_derivs], axis=-1)
 
     def cov_matrix_deriv(self, params):
         """
@@ -769,14 +772,14 @@ class MLCrossSpectrum(MLFit):
             Z = np.zeros_like(self.ac1)
             return np.stack(
                 [np.vstack([np.hstack([Z, cc[..., p].T]), np.hstack([cc[..., p], Z])]) for p in
-                 range(len(self.params))], axis=-1)
+                 range(len([p for p in params if params[p].vary]))], axis=-1)
 
         else:
             ac1 = self.mlpsd1.cov_matrix_deriv(params)
             ac2 = self.mlpsd2.cov_matrix_deriv(params)
             return np.stack(
                 [np.vstack([np.hstack([ac1[..., p], cc[..., p].T]), np.hstack([cc[..., p], ac2[..., p]])]) for p in
-                 range(len(self.params))], axis=-1)
+                 range(len([p for p in params if params[p].vary]))], axis=-1)
 
         return np.stack([np.vstack([np.hstack([ac1[...,p], cc[...,p].T]), np.hstack([cc[...,p], ac2[...,p]])]) for p in range(len(self.params))], axis=-1)
 
@@ -820,7 +823,7 @@ class MLCrossSpectrum(MLFit):
         if self.lag_model is None:
             lag = np.array([self.params['%slag%01d' % (self.prefix, i)].value for i in range(len(self.fbins))])
         else:
-            lag = np.log(self.cpsd_model(self.params, self.fbins.bin_cent))
+            lag = self.lag_model(self.params, self.fbins.bin_cent)
 
         return lag / (2. * np.pi * self.fbins.bin_cent) if time_lag else lag
 
@@ -1065,6 +1068,6 @@ class StackedMLCrossSpectrum(MLCrossSpectrum):
             if np.all(np.isfinite(like)):
                 return np.sum(like), grad.sum(axis=0)
             else:
-                return (-1e6, np.zeros(len(params)) + 1e6)
+                return (-1e6, np.zeros(len([p for p in params if params[p].vary])) - 1e6)
         else:
             return np.sum([c.log_likelihood(params, eval_gradient) for c in self.mlcross_spec])
