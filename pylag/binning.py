@@ -33,14 +33,14 @@ class Binning(object):
                 The number of bins
     """
     def __init__(self, bin_start=None, bin_end=None, bin_cent=None, bin_edges=None, num=None):
-        self.bin_edges = np.array(bin_edges)
-
         if bin_edges is not None and bin_start is None and bin_end is None and bin_cent is None:
             self.bin_start = np.array(self.bin_edges[:-1])
             self.bin_end = np.array(self.bin_edges[1:])
+            self.bin_edges = np.array(bin_edges)
         elif bin_start is not None and bin_end is not None and bin_cent is not None:
             self.bin_start = np.array(bin_start)
             self.bin_end = np.array(bin_end)
+            self.bin_edges = np.concatenate([self.bin_start, self.bin_end[-1]])
         else:
             raise ArgumentError("pylag Binning ERROR: Bins not specified")
         if bin_cent is not None:
