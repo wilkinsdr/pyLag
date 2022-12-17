@@ -12,6 +12,7 @@ v1.0 02/05/2021 - D.R. Wilkins
 import lmfit
 import re
 import os
+import numpy as np
 
 from .fit import *
 from .entresponse import *
@@ -27,11 +28,11 @@ class ReverbModel(Model):
         self.en_bins = en_bins # we need the bin edges, not just the x values
 
         # load the response functions from specified directory
-        self.h, self.line_resp = self.read_response(resp_dir)
+        self.spin, self.incl, self.h, en, self.time, self.line_resp = self.read_response_npz(resp_dir)
         # and load the rest-frame Xillver reflection spectrum to convolve with the response
         self.spec = FITSSpecModel(refl_spec)
 
-    def read_response(self, resp_dir):
+    def read_response_fits(self, resp_dir):
         # find the response files
         resp_files = sorted(glob.glob(resp_dir + '/*.fits'))
         # extract the source height from the filename
@@ -45,6 +46,10 @@ class ReverbModel(Model):
         resp = [ENTResponse(f, 'RESPONSE') for f in resp_files]
 
         return h, resp
+
+    def read_response_npz(self, resp_file):
+        npz_data = np.load(resp_file)
+        return npz_data['spin'], npz_data['incl'], npz_data['h'], npz_data['en'], npz_data['t'], npz_data['ent'], npz_data['ent']
 
     def get_params(self, mass=7.3, source_h=5, le_fmin=1e-4, le_fmax=1e-3):
         params = lmfit.Parameters()
