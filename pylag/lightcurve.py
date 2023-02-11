@@ -185,8 +185,6 @@ class LightCurve(object):
             if byte_swap:
                 self._byteswap()
 
-            self.dt = self.time[1] - self.time[0]
-
             if add_tstart:
                 try:
                     tstart = fitsfile[0].header['TSTART']
