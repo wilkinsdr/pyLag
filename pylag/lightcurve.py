@@ -1856,7 +1856,7 @@ class EnergyLCList(object):
                 np.savetxt('%s_%02d.dat' % (filename, n), np.vstack([t, a]).T, fmt=fmt, delimiter=delimiter)
         else:
             t = self.lclist[0].time
-            np.savetxt(filenmae, np.vstack(t, arr).T, fmt=fmt, delimiter=delimiter)
+            np.savetxt(filename, np.vstack([t, arr]).T, fmt=fmt, delimiter=delimiter)
 
 
     def __getitem__(self, index):
