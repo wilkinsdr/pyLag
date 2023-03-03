@@ -1541,7 +1541,7 @@ def add_lightcurves(lclist):
     :return: sum_lc: LightCurve: the summed light curve
     """
     lc = lclist[0]
-    for next_lc in lclist[1:]
+    for next_lc in lclist[1:]:
         lc, next_lc = extract_sim_lightcurves(lc, next_lc)
         lc = lc + next_lc
     return lc
