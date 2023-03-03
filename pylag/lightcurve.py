@@ -1530,9 +1530,21 @@ def match_lc_timebins(lc1, lc2):
     return out_lc1, out_lc2
 
 
-def sum_sim_lightcurves(lc1, lc2):
-    lc1s, lc2s = extract_sim_lightcurves(lc1, lc2)
-    return lc1s + lc2s
+def add_lightcurves(lclist):
+    """
+    sum_lc = pylag.add_lightcurves(lclist)
+
+    Add the count rates in each time bin from a list of list curves, after first extracting the simultaneous
+    part of the light curves
+
+    :param lclist: list of LightCurve objects to be added
+    :return: sum_lc: LightCurve: the summed light curve
+    """
+    lc = lclist[0]
+    for next_lc in lclist[1:]
+        lc, next_lc = extract_sim_lightcurves(lc, next_lc)
+        lc = lc + next_lc
+    return lc
 
 
 class EnergyLCList(object):
@@ -1550,7 +1562,7 @@ class EnergyLCList(object):
     @staticmethod
     def find_light_curves(searchstr, lcfiles=None, **kwargs):
         """
-        enmin, enmax, lclist = pylag.LagEnergySpectrum.FindLightCurves(searchstr)
+        enmin, enmax, lclist = pylag.EnergyLCList.find_light_curves(searchstr)
 
         Search the filesystem for light curve files and return a list of light
         curve segments for each available observation segment in each energy
@@ -1628,7 +1640,7 @@ class EnergyLCList(object):
 
     def time_segment(self, start, end):
         """
-        new_lclist = pylag.extract_lclist_time_segment(lclist, tstart, tend)
+        new_lclist = pylag.EnergyLCList.time_segment(lclist, tstart, tend)
 
         Take a list of LightCurve objects or a list of lists of multiple light curve
         segments in each energy band (as used for a lag-energy or covariance spectrum)
