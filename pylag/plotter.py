@@ -3,6 +3,7 @@ pylag.Plotter
 
 Plotting and data output classes/functions for pylag data products
 """
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import matplotlib.font_manager as font_manager
@@ -373,7 +374,8 @@ class Plot(object):
 
         show the plot window on the screen
         """
-        self._fig.show(**kwargs)
+        if 'inline' not in matplotlib.get_backend():
+            self._fig.show(**kwargs)
 
     def plot(self, **kwargs):
         """
