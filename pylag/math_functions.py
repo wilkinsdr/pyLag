@@ -20,3 +20,8 @@ def powerlaw3(x, norm=1., slope1=1., xbreak1=10., slope2=1., xbreak2=20., slope3
 
 def gaussian(x, norm=1., mu=0., sigma=1.):
    return norm * np.exp((-(x - mu)**2) / (2*sigma**2)) / np.sqrt(2*np.pi*sigma**2)
+
+
+def lorentzian(x, norm=1., centre=0., width=1.):
+    return norm * (1. / np.pi) * 0.5 * width / ((x - centre) ** 2 + 0.25 * width ** 2)
+

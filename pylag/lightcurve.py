@@ -102,7 +102,7 @@ class LightCurve(object):
 
     """
 
-    def __init__(self, filename=None, t=[], r=[], e=[], interp_gaps=False, zero_nan=True, trim=False, max_gap=0, **kwargs):
+    def __init__(self, filename=None, t=[], r=[], e=[], b=[], be=[], interp_gaps=False, zero_nan=True, trim=False, max_gap=0, **kwargs):
         self.time = np.array(t)
         if len(r) > 0:
             self.rate = np.array(r)
@@ -112,6 +112,14 @@ class LightCurve(object):
             self.error = np.array(e)
         else:
             self.error = np.zeros(len(t))
+        if len(b) > 0:
+            self.bkg_rate = np.array(b)
+        else:
+            self.bkg_rate = None
+        if len(be) > 0:
+            self.bkg_error = np.array(be)
+        else:
+            self.bkg_error = None
 
         if filename is not None:
             self.filename = filename
@@ -201,7 +209,7 @@ class LightCurve(object):
         except:
             raise AssertionError("pyLag LightCurve ERROR: Could not read light curve from FITS file")
 
-    def write_fits(self, filename, byte_swap=True, time_col='TIME', rate_col='RATE', error_col='ERROR', hdu='RATE'):
+    def write_fits(self, filename, byte_swap=True, time_col='TIME', rate_col='RATE', error_col='ERROR', bkg_col='BACKV', bkgerr_col='BACKE', hdu='RATE'):
         """
         pylag.LightCurve.write_fits(filename, byte_swap=True, time_col='TIME', rate_col='RATE', error_col='ERROR', hdu='RATE')
 
@@ -231,9 +239,20 @@ class LightCurve(object):
         time_c = pyfits.Column(name=time_col, array=time_arr, format='D')
         rate_c = pyfits.Column(name=rate_col, array=rate_arr, format='E')
         error_c = pyfits.Column(name=error_col, array=error_arr, format='E')
+        cols = [time_c, rate_c, error_c]
+
+        try:
+            if self.bkg_rate is not None:
+                bkg_arr = self.bkg_rate.byteswap().newbyteorder('>') if byte_swap else self.bkg_rate
+                bkgerr_arr = self.bkg_error.byteswap().newbyteorder('>') if byte_swap else self.bkg_error
+                bkg_c = pyfits.Column(name=bkg_col, array=bkg_arr, format='E')
+                bkgerr_c = pyfits.Column(name=bkgerr_col, array=bkgerr_arr, format='E')
+                cols += [bkg_c, bkgerr_c]
+        except:
+            pass
 
         primary_hdu = pyfits.PrimaryHDU()
-        table_hdu = pyfits.BinTableHDU.from_columns([time_c, rate_c, error_c], name=hdu)
+        table_hdu = pyfits.BinTableHDU.from_columns(cols, name=hdu)
         hdul = pyfits.HDUList([primary_hdu, table_hdu])
         hdul.writeto(filename, overwrite=True)
 
@@ -1077,9 +1096,18 @@ class LightCurve(object):
             newrate = self.rate + other.rate
             # sum the errors in quadrature
             newerr = np.sqrt(self.error ** 2 + other.error ** 2)
+
+            newbkg, newbkgerr = [], []
+            try:
+                if self.bkg_rate is not None and other.bkg_rate is not None:
+                    newbkg = self.bkg_rate + other.bkg_rate
+                    newbkgerr = np.sqrt(self.bkg_error ** 2 + other.bkg_error ** 2)
+            except:
+                pass
+
             # construct a new LightCurve with the result and make sure it has the right class
             # (if calling from a derived class)
-            newlc = LightCurve(t=self.time, r=newrate, e=newerr)
+            newlc = LightCurve(t=self.time, r=newrate, e=newerr, b=newbkg, be=newbkgerr)
             newlc.__class__ = self.__class__
             return newlc
 
@@ -1105,7 +1133,14 @@ class LightCurve(object):
             # sum the count rate
             self.rate = self.rate + other.rate
             # sum the errors in quadrature
-            self.err = np.sqrt(self.error ** 2 + other.error ** 2)
+            self.error = np.sqrt(self.error ** 2 + other.error ** 2)
+
+            try:
+                if self.bkg_rate is not None and other.bkg_rate is not None:
+                    self.bkg_rate = self.bkg_rate + other.bkg_rate
+                    self.bkg_error = np.sqrt(self.bkg_error ** 2 + other.bkg_error ** 2)
+            except:
+                pass
 
         else:
             return NotImplemented
@@ -1125,9 +1160,18 @@ class LightCurve(object):
             newrate = self.rate - other.rate
             # sum the errors in quadrature
             newerr = np.sqrt(self.error ** 2 + other.error ** 2)
+
+            newbkg, newbkgerr = [], []
+            try:
+                if self.bkg_rate is not None and other.bkg_rate is not None:
+                    newbkg = self.bkg_rate - other.bkg_rate
+                    newbkgerr = np.sqrt(self.bkg_error ** 2 + other.bkg_error ** 2)
+            except:
+                pass
+
             # construct a new LightCurve with the result and make sure it has the right class
             # (if calling from a derived class)
-            newlc = LightCurve(t=self.time, r=newrate, e=newerr)
+            newlc = LightCurve(t=self.time, r=newrate, e=newerr, b=newbkg, be=newbkgerr)
             newlc.__class__ = self.__class__
             return newlc
 
@@ -1148,6 +1192,13 @@ class LightCurve(object):
             self.rate = self.rate - other.rate
             # sum the errors in quadrature
             self.error = np.sqrt(self.error ** 2 + other.error ** 2)
+
+            try:
+                if self.bkg_rate is not None and other.bkg_rate is not None:
+                    self.bkg_rate = self.bkg_rate - other.bkg_rate
+                    self.bkg_error = np.sqrt(self.bkg_error ** 2 + other.bkg_error ** 2)
+            except:
+                pass
 
         else:
             return NotImplemented
@@ -1449,9 +1500,21 @@ def extract_sim_lightcurves(lc1, lc2):
     rate1 = np.array([r for t, r in zip(lc1.time, lc1.rate) if start <= t <= end])
     err1 = np.array([e for t, e in zip(lc1.time, lc1.error) if start <= t <= end])
 
+    if lc1.bkg_rate is not None:
+        bkgrate1 = np.array([r for t, r in zip(lc1.time, lc1.bkg_rate) if start <= t <= end])
+        bkgerr1 = np.array([e for t, e in zip(lc1.time, lc1.bkg_error) if start <= t <= end])
+    else:
+        bkgrate1, bkgerr1 = [], []
+
     time2 = np.array([t for t in lc2.time if start <= t <= end])
     rate2 = np.array([r for t, r in zip(lc2.time, lc2.rate) if start <= t <= end])
     err2 = np.array([e for t, e in zip(lc2.time, lc2.error) if start <= t <= end])
+
+    if lc2.bkg_rate is not None:
+        bkgrate2 = np.array([r for t, r in zip(lc2.time, lc2.bkg_rate) if start <= t <= end])
+        bkgerr2 = np.array([e for t, e in zip(lc2.time, lc2.bkg_error) if start <= t <= end])
+    else:
+        bkgrate2, bkgerr2 = [], []
 
     # check that we actually have an overlapping section!
     if len(rate1) == 0 or len(rate2) == 0:
@@ -1467,26 +1530,34 @@ def extract_sim_lightcurves(lc1, lc2):
             time1 = time1[:-1]
             rate1 = rate1[:-1]
             err1 = err1[:-1]
+            bkgrate1 = bkgrate1[:-1]
+            bkgerr1 = bkgerr1[:-1]
         else:
             # otherwise knock the first time bin off
             time1 = time1[1:]
             rate1 = rate1[1:]
             err1 = err1[1:]
+            bkgrate1 = rate1[1:]
+            bkgerr1 = err1[1:]
     if len(rate1) < len(rate2):
         if abs(time1[0] - time2[0]) < abs(time1[-1] - time2[-1]):
             # if the start times match better than the end times, knock off the last bin
             time2 = time2[:-1]
             rate2 = rate2[:-1]
             err2 = err2[:-1]
+            bkgrate2 = bkgrate2[:-1]
+            bkgerr2 = bkgerr2[:-1]
         else:
             # otherwise knock the first time bin off
             time2 = time2[1:]
             rate2 = rate2[1:]
             err2 = err2[1:]
+            bkgrate2 = bkgrate2[1:]
+            bkgerr2 = bkgerr2[1:]
 
-    out_lc1 = LightCurve(t=time1, r=rate1, e=err1)
+    out_lc1 = LightCurve(t=time1, r=rate1, e=err1, b=bkgrate1, be=bkgerr1)
     out_lc1.__class__ = lc1.__class__
-    out_lc2 = LightCurve(t=time2, r=rate2, e=err2)
+    out_lc2 = LightCurve(t=time2, r=rate2, e=err2, b=bkgrate2, be=bkgerr2)
     out_lc2.__class__ = lc2.__class__
 
     return out_lc1, out_lc2
@@ -1530,9 +1601,21 @@ def match_lc_timebins(lc1, lc2):
     return out_lc1, out_lc2
 
 
-def sum_sim_lightcurves(lc1, lc2):
-    lc1s, lc2s = extract_sim_lightcurves(lc1, lc2)
-    return lc1s + lc2s
+def add_lightcurves(lclist):
+    """
+    sum_lc = pylag.add_lightcurves(lclist)
+
+    Add the count rates in each time bin from a list of list curves, after first extracting the simultaneous
+    part of the light curves
+
+    :param lclist: list of LightCurve objects to be added
+    :return: sum_lc: LightCurve: the summed light curve
+    """
+    lc = lclist[0]
+    for next_lc in lclist[1:]:
+        lc, next_lc = extract_sim_lightcurves(lc, next_lc)
+        lc = lc + next_lc
+    return lc
 
 
 class EnergyLCList(object):
@@ -1550,7 +1633,7 @@ class EnergyLCList(object):
     @staticmethod
     def find_light_curves(searchstr, lcfiles=None, **kwargs):
         """
-        enmin, enmax, lclist = pylag.LagEnergySpectrum.FindLightCurves(searchstr)
+        enmin, enmax, lclist = pylag.EnergyLCList.find_light_curves(searchstr)
 
         Search the filesystem for light curve files and return a list of light
         curve segments for each available observation segment in each energy
@@ -1628,7 +1711,7 @@ class EnergyLCList(object):
 
     def time_segment(self, start, end):
         """
-        new_lclist = pylag.extract_lclist_time_segment(lclist, tstart, tend)
+        new_lclist = pylag.EnergyLCList.time_segment(lclist, tstart, tend)
 
         Take a list of LightCurve objects or a list of lists of multiple light curve
         segments in each energy band (as used for a lag-energy or covariance spectrum)
@@ -1854,7 +1937,7 @@ class EnergyLCList(object):
                 np.savetxt('%s_%02d.dat' % (filename, n), np.vstack([t, a]).T, fmt=fmt, delimiter=delimiter)
         else:
             t = self.lclist[0].time
-            np.savetxt(filenmae, np.vstack(t, arr).T, fmt=fmt, delimiter=delimiter)
+            np.savetxt(filename, np.vstack([t, arr]).T, fmt=fmt, delimiter=delimiter)
 
 
     def __getitem__(self, index):
