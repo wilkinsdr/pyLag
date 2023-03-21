@@ -971,14 +971,14 @@ class SimLagFrequencySpectrum(LagFrequencySpectrum):
 
 class SimLagEnergySpectrum(LagEnergySpectrum):
     def __init__(self, fmin, fmax, ent, rate, tbin=10, tmax=1E5, nobs=1, add_noise=True, sample_errors=True,
-                 nsamples=100, plslope=2, std=1., refband=None, bias=True, lc=None):
+                 nsamples=100, plslope=2, std=1., refband=None, bias=True, lc=None, arf=None):
         self.en = np.array(ent.en_bins.bin_cent)
         self.en_error = ent.en_bins.x_error()
 
         if nobs == 1:
             lclist = ent.norm().simulate_lc_list(tmax, plslope, std * rate, rate,
                                                  add_noise=(True if add_noise and not sample_errors else False),
-                                                 rebin_time=tbin, lc=lc)
+                                                 rebin_time=tbin, lc=lc, arf=arf)
 
             self.base_lc = lclist.base_lc
 
@@ -988,7 +988,7 @@ class SimLagEnergySpectrum(LagEnergySpectrum):
         else:
             lclists = [ent.norm().simulate_lc_list(tmax, plslope, std * rate, rate,
                                                  add_noise=(True if add_noise and not sample_errors else False),
-                                                 rebin_time=tbin, lc=lc) for n in range(nobs)]
+                                                 rebin_time=tbin, lc=lc, arf=arf) for n in range(nobs)]
             lclist = stack_lclists(lclists)
             self.base_lc = [l.base_lc for l in lclists]
 
