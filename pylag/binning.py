@@ -131,7 +131,7 @@ class Binning(object):
 
         real_binned, _, _ = binned_statistic(x, real, statistic=statistic, bins=self.bin_edges)
         imag_binned, _, _ = binned_statistic(x, imag, statistic=statistic, bins=self.bin_edges)
-        binned = np.array([np.complex(r, i) for r, i in zip(real_binned, imag_binned)])
+        binned = np.array([complex(r, i) for r, i in zip(real_binned, imag_binned)])
         return binned
 
     def bin(self, x, y, statistic='mean'):
@@ -328,7 +328,7 @@ class Binning(object):
 
         real_binned, _, _ = binned_statistic(x, real, statistic='std', bins=self.bin_edges)
         imag_binned, _, _ = binned_statistic(x, imag, statistic='std', bins=self.bin_edges)
-        binned = np.array([np.complex(r, i) for r, i in zip(real_binned, imag_binned)])
+        binned = np.array([complex(r, i) for r, i in zip(real_binned, imag_binned)])
         return binned
 
     def std(self, x, y):

@@ -1064,7 +1064,24 @@ class LightCurve(object):
         else:
             return NotImplemented
 
+    def background(self):
+        """
+        Return the background time series as a LightCurve
+        :return:
+        """
+        if self.bkg_rate is not None:
+            return LightCurve(t=self.time, r=self.bkg_rate, e=self.bkg_error)
+        else:
+            raise AssertionError("This LightCurve does not have a background")
+
     def add_bkg(self, to_self=False):
+        """
+        Add the background count rate to the rate column so that the LightCurve contains the total count rate
+        (e.g. for applying C-statistics)
+
+        :param to_self: add the background in place, rather than returning a new LightCurve
+        :return:
+        """
         rsum = self.rate + self.bkg_rate
         esum = np.sqrt(self.error**2 + self.bkg_error**2)
         if to_self:

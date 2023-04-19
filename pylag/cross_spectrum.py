@@ -453,4 +453,4 @@ class StackedCrossSpectrum(CrossSpectrum):
         bin_edges = [fmin, fmax]
         real_mean, _, _ = binned_statistic(freq_list, crossft_list.real, statistic='mean', bins=bin_edges)
         imag_mean, _, _ = binned_statistic(freq_list, crossft_list.imag, statistic='mean', bins=bin_edges)
-        return np.complex(real_mean, imag_mean)
+        return complex(real_mean, imag_mean)
