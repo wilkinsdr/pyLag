@@ -1122,7 +1122,7 @@ class LightCurve(object):
             except:
                 pass
 
-            # construct a new LightCurve with the result and make sure it has the right class
+            # construct a new Lidnf repoquery --extras --exclude=kernel,kernel-\*ghtCurve with the result and make sure it has the right class
             # (if calling from a derived class)
             newlc = LightCurve(t=self.time, r=newrate, e=newerr, b=newbkg, be=newbkgerr)
             newlc.__class__ = self.__class__
@@ -1841,11 +1841,11 @@ class EnergyLCList(object):
             for en_lclist in self.lclist:
                 new_lclist.append([])
                 for lc in en_lclist:
-                    new_lclist[-1].append(lc.rebin3(tbin))
+                    new_lclist[-1].append(lc.rebin(tbin))
 
         elif isinstance(self.lclist[0], LightCurve):
             for lc in self.lclist:
-                new_lclist.append(lc.rebin3(tbin))
+                new_lclist.append(lc.rebin(tbin))
 
         return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
 
