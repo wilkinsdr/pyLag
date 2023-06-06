@@ -314,7 +314,7 @@ class MLFit(object):
         maxprob = np.argmax(mcmc_result.lnprob)
         for p in self.params:
             self.params[p].value = mcmc_result.flatchain[p][maxprob]
-        self.param_error = np.array([np.percentile(mcmc_result.flatchain[p], [15.9, 84.2]) for p in self.params])
+        self.param_error = np.array([np.percentile(mcmc_result.flatchain[p], [15.9, 84.1]) for p in self.params])
 
     def nested_sample(self, params=None, prior_fn=None, log_dir=None, resume=True, frac_remain=None, step='adaptive', **kwargs):
         try:

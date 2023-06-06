@@ -53,7 +53,7 @@ def fvar(lclist, tbin):
             tmax = tmin + tbin
             binlc = lc.time_segment(tmin, tmax)
             bin_count = len(binlc)
-            if bin_count == 0:
+            if bin_count <= 1:
                 continue
             bins += 1
             bin_mean.append(binlc.mean())
