@@ -951,7 +951,7 @@ class SimLagFrequencySpectrum(LagFrequencySpectrum):
         lc2 = lc2 * (norm2 / lc2.mean())
 
 
-        print("Count rate per energy band: %g, %g" % (lc1.mean(), lc2.mean()))
+        #print("Count rate per energy band: %g, %g" % (lc1.mean(), lc2.mean()))
 
         model_cross_spec = CrossSpectrum(lc1, lc2).bin(bins)
         _, self.model_lag = model_cross_spec.lag_spectrum()
