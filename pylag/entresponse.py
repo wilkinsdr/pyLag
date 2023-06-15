@@ -901,6 +901,11 @@ class ENTResponse(object):
             ent_conv[:,i] = convolve_spectrum(spec.en, spec.spec, self.en_bins.bin_cent/line_en, self.ent[:,i], enbins)
         return ENTResponse(en_bins=enbins, t=self.time, ent=ent_conv, tstart=self.tstart)
 
+    def absorb(self, absorber, *args):
+        trans = absorber.transmission(*args, enbins=self.en_bins)
+        ent_abs = self.ent * trans[:, np.newaxis]
+        return ENTResponse(en_bins=self.en_bins, t=self.time, ent=ent_abs, tstart=self.tstart)
+
     def write_fits(self, filename):
         """
         pylag.ENTResponse.write_fits(filename)
