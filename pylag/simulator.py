@@ -923,7 +923,7 @@ class TopHatResponse(ImpulseResponse):
 
 class SimLagFrequencySpectrum(LagFrequencySpectrum):
     def __init__(self, bins, ent, enband1, enband2, rate, tbin=10, tmax=1E5, add_noise=True, sample_errors=True, nsamples=100, plslope=2,
-                 std=1., lc=None, oversample=1.):
+                 std=1., lc=None, oversample=1., arf=None):
         self.freq = bins.bin_cent
         self.freq_error = bins.x_error()
 
@@ -932,18 +932,22 @@ class SimLagFrequencySpectrum(LagFrequencySpectrum):
 
         self.base_lc = lc
 
+        if arf is not None:
+            ent = ent.weight_arf(arf)
+        ent = ent.norm()
+
         fullrate = np.sum(ent.time_response())
 
         resp1 = ent.time_response(energy=enband1)
         norm1 = rate * np.sum(resp1) / fullrate
         lc1 = resp1.convolve(lc)
-        lc1 = lc1.rebin3(tbin)
+        lc1 = lc1.rebin(tbin)
         lc1 = lc1 * (norm1 / lc1.mean())
 
         resp2 = ent.time_response(energy=enband2)
         norm2 = rate * np.sum(resp2) / fullrate
         lc2 = resp2.convolve(lc)
-        lc2 = lc2.rebin3(tbin)
+        lc2 = lc2.rebin(tbin)
         lc2 = lc2 * (norm2 / lc2.mean())
 
 
