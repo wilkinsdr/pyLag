@@ -928,7 +928,7 @@ class SimLagFrequencySpectrum(LagFrequencySpectrum):
         self.freq_error = bins.x_error()
 
         if lc is None:
-            lc = SimLightCurve(ent.time[1] - ent.time[0], tmax, plslope, std, lcmean=1., oversample=oversample)
+            lc = SimLightCurve(ent.time[1] - ent.time[0], oversample*tmax, plslope, std, lcmean=1., oversample=oversample)
 
         self.base_lc = lc
 
@@ -940,13 +940,13 @@ class SimLagFrequencySpectrum(LagFrequencySpectrum):
 
         resp1 = ent.time_response(energy=enband1)
         norm1 = rate * np.sum(resp1) / fullrate
-        lc1 = resp1.convolve(lc)
+        lc1 = resp1.convolve(lc)[:int(tmax/tbin)]
         lc1 = lc1.rebin(tbin)
         lc1 = lc1 * (norm1 / lc1.mean())
 
         resp2 = ent.time_response(energy=enband2)
         norm2 = rate * np.sum(resp2) / fullrate
-        lc2 = resp2.convolve(lc)
+        lc2 = resp2.convolve(lc)[:int(tmax/tbin)]
         lc2 = lc2.rebin(tbin)
         lc2 = lc2 * (norm2 / lc2.mean())
 
