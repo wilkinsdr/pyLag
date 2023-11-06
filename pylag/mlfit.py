@@ -398,7 +398,7 @@ class MLPSD(MLFit):
         length = len(r)
 
         if noise == 'poisson':
-            noise_arr = (1. / lc.mean()**2) * np.ones_like(lc.rate)
+            noise_arr = (1. / r.mean()**2) * np.ones_like(r)
         elif noise == 'errors':
             # Note: RMS normalisation
             #noise_arr = e ** 2 * length / (2.*dt)
@@ -509,6 +509,10 @@ class MLPSD(MLFit):
 
     def _getplotaxes(self):
         return 'Frequency / Hz', 'log', 'PSD', 'log'
+
+    def plot(self):
+        noise = DataSeries(self.fbins.bin_cent, self.noise_level*np.ones_like(self.fbins.bin_cent))
+        return Plot([self, noise], marker_series=['+','-'])
 
 
 class MLCrossSpectrum(MLFit):
