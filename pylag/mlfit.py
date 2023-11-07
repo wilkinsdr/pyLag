@@ -876,7 +876,7 @@ class StackedMLPSD(MLPSD):
     constructing bins automatically (this will override Nf)
     :param kwargs: Arguments passed to MLPSD constructor for each of the light curves
     """
-    def __init__(self, lclist, Nf=10, fbins=None, model=None, model_args={}, component_name=None, extend_freq=None, **kwargs):
+    def __init__(self, lclist, Nf=10, fbins=None, model=None, model_args={}, component_name=None, extend_freq=None, nproc=1, **kwargs):
         if fbins is None:
             # set up frequency bins to span min and max frequencies for the entire list
             T = np.max([lc.time.max() - lc.time.min() for lc in lclist])
@@ -913,6 +913,14 @@ class StackedMLPSD(MLPSD):
 
         self.prefix = component_name + "_" if component_name is not None else ''
 
+        self.pool = None
+        if nproc > 1:
+            try:
+                import multiprocessing
+                self.pool = multiprocessing.Pool(nproc)
+            except:
+                raise ImportError("Parallel processing requires multiprocessing module")
+
     def get_params(self):
         """
         param = pylag.mlfit.StackedMLPSD.get_params()
@@ -935,7 +943,12 @@ class StackedMLPSD(MLPSD):
         :return: loglike: float: log(likelihood) value, grad: ndarray: derivative of -log(likelihood)
         """
         if eval_gradient:
-            segment_loglike = [p.log_likelihood(params, eval_gradient) for p in self.mlpsd]
+            if self.pool is not None:
+                def mapfunc(p):
+                    return p.log_likelihood(params, eval_gradient)
+                segment_loglike = pool.map(mapfunc, self.mlpsd)
+            else:
+                segment_loglike = [p.log_likelihood(params, eval_gradient) for p in self.mlpsd]
             # separate and sum the likelihoods and the gradients
             like = np.array([l[0] for l in segment_loglike])
             grad = np.array([l[1] for l in segment_loglike])
