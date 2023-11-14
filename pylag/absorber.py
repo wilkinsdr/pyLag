@@ -9,6 +9,8 @@ class TBabs(object):
             raise ImportError("TBabs requires PyXSPEC to be installed and initialised in the current environment")
 
         xspec.xset.chatter = 0
+        xspec.AllModels.clear()
+        xspec.AllData.clear()
         xspec.AllData.dummyrsp(enmin, enmax, Nen)
 
         en_edges = np.logspace(np.log10(enmin), np.log10(enmax), Nen+1)
