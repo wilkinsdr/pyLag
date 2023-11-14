@@ -23,6 +23,9 @@ from scipy.interpolate import interp1d
 from .plotter import Spectrum
 from .util import printmsg
 
+import astropy.time
+from .time import *
+
 class LightCurve(object):
     """
     pylag.LightCurve
@@ -121,6 +124,9 @@ class LightCurve(object):
         else:
             self.bkg_error = None
 
+        self.telescope = None
+        self.instrument = None
+
         if filename is not None:
             self.filename = filename
             self.read_fits(filename, **kwargs)
@@ -174,16 +180,23 @@ class LightCurve(object):
                      error from light curves that contain these. The background rate and error will be stored in the
                      member arrays bkg_rate and bkg_error.
         """
-        # shortcut for loading Chandra light curves which helpfully have different HDU and column names!
-        if inst == 'chandra':
-            time_col = 'TIME'
-            rate_col = 'NET_RATE'
-            error_col = 'ERR_RATE'
-            hdu = 'LIGHTCURVE'
-
         try:
             printmsg(1, "Reading light curve from " + filename)
             fitsfile = pyfits.open(filename)
+
+            try:
+                self.telescope = fitsfile[0].header['TELESCOP']
+                self.instrument = fitsfile[0].header['INSTRUME']
+            except:
+                pass
+
+            # shortcut for loading Chandra light curves which helpfully have different HDU and column names!
+            if self.instrument == 'CHANDRA' or inst == 'chandra':
+                time_col = 'TIME'
+                rate_col = 'NET_RATE'
+                error_col = 'ERR_RATE'
+                hdu = 'LIGHTCURVE'
+
             tabdata = fitsfile[hdu].data
 
             self.time = np.array(tabdata[time_col])
@@ -996,6 +1009,28 @@ class LightCurve(object):
         lc = LightCurve(t=t, r=self.rate, e=self.error)
         lc.__class__ = self.__class__
         return lc
+
+    def convert_time(self, conv_to, conv_from=None):
+        """
+        Convert the time between different missions or astropy time formats
+        conv_to can be any of the string representations for astropy formats, including xmmsec and nustarsec which are
+        defined here
+        """
+        if conv_from is None:
+            if self.telescope == 'XMM':
+                conv_from = 'xmmsec'
+            elif self.telescope == 'CHANDRA':
+                conv_from = 'cxcsec'
+            elif self.telescope == 'NuSTAR':
+                conv_from = 'nustarsec'
+            else:
+                raise ValueError("Can't work out what time the LightCurve is starting in, and conv_from not specified")
+
+        time_obj = astropy.time.Time(self.time, format=conv_from)
+        new_time = getattr(time_obj, conv_to)
+        newtime_lc = LightCurve(t=new_time, r=self.rate, e=self.error)
+        newtime_lc.__class__ = self.__class__
+        return newtime_lc
 
     def first_deriv(self):
         """
