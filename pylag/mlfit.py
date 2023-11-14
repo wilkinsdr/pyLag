@@ -18,6 +18,8 @@ from scipy.spatial.distance import pdist, cdist, squareform
 from scipy.linalg import cholesky, cho_solve, cho_factor, blas
 from scipy.optimize import minimize
 
+from itertools import repeat
+
 import lmfit
 import copy
 
@@ -932,6 +934,9 @@ class StackedMLPSD(MLPSD):
         """
         return self.mlpsd[0].get_params()
 
+    def loglike_mapfunc(self, mlpsd, params, eval_gradient):
+        return mlpsd.log_likelihood(params, eval_gradient)
+
     def log_likelihood(self, params, eval_gradient=True):
         """
         loglike, grad = pylag.mlfit.MLFit.log_likelihood(params, eval_gradient=True)
@@ -944,9 +949,7 @@ class StackedMLPSD(MLPSD):
         """
         if eval_gradient:
             if self.pool is not None:
-                def mapfunc(p):
-                    return p.log_likelihood(params, eval_gradient)
-                segment_loglike = pool.map(mapfunc, self.mlpsd)
+                segment_loglike = self.pool.starmap(self.loglike_mapfunc, zip(self.mlpsd, repeat(params), repeat(eval_gradient)))
             else:
                 segment_loglike = [p.log_likelihood(params, eval_gradient) for p in self.mlpsd]
             # separate and sum the likelihoods and the gradients
