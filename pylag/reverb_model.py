@@ -36,7 +36,7 @@ class ReverbModel(Model):
         # find the response files
         resp_files = sorted(glob.glob(resp_dir + '/*.fits'))
         # extract the source height from the filename
-        h_re = re.compile('.*?_h([0-9\.]+)[_\.].*?')
+        h_re = re.compile(r'.*?_h([0-9\.]+)[_\.].*?')
         h_labels = ['h = ' + h_re.match(f).group(1) for f in [os.path.basename(e) for e in resp_files]]
         h = [float(h_re.match(f).group(1)) for f in [os.path.basename(e) for e in resp_files]]
         # sort the files in order of source height

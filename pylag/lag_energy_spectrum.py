@@ -323,12 +323,12 @@ class LagEnergySpectrum(object):
                  computing the lag-energy spectrum
         """
         lcfiles = sorted(glob.glob(searchstr))
-        enlist = list(set([re.search('(en[0-9]+\-[0-9]+)', lc).group(0) for lc in lcfiles]))
+        enlist = list(set([re.search(r'(en[0-9]+\-[0-9]+)', lc).group(0) for lc in lcfiles]))
 
         enmin = []
         enmax = []
         for estr in enlist:
-            matches = re.search('en([0-9]+)\-([0-9]+)', estr)
+            matches = re.search(r'en([0-9]+)\-([0-9]+)', estr)
             enmin.append(float(matches.group(1)))
             enmax.append(float(matches.group(2)))
         # zip the energy bins to sort them, then unpack
