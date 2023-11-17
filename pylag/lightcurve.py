@@ -105,7 +105,7 @@ class LightCurve(object):
 
     """
 
-    def __init__(self, filename=None, t=[], r=[], e=[], b=[], be=[], interp_gaps=False, zero_nan=True, trim=False, max_gap=0, **kwargs):
+    def __init__(self, filename=None, t=[], r=[], e=[], b=[], be=[], interp_gaps=False, zero_nan=True, trim=False, max_gap=0, time_format=None, **kwargs):
         self.time = np.array(t)
         if len(r) > 0:
             self.rate = np.array(r)
@@ -126,17 +126,28 @@ class LightCurve(object):
 
         self.telescope = None
         self.instrument = None
+        self.time_format = time_format
+
+        self.tstart = 0
 
         if filename is not None:
             self.filename = filename
             self.read_fits(filename, **kwargs)
+
+        if time_format is None:
+            if self.telescope == 'XMM':
+                self.time_format = 'xmmsec'
+            elif self.telescope == 'CHANDRA':
+                self.time_format = 'cxcsec'
+            elif self.telescope == 'NuSTAR':
+                self.time_format = 'nustarsec'
 
         if len(self.time) > 1:
             self.dt = self.time[1] - self.time[0]
         self.length = len(self.rate)
 
         if interp_gaps:
-            self._interp_gaps(max_gap)
+            self._interp_gaps(max_gap, to_self=True)
         if zero_nan:
             self._zeronan()
         if trim:
@@ -212,6 +223,12 @@ class LightCurve(object):
                     self.time += tstart
                 except:
                     raise AssertionError("pyLag LightCurve ERROR: Could not read TSTART from FITS header")
+            else:
+                try:
+                    tstart = fitsfile[0].header['TSTART']
+                    self.tstart = tstart
+                except:
+                    self.tstart = 0
 
             if bkg:
                 self.bkg_rate = np.array(tabdata['BACKV'])
@@ -389,9 +406,7 @@ class LightCurve(object):
         this_t = np.array([t for t in self.time if start < t <= end])
         this_rate = np.array([r for t, r in zip(self.time, self.rate) if start < t <= end])
         this_error = np.array([e for t, e in zip(self.time, self.error) if start < t <= end])
-        segment = LightCurve(t=this_t, r=this_rate, e=this_error)
-        segment.__class__ = self.__class__
-        return segment
+        return self._return_lightcurve(t=this_t, r=this_rate, e=this_error)
 
     def split_segments_time(self, num_segments=1, segment_length=None, use_end=False):
         """
@@ -457,13 +472,13 @@ class LightCurve(object):
         rate_arr = self.rate[:num_bins].reshape(-1, seg_bins)
         error_arr = self.error[:num_bins].reshape(-1, seg_bins)
 
-        return [LightCurve(t=t, r=r, e=e) for t, r, e in zip(time_arr, rate_arr, error_arr)]
+        return [self._return_lightcurve(t=t, r=r, e=e) for t, r, e in zip(time_arr, rate_arr, error_arr)]
 
     def split_on_gaps(self, min_segment=0):
         gaps = np.concatenate([[-1], np.argwhere(np.diff(self.time) > np.diff(self.time).min()).flatten(), [len(self.time) - 1]])
         segs = [(start + 1, end + 1) for start, end in zip(gaps[:-1], gaps[1:]) if (end-start)>=min_segment]
 
-        lc_seg = [LightCurve(t=self.time[start:end], r=self.rate[start:end], e=self.error[start:end]) for start, end in segs]
+        lc_seg = [self._return_lightcurve(t=self.time[start:end], r=self.rate[start:end], e=self.error[start:end]) for start, end in segs]
         return lc_seg
 
     def bin_by_gaps(self):
@@ -479,7 +494,7 @@ class LightCurve(object):
 
         e = np.sqrt(r) / np.sqrt(new_dt)
 
-        lc = LightCurve(t=t, r=r, e=e)
+        lc = self._return_lightcurve(t=t, r=r, e=e)
         lc.time_error = new_dt / 2
         return lc
 
@@ -594,9 +609,7 @@ class LightCurve(object):
             self.error = e
 
         else:
-            lc = LightCurve(t=t, r=r, e=e)
-            lc.__class__ = self.__class__
-            return lc
+            return self._return_lightcurve(t=t, r=r, e=e)
 
     def remove_gaps(self, to_self=False):
         t = self.time[self.rate>0]
@@ -609,9 +622,7 @@ class LightCurve(object):
             self.error = e
 
         else:
-            lc = LightCurve(t=t,r=r, e=e)
-            lc.__class__ = self.__class__
-            return lc
+            return self._return_lightcurve(t=t, r=r, e=e)
 
     def rebin_slow(self, tbin):
         """
@@ -657,10 +668,7 @@ class LightCurve(object):
         # calculate the sqrt(N) error from the total counts
         err = rate * np.sqrt(counts) / counts
 
-        binlc = LightCurve(t=time[:-1], r=rate, e=err)
-        # make sure the returned object has the right class (if this is called from a derived class)
-        binlc.__class__ = self.__class__
-        return binlc
+        return self._return_lightcurve(t=time[:-1], r=rate, e=err)
 
     def rebin2(self, tbin):
         """
@@ -699,10 +707,7 @@ class LightCurve(object):
         rate = counts / tbin
         err = rate * np.sqrt(counts) / counts
 
-        binlc = LightCurve(t=time[:-1], r=rate, e=err)
-        # make sure the returned object has the right class (if this is called from a derived class)
-        binlc.__class__ = self.__class__
-        return binlc
+        return self._return_lightcurve(t=time[:-1], r=rate, e=err)
 
     def rebin(self, tbin=None, time=None):
         """
@@ -745,10 +750,7 @@ class LightCurve(object):
         rate = counts / (self.dt*num_in_bin)
         err = rate * np.sqrt(counts) / counts
 
-        binlc = LightCurve(t=time[:-1], r=rate, e=err)
-        # make sure the returned object has the right class (if this is called from a derived class)
-        binlc.__class__ = self.__class__
-        return binlc
+        return self._return_lightcurve(t=time[:-1], r=rate, e=err)
 
     # TODO: Counts binning based on accumulated count over previous time window
 
@@ -762,10 +764,7 @@ class LightCurve(object):
         counts = rate * dt
         err = rate * np.sqrt(counts) / counts
 
-        interp_lc = LightCurve(t=time, r=rate, e=err)
-        # make sure the returned object has the right class (if this is called from a derived class)
-        interp_lc.__class__ = self.__class__
-        return interp_lc
+        return self._return_lightcurve(t=time, r=rate, e=err)
 
     def mean(self):
         """
@@ -980,16 +979,14 @@ class LightCurve(object):
         newrate = np.concatenate([self.rate] + [lc.rate for lc in other])
         newerr = np.concatenate([self.error] + [lc.error for lc in other])
 
-        newlc = LightCurve(t=newtime, r=newrate, e=newerr)
-        newlc.__class__ = self.__class__
-        return newlc
+        return self._return_lightcurve(t=newtime, r=newrate, e=newerr)
 
     def sort_time(self):
         """
         Sort the light curve points in time order
         """
         t, r, e = zip(*sorted(zip(self.time, self.rate, self.error)))
-        return LightCurve(t=np.array(t), r=np.array(r), e=np.array(e))
+        return self._return_lightcurve(t=np.array(t), r=np.array(r), e=np.array(e))
 
     def log(self):
         """
@@ -997,7 +994,7 @@ class LightCurve(object):
         """
         r = np.log(self.rate)
         e = self.error / self.rate
-        return LightCurve(t=self.time, r=r, e=e)
+        return self._return_lightcurve(t=self.time, r=r, e=e)
 
     def rescale_time(self, mult=None, mass=None):
         """
@@ -1007,9 +1004,7 @@ class LightCurve(object):
         if mass is not None:
             mult = 6.67E-11 * mass * 2E30 / (3E8)**3
         t = self.time * mult
-        lc = LightCurve(t=t, r=self.rate, e=self.error)
-        lc.__class__ = self.__class__
-        return lc
+        return self._return_lightcurve(t=t, r=self.rate, e=self.error)
 
     def convert_time(self, conv_to, conv_from=None):
         """
@@ -1018,20 +1013,13 @@ class LightCurve(object):
         defined here
         """
         if conv_from is None:
-            if self.telescope == 'XMM':
-                conv_from = 'xmmsec'
-            elif self.telescope == 'CHANDRA':
-                conv_from = 'cxcsec'
-            elif self.telescope == 'NuSTAR':
-                conv_from = 'nustarsec'
-            else:
+            if self.time_format is None:
                 raise ValueError("Can't work out what time the LightCurve is starting in, and conv_from not specified")
+            conv_from = self.time_format
 
         time_obj = astropy.time.Time(self.time, format=conv_from)
         new_time = getattr(time_obj, conv_to)
-        newtime_lc = LightCurve(t=new_time, r=self.rate, e=self.error)
-        newtime_lc.__class__ = self.__class__
-        return newtime_lc
+        return self._return_lightcurve(t=new_time, r=self.rate, e=self.error, time_format=conv_to)
 
     def first_deriv(self):
         """
@@ -1066,16 +1054,12 @@ class LightCurve(object):
         # sqrt(N) errors again as if we're making a measurement
         error = np.sqrt(self.rate / self.dt)
 
-        resample_lc = LightCurve(t=self.time, r=rate, e=error)
-        resample_lc.__class__ = self.__class__
-        return resample_lc
+        return self._return_lightcurve(t=self.time, r=rate, e=error)
 
     def moving_average(self, window_size=3):
         window = np.ones(int(window_size)) / float(window_size)
         r_avg = np.convolve(self.rate, window, 'same')
-        lc_avg = LightCurve(t=self.time, r=r_avg, e=np.zeros(self.time.shape))
-        lc_avg.__class__ = self.__class__
-        return lc_avg
+        return self._return_lightcurve(t=self.time, r=r_avg, e=np.zeros(self.time.shape))
 
     def resample_moving_average(self, window_size=3, num_resamples=10000):
         resamples = []
@@ -1083,9 +1067,7 @@ class LightCurve(object):
             resamples.append(self.resample_noise().moving_average(window_size))
         r = self.moving_average(window_size).rate
         e = np.std(np.array([l.rate for l in resamples]), axis=0)
-        resample_lc = LightCurve(t=self.time, r=r, e=e)
-        resample_lc.__class__ = self.__class__
-        return resample_lc
+        return self._return_lightcurve(t=self.time, r=r, e=e)
 
     def find_nearest(self, other, time_mode='matches'):
         if isinstance(other, LightCurve):
@@ -1094,9 +1076,7 @@ class LightCurve(object):
                 t = self.time[idx]
             elif time_mode == 'orig':
                 t = other.time
-            match_lc = LightCurve(t=t, r=self.rate[idx], e=self.error[idx])
-            match_lc.__class__ = self.__class__
-            return match_lc
+            return self._return_lightcurve(t=t, r=self.rate[idx], e=self.error[idx])
         else:
             return NotImplemented
 
@@ -1124,7 +1104,7 @@ class LightCurve(object):
             self.rate = rsum
             self.error = esum
         else:
-            return LightCurve(t=self.time, r=rsum, e=esum)
+            return self._return_lightcurve(t=self.time, r=rsum, e=esum)
 
     def to_df(self, errors=False):
         import pandas as pd
@@ -1160,9 +1140,7 @@ class LightCurve(object):
 
             # construct a new Lidnf repoquery --extras --exclude=kernel,kernel-\*ghtCurve with the result and make sure it has the right class
             # (if calling from a derived class)
-            newlc = LightCurve(t=self.time, r=newrate, e=newerr, b=newbkg, be=newbkgerr)
-            newlc.__class__ = self.__class__
-            return newlc
+            return self._return_lightcurve(t=self.time, r=newrate, e=newerr, b=newbkg, be=newbkgerr)
 
         elif isinstance(other, (float, int)):
             newrate = self.rate + other
@@ -1224,9 +1202,7 @@ class LightCurve(object):
 
             # construct a new LightCurve with the result and make sure it has the right class
             # (if calling from a derived class)
-            newlc = LightCurve(t=self.time, r=newrate, e=newerr, b=newbkg, be=newbkgerr)
-            newlc.__class__ = self.__class__
-            return newlc
+            return self._return_lightcurve(t=self.time, r=newrate, e=newerr, b=newbkg, be=newbkgerr)
 
         else:
             return NotImplemented
@@ -1269,9 +1245,7 @@ class LightCurve(object):
             newerr = newrate * (self.error / self.rate)
             # construct a new LightCurve with the result and make sure it has the right class
             # (if calling from a derived class)
-            newlc = LightCurve(t=self.time, r=newrate, e=newerr)
-            newlc.__class__ = self.__class__
-            return newlc
+            return self._return_lightcurve(t=self.time, r=newrate, e=newerr)
 
         else:
             return NotImplemented
@@ -1292,9 +1266,7 @@ class LightCurve(object):
             newerr = newrate * np.sqrt((self.error / self.rate) ** 2 + (other.error / other.rate) ** 2)
             # construct a new LightCurve with the result and make sure it has the right class
             # (if calling from a derived class)
-            newlc = LightCurve(t=self.time, r=newrate, e=newerr)
-            newlc.__class__ = self.__class__
-            return newlc
+            return self._return_lightcurve(t=self.time, r=newrate, e=newerr)
 
         elif isinstance(other, (float, int)):
             newrate = self.rate / other
@@ -1302,9 +1274,7 @@ class LightCurve(object):
             newerr = newrate * (self.error / self.rate)
             # construct a new LightCurve with the result and make sure it has the right class
             # (if calling from a derived class)
-            newlc = LightCurve(t=self.time, r=newrate, e=newerr)
-            newlc.__class__ = self.__class__
-            return newlc
+            return self._return_lightcurve(t=self.time, r=newrate, e=newerr)
 
         else:
             return NotImplemented
@@ -1325,9 +1295,7 @@ class LightCurve(object):
             newerr = newrate * np.sqrt((self.error / self.rate) ** 2 + (other.error / other.rate) ** 2)
             # construct a new LightCurve with the result and make sure it has the right class
             # (if calling from a derived class)
-            newlc = LightCurve(t=self.time, r=newrate, e=newerr)
-            newlc.__class__ = self.__class__
-            return newlc
+            return self._return_lightcurve(t=self.time, r=newrate, e=newerr)
 
         elif isinstance(other, (float, int)):
             newrate = self.rate / other
@@ -1335,9 +1303,7 @@ class LightCurve(object):
             newerr = newrate * (self.error / self.rate)
             # construct a new LightCurve with the result and make sure it has the right class
             # (if calling from a derived class)
-            newlc = LightCurve(t=self.time, r=newrate, e=newerr)
-            newlc.__class__ = self.__class__
-            return newlc
+            return self._return_lightcurve(t=self.time, r=newrate, e=newerr)
 
         else:
             return NotImplemented
@@ -1379,9 +1345,7 @@ class LightCurve(object):
         Overloaded operator to access count rate via [] operator
         """
         if isinstance(index, slice):
-            lcslice = LightCurve(t=self.time[index], r=self.rate[index], e=self.error[index])
-            lcslice.__class__ = self.__class__
-            return lcslice
+            return self._return_lightcurve(t=self.time[index], r=self.rate[index], e=self.error[index])
         else:
             return self.rate[index]
 
@@ -1390,9 +1354,7 @@ class LightCurve(object):
         Overloaded operator to extract a portion of the light curve using
         [start:end] operator and return as a new LightCurve object
         """
-        slice = LightCurve(t=self.time[start:end], r=self.rate[start:end], e=self.error[start:end])
-        slice.__class__ = self.__class__
-        return slice
+        return self._return_lightcurve(t=self.time[start:end], r=self.rate[start:end], e=self.error[start:end])
 
     def __str__(self):
         return "<pylag.lightcurve.LightCurve: %d time bins, dt = %g%s>" % (len(self), self.dt, ", loaded from: %s" % self.filename if self.filename is not None else "")
@@ -1405,6 +1367,14 @@ class LightCurve(object):
 
     def _getplotaxes(self):
         return 'Time / s', 'linear', 'Count Rate / ct s$^{-1}$', 'linear'
+
+    def _return_lightcurve(self, t, r, e, b=[], be=[], time_format=None):
+        lc = LightCurve(t=st, r=r, e=e, b=b, be=be, time_format=time_format if time_format is not None else self.time_format)
+        lc.__class__ = self.__class__
+        lc.telescope = self.telescope
+        lc.instrument = self.instrument
+        return lc
+
 
 
 class VariableBinLightCurve(LightCurve):
