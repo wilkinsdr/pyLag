@@ -1366,7 +1366,11 @@ class LightCurve(object):
         return self.time, (self.rate, self.error)
 
     def _getplotaxes(self):
-        return 'Time / s', 'linear', 'Count Rate / ct s$^{-1}$', 'linear'
+        if 'sec' in self.time_format:
+            unit = ' / s'
+        elif 'mjd' in self.time_format:
+            unit = ' / MJD'
+        return 'Time%s' % unit, 'linear', 'Count Rate / ct s$^{-1}$', 'linear'
 
     def _return_lightcurve(self, t, r, e, b=[], be=[], time_format=None):
         lc = LightCurve(t=st, r=r, e=e, b=b, be=be, time_format=time_format if time_format is not None else self.time_format)
