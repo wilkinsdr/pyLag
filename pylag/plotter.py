@@ -374,7 +374,7 @@ class Plot(object):
 
         show the plot window on the screen
         """
-        if 'inline' not in matplotlib.get_backend():
+        if 'inline' not in matplotlib.get_backend() and 'ipympl' not in matplotlib.get_backend():
             self._fig.show(**kwargs)
 
     def plot(self, **kwargs):
