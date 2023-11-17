@@ -1373,7 +1373,7 @@ class LightCurve(object):
         return 'Time%s' % unit, 'linear', 'Count Rate / ct s$^{-1}$', 'linear'
 
     def _return_lightcurve(self, t, r, e, b=[], be=[], time_format=None):
-        lc = LightCurve(t=st, r=r, e=e, b=b, be=be, time_format=time_format if time_format is not None else self.time_format)
+        lc = LightCurve(t=t, r=r, e=e, b=b, be=be, time_format=time_format if time_format is not None else self.time_format)
         lc.__class__ = self.__class__
         lc.telescope = self.telescope
         lc.instrument = self.instrument
