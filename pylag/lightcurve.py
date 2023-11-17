@@ -460,10 +460,11 @@ class LightCurve(object):
         return [LightCurve(t=t, r=r, e=e) for t, r, e in zip(time_arr, rate_arr, error_arr)]
 
     def split_on_gaps(self, min_segment=0):
-        gaps = np.concatenate([[-1], np.argwhere(np.diff(s.time) > np.diff(s.time).min()).flatten(), [len(s.time) - 1]])
-        segs = [(start + 1, end + 1) for start, end in zip(gaps[:-1], gaps[1:])]
+        gaps = np.concatenate([[-1], np.argwhere(np.diff(self.time) > np.diff(self.time).min()).flatten(), [len(self.time) - 1]])
+        segs = [(start + 1, end + 1) for start, end in zip(gaps[:-1], gaps[1:]) if (end-start)>=min_segment]
 
         lc_seg = [LightCurve(t=self.time[start:end], r=self.rate[start:end], e=self.error[start:end]) for start, end in segs]
+        return lc_seg
 
     def bin_by_gaps(self):
         gaps = np.concatenate([[-1], np.argwhere(np.diff(self.time) > np.diff(self.time).min()).flatten(), [len(self.time) - 1]])
