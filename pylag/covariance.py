@@ -456,8 +456,8 @@ class CovarianceSpectrum(object):
 
         cov = np.array(cov)
 
-        cov_values = np.mean(cov, axis=0)
-        cov_errors = np.std(cov, axis=0)
+        cov_values = np.nanmean(cov, axis=0)
+        cov_errors = np.nanstd(cov, axis=0)
 
         return cov_values, cov_errors
 
