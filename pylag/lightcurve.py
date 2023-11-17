@@ -147,7 +147,7 @@ class LightCurve(object):
         self.length = len(self.rate)
 
         if interp_gaps:
-            self._interp_gaps(max_gap, to_self=True)
+            self.interp_gaps(max_gap, to_self=True)
         if zero_nan:
             self._zeronan()
         if trim:
@@ -323,7 +323,7 @@ class LightCurve(object):
         """
         self.time = self.time - self.time.min()
 
-    def _interp_gaps(self, max_gap=0, min_gap=0, zero_gaps=False):
+    def interp_gaps(self, max_gap=0, min_gap=0, zero_gaps=True, to_self=False):
         """
         pylag.LightCurve._interp_gaps(max_gap=0)
 
@@ -343,9 +343,14 @@ class LightCurve(object):
         in_gap = False
         gap_count = 0
         longest_gap = 0
+        gap_start = -1
+        gap_end = -1
 
-        for i in range(len(self.rate)):
-            gap_cond = np.isnan(self.rate[i]) or (zero_gaps and self.rate[i] == 0)
+        new_rate = np.array(self.rate)
+        new_error = np.array(self.error)
+
+        for i in range(len(new_rate)):
+            gap_cond = np.isnan(new_rate[i]) or (zero_gaps and new_rate[i] == 0)
             if not in_gap:
                 if gap_cond:
                     in_gap = True
@@ -360,15 +365,22 @@ class LightCurve(object):
 
                     if (gap_length < max_gap or max_gap==0) and gap_length >= min_gap:
                         gap_count += 1
-                        self.rate[gap_start:gap_end] = np.interp(self.time[gap_start:gap_end],
+                        new_rate[gap_start:gap_end] = np.interp(self.time[gap_start:gap_end],
                                                                  [self.time[gap_start], self.time[gap_end]],
-                                                                 [self.rate[gap_start], self.rate[gap_end]])
+                                                                 [new_rate[gap_start], new_rate[gap_end]])
+                        new_error[gap_start:gap_end] = np.sqrt(new_rate[gap_start:gap_end] / self.dt)
 
                         if gap_length > longest_gap:
                             longest_gap = gap_length
 
         printmsg(1, "Patched %d gaps" % gap_count)
         printmsg(1, "Longest gap was %d bins" % longest_gap)
+
+        if to_self:
+            self.rate = new_rate
+            self.error = new_error
+        else:
+            return self._return_lightcurve(t=self.time, r=new_rate, e=new_error)
 
     def _zeronan(self):
         """
