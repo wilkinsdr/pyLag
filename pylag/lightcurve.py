@@ -1092,6 +1092,60 @@ class LightCurve(object):
         else:
             return NotImplemented
 
+    def fill_time(self, start=None, end=None, dt=None, exact=False, nan_fill=False):
+        """
+        fill_lc = pylag.LightCurve.fill_time(start=None, end=None, dt=None, exact=False, nan_fill=False)
+
+        Fill the time axis so it is a continuous set of evenly spaced data points
+
+        Arguments
+        ---------
+        start :    float, optional (default=None)
+                   start time of the new time bins. If None, use the start of the current light curve
+        end :      float, optional (default=None)
+                   end time of the new time bins. If None, use the end of the current light curve
+        dt :       float, optional (default=None)
+                   time bin size. If None, use the current time bin size
+        exact :    bool, optional (default=False)
+                   if True, require an exact match between the time values of the old and new light curve, otherwise
+                   find the nearest time bin (within 0.5 times the bin width)
+        nan_fill : bool, optional (default=False)
+                   fill the empty time bins with NaN instead of zeros
+
+        Returns
+        -------
+        fill_lc : LightCurve with filled time bins
+        """
+        if start is None:
+            start = self.time.min()
+        if end is None:
+            end = self.time.max()
+        if dt is None:
+            dt = self.dt
+
+        new_time = np.arange(start, end+dt, dt)
+        new_rate = np.zeros_like(new_time)
+        new_error = np.zeros_like(new_time)
+
+        if nan_fill:
+            new_rate = np.nan * new_rate
+            new_error = np.nan * new_error
+
+        if exact:
+            new_rate[np.isin(new_time, self.time)] = self.rate[np.isin(self.time, new_time)]
+            new_error[np.isin(new_time, self.time)] = self.error[np.isin(self.time, new_time)]
+        else:
+            # for each of the new time bins, find the nearest in the original light curve, but only those within
+            # half a time bin
+            idx = [np.abs(self.time - t).argmin() for t in new_time if np.abs(self.time - t).min() < 0.5*self.dt]
+            # find indeices in new array where we have a match
+            matches = [np.min(np.abs(self.time - t)) < 0.5*self.dt for t in new_time]
+            new_rate[matches] = self.rate[idx]
+            new_error[matches] = self.error[idx]
+
+        return self._return_lightcurve(t=new_time, r=new_rate, e=new_error)
+
+
     def background(self):
         """
         Return the background time series as a LightCurve
