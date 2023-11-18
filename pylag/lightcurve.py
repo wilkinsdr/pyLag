@@ -1145,7 +1145,6 @@ class LightCurve(object):
 
         return self._return_lightcurve(t=new_time, r=new_rate, e=new_error)
 
-
     def background(self):
         """
         Return the background time series as a LightCurve
