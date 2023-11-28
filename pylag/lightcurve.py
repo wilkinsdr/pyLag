@@ -1138,7 +1138,7 @@ class LightCurve(object):
             # for each of the new time bins, find the nearest in the original light curve, but only those within
             # half a time bin
             idx = [np.abs(self.time - t).argmin() for t in new_time if np.abs(self.time - t).min() < 0.5*self.dt]
-            # find indeices in new array where we have a match
+            # find indices in new array where we have a match
             matches = [np.min(np.abs(self.time - t)) < 0.5*self.dt for t in new_time]
             new_rate[matches] = self.rate[idx]
             new_error[matches] = self.error[idx]
@@ -1431,10 +1431,12 @@ class LightCurve(object):
         return self.time, (self.rate, self.error)
 
     def _getplotaxes(self):
-        if 'sec' in self.time_format:
-            unit = ' / s'
-        elif 'mjd' in self.time_format:
-            unit = ' / MJD'
+        unit = ''
+        if self.time_format is not None:
+            if 'sec' in self.time_format:
+                unit = ' / s'
+            elif 'mjd' in self.time_format:
+                unit = ' / MJD'
         return 'Time%s' % unit, 'linear', 'Count Rate / ct s$^{-1}$', 'linear'
 
     def _return_lightcurve(self, t, r, e, b=[], be=[], time_format=None):
