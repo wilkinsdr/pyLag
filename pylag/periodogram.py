@@ -241,6 +241,30 @@ class Periodogram(object):
         """
         return [p for f, p in zip(self.freq, self.periodogram) if fmin <= f < fmax]
 
+    def moving_average(self, window_size):
+        """
+        per_avg = pylag.Periodogram.moving_average(window_size)
+
+        Calculate the moving average of the periodogram across frequency bins.
+        The error at each frequency is the standard deviation of the periodogram points that went into the bin
+
+        Arguments
+        ---------
+        window_size : int
+                      number of points in moving average
+
+        Returns
+        -------
+        per_avg : Periodogram
+                  pyLag Periodogram object storing the moving average periodogram
+
+        """
+        window = np.ones(int(window_size)) / float(window_size)
+        per_mean = np.convolve(self.periodogram, window, 'same')
+        per_meansq = np.convolve(self.periodogram**2, window, 'same')
+        per_std = np.sqrt(per_meansq - per_mean**2)
+        return Periodogram(f=self.freq, per=per_mean, err=per_std, ferr=self.freq_error)
+
     def _getplotdata(self):
         return (self.freq, self.freq_error), (self.periodogram, self.error)
 
