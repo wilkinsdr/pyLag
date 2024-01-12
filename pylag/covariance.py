@@ -282,16 +282,17 @@ class CovarianceSpectrum(object):
         self.en = np.array(lclist.en)
         self.en_error = np.array(lclist.en_error)
 
-        if resample_errors:
-            printmsg(1, "Constructing covariance spectrum from resampled light curves in %d energy bins" % len(lclist))
-            self.cov, self.error = self.calculate_resample(lclist, fmin, fmax, refband, self.en, bias, n_samples)
-        elif isinstance(lclist[0], LightCurve):
+        if isinstance(lclist[0], LightCurve):
             printmsg(1, "Constructing covariance spectrum in %d energy bins" % len(lclist))
             self.cov, self.error = self.calculate(lclist.lclist, fmin, fmax, refband, self.en, bias=bias)
         elif isinstance(lclist[0], list) and isinstance(lclist[0][0], LightCurve):
             printmsg(1, "Constructing covariance spectrum from %d light curves in each of %d energy bins" % (
                 len(lclist[0]), len(lclist)))
             self.cov, self.error = self.calculate_stacked(lclist.lclist, fmin, fmax, refband, self.en, bias=bias)
+
+        if resample_errors:
+            printmsg(1, "Estimating errors from %d resamples" % n_samples)
+            self.error = self.resample_errors(lclist, fmin, fmax, refband, self.en, bias, n_samples)
 
         self.sed, self.sed_error = self.calculate_sed()
 
@@ -460,6 +461,23 @@ class CovarianceSpectrum(object):
         cov_errors = np.nanstd(cov, axis=0)
 
         return cov_values, cov_errors
+
+    def resample_errors(self, lclist, fmin, fmax, refband, energies, bias, n_samples, mode='std'):
+        cov = []
+        for n in range(n_samples):
+            this_lclist = lclist.resample_noise()
+            if isinstance(lclist[0], LightCurve):
+                this_cov, _ = self.calculate(this_lclist.lclist, fmin, fmax, refband, energies, bias)
+            elif isinstance(lclist[0], list) and isinstance(lclist[0][0], LightCurve):
+                this_cov, _ = self.calculate_stacked(this_lclist.lclist, fmin, fmax, refband, energies, bias)
+            cov.append(this_cov)
+
+        cov = np.array(cov)
+
+        if mode =='std':
+            cov_errors = np.nanstd(cov, axis=0)
+
+        return cov_errors
 
     def calculate_sed(self):
         """
