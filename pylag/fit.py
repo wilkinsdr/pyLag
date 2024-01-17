@@ -11,7 +11,10 @@ v1.0 05/07/2018 - D.R. Wilkins
 """
 
 import lmfit
+import numpy as np
+
 from .plotter import *
+from .model import *
 
 
 def resid(params, x, data, err, model):
@@ -22,6 +25,11 @@ def chisq(params, x, data, err, model):
     return (data - model(params, x)) / err
 
 
+def psd_likelihood(params, x, data, err, model):
+    l = 2 * data[x>0] / model(params, x[x>0]) + np.log(model(params, x[x>0]))
+    #print("\r-log(L) = %6.3g" % np.sum(l) + " for parameters: " + ' '.join(['%6.3g' % p for p in param2array(params)]),
+    #      end="")
+    return l
 
 
 class Fit(object):
@@ -68,7 +76,30 @@ class Fit(object):
                 self.xerror = self.xerror[np.logical_not(np.isnan(self.yerror))]
             self.yerror = self.yerror[np.logical_not(np.isnan(self.yerror))]
 
-    def _dofit(self, params, fit_range=None):
+        # create a mask of 1s that we can use to notice/ignore data points
+        self.mask = np.ones_like(self.xdata)
+
+    def ignore(self, start='**', end='**'):
+        if start == '**' and end == '**':
+            self.mask[:] = 0
+        elif start == '**':
+            self.mask[self.xdata < end] = 0
+        elif end == '**':
+            self.mask[self.xdata >= start] = 0
+        else:
+            self.mask[np.logical_and(self.xdata>=start, self.xdata<end)] = 0
+
+    def notice(self, start='**', end='**'):
+        if start == '**' and end == '**':
+            self.mask[:] = 1
+        elif start == '**':
+            self.mask[self.xdata < end] = 1
+        elif end == '**':
+            self.mask[self.xdata >= start] = 1
+        else:
+            self.mask[np.logical_and(self.xdata>=start, self.xdata<end)] = 1
+
+    def _dofit(self, params):
         """
         Internal function for running the minimizer. Returns the fit results so that we can do
         something with them (e.g. for steppar)
@@ -77,24 +108,17 @@ class Fit(object):
         :param fit_range: Range of x values to include in the fit (if None, use all)
         :return:
         """
-        if isinstance(fit_range, tuple):
-            xmin, xmax = fit_range
-            xd = self.xdata[np.logical_and(self.xdata >= xmin, self.xdata < xmax)]
-            yd = self.ydata[np.logical_and(self.xdata >= xmin, self.xdata < xmax)]
-            ye = self.yerror[np.logical_and(self.xdata >= xmin, self.xdata < xmax)]
-        elif fit_range is None:
-            xd = self.xdata
-            yd = self.ydata
-            ye = self.yerror
-        else:
-            raise ValueError("pylag Fit perform_fit ERROR: Unexpected value for fit_range")
+        xd = self.xdata[self.mask]
+        yd = self.ydata[self.mask]
+        ye = self.yerror[self.mask]
+
         self.minimizer = lmfit.Minimizer(self.statistic, params, fcn_args=(xd, yd, ye, self.modelfn), xtol=1e-10, ftol=1e-10)
         result = self.minimizer.minimize()
         return result
-        #self.fit_result = lmfit.minimize(self.statistic, self.params, args=(xd, yd, ye, self.modelfn))
 
     def perform_fit(self, fit_range=None):
         self.fit_result = self._dofit(self.params, fit_range)
+        self.params = self.fit_result.params
 
     def confidence_intervals(self, default_stderr=0.1):
         for parname in self.fit_result.params:
@@ -104,7 +128,7 @@ class Fit(object):
         self.ci_result = lmfit.conf_interval(self.minimizer, self.fit_result)
         self.report_ci()
 
-    def steppar(self, step_param, start, stop, steps, log_space=False, fit_range=None):
+    def steppar(self, step_param, start, stop, steps, log_space=False):
         import copy
 
         if log_space:
@@ -121,13 +145,13 @@ class Fit(object):
 
         for value in par_steps:
             step_params[step_param].value = value
-            result = self._dofit(step_params, fit_range)
+            result = self._dofit(step_params)
             stat.append(result.chisqr)
             fit_params.append(result.params)
 
         return par_steps, stat, fit_params
 
-    def steppar2(self, step_param1, start1, stop1, steps1, step_param2, start2, stop2, steps2, log_space1=False, log_space2=False, fit_range=None):
+    def steppar2(self, step_param1, start1, stop1, steps1, step_param2, start2, stop2, steps2, log_space1=False, log_space2=False):
         import copy
 
         if log_space1:
@@ -153,7 +177,7 @@ class Fit(object):
             step_params[step_param1].value = value1
             for i2, value2 in enumerate(par_steps2):
                 step_params[step_param2].value = value2
-                result = self._dofit(step_params, fit_range)
+                result = self._dofit(step_params)
                 stat[i1,i2] = result.chisqr
                 fit_params[-1].append(result.params)
 
@@ -169,7 +193,7 @@ class Fit(object):
         if x is None:
             x = self.xdata
         if params is None:
-            params = self.fit_result.params
+            params = self.params
         return x, self.modelfn(params, x)
 
     def ratio(self, params=None):
@@ -222,22 +246,15 @@ class Fit(object):
         outdata = [self._getfitdataseries(), self._getdataseries(), self._getratioseries()]
         write_multi_data(outdata, filename)
 
-    def run_mcmc(self, burn=100, steps=1000, thin=1, params=None, fit_range=None):
-        if isinstance(fit_range, tuple):
-            xmin, xmax = fit_range
-            xd = self.xdata[np.logical_and(self.xdata >= xmin, self.xdata < xmax)]
-            yd = self.ydata[np.logical_and(self.xdata >= xmin, self.xdata < xmax)]
-            ye = self.yerror[np.logical_and(self.xdata >= xmin, self.xdata < xmax)]
-        elif fit_range is None:
-            xd = self.xdata
-            yd = self.ydata
-            ye = self.yerror
-        else:
-            raise ValueError("pylag Fit perform_fit ERROR: Unexpected value for fit_range")
+    def run_mcmc(self, burn=100, steps=1000, thin=1, params=None):
+        xd = self.xdata[self.mask]
+        yd = self.ydata[self.mask]
+        ye = self.yerror[self.mask]
 
         if params is None:
-                params = self.fit_result.params if self.fit_result is not None else self.parans
+                params = self.fit_result.params if self.fit_result is not None else self.params
 
         self.mcmc_result = lmfit.minimize(lambda params : self.statistic(params, xd, yd, ye, self.modelfn), params=params, method='emcee', burn=burn, steps=steps,
                                      thin=thin)
+        self.params = self.mcmc_result.params
 
