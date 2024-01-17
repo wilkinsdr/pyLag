@@ -152,10 +152,13 @@ class Plot(object):
     """
 
     def __init__(self, data_object=None, xdata=None, ydata=None, xscale='', yscale='', xlabel='',
-                 ylabel='', title='', series_labels=[], grid='minor', lines=False, marker_series=None, colour_series=None,
-                 errorbar=True, preset=None, figsize=None, show_plot=True):
+                 ylabel='', title='', series_labels=[], grid='minor', lines=False, markers=None, colours=None,
+                 errorbar=True, preset=None, figsize=None, show_plot=True, nested=False, parent=None):
         self._fig = None
         self._ax = None
+
+        self.nested = nested
+        self.parent = parent
 
         self._labels = list(series_labels)
 
@@ -175,13 +178,15 @@ class Plot(object):
         self._figsize = figsize
 
         # variables to set plot formatting
-        if colour_series is not None:
-            self._colour_series = colour_series
+        if colours is not None:
+            self._colour_series = colours
         else:
             self._colour_series = ['k', 'tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple']
 
-        if marker_series is not None:
-            self._marker_series = marker_series
+        if markers is not None:
+            self._marker_series = markers
+        elif lines == 'step':
+            self._marker_series = ['step']
         elif lines:
             self._marker_series = ['-']
         else:
@@ -196,7 +201,7 @@ class Plot(object):
         self._ylim = None
 
         # do we display the plot on screen automatically when calling plot()?
-        self.show_plot = show_plot
+        self.show_plot = show_plot and not self.nested
 
         self._legend = (len(self._labels) > 0)
 
@@ -280,8 +285,9 @@ class Plot(object):
         if yscale != '':
             self._yscale = yscale
 
-        self.plot()
-        all_plots.append(self)
+        if not self.nested:
+            self.plot()
+            all_plots.append(self)
 
     def _setup_axes(self):
         """
@@ -290,12 +296,13 @@ class Plot(object):
         close and recreate the figure and axes, applying the updated settings.
         This function is called automatically by plot()
         """
-        # close the old figure (if already plotted)
-        if self._fig is not None:
-            self.close()
+        if not self.nested:
+            # close the old figure (if already plotted)
+            if self._fig is not None:
+                self.close()
 
-        # create a new figure window and axes
-        self._fig, self._ax = plt.subplots(figsize=self._figsize)
+            # create a new figure window and axes
+            self._fig, self._ax = plt.subplots(figsize=self._figsize)
 
         # set log or linear scaling
         self._ax.set_xscale(self._xscale)
@@ -346,7 +353,13 @@ class Plot(object):
                 xerr = np.zeros(len(xd))
             if not isinstance(yerr, (np.ndarray, list)):
                 yerr = np.zeros(len(yd))
-            if self.errorbar:
+
+            if marker == 'stair':
+                edges = np.concatenate([xd[np.isfinite(yd)] - xerr[np.isfinite(yd)], [xd[np.isfinite(yd)][-1] + xerr[np.isfinite(yd)][-1]]])
+                self._ax.stairs(yd[np.isfinite(yd)], edges, color=colour, label=label)
+            elif marker == 'step':
+                self._ax.step(xd[np.isfinite(yd)], yd[np.isfinite(yd)], where='mid', color=colour, label=label)
+            elif self.errorbar:
                 self._ax.errorbar(xd[np.isfinite(yd)], yd[np.isfinite(yd)], yerr=yerr[np.isfinite(yd)] if yerr.ndim==1 else np.vstack([ye[np.isfinite(yd)] for ye in yerr]),
                               xerr=xerr[np.isfinite(yd)], fmt=marker, color=colour, label=label)
             else:
@@ -374,7 +387,7 @@ class Plot(object):
 
         show the plot window on the screen
         """
-        if 'inline' not in matplotlib.get_backend() and 'ipympl' not in matplotlib.get_backend():
+        if not self.nested and 'inline' not in matplotlib.get_backend() and 'ipympl' not in matplotlib.get_backend():
             self._fig.show(**kwargs)
 
     def plot(self, **kwargs):
@@ -399,7 +412,8 @@ class Plot(object):
             else:
                 font_prop = None
             self._ax.legend(loc=self._legend_location, prop=font_prop)
-        self._fig.tight_layout()
+        if not self.nested:
+            self._fig.tight_layout()
         if self.show_plot:
             self.show()
 
@@ -454,7 +468,10 @@ class Plot(object):
 
         def setter(self, value):
             setattr(self, attr, value)
-            self.plot()
+            if not self.nested:
+                self.plot()
+            else:
+                self.parent.plot()
 
         return setter
 
@@ -1238,5 +1255,172 @@ class Histogram(DataSeries):
 
     def _getplotaxes(self):
         return self.xlabel, self.xscale, self.ylabel, self.yscale
+
+
+class MultiPlot(Plot):
+    def __init__(self, data_objects=[], xscale='', yscale='', xlabel='',
+                 ylabel='', title='', series_labels=None, grid='minor', lines=False, marker_series=None, colour_series=None,
+                 errorbar=True, preset=None, figsize=None, show_plot=True, dim=None, cols=False, sharex=True, sharey=False, wspace=0.05, hspace=0.05, wratio=None, hratio=None):
+        self._fig = None
+        self._ax = None
+
+        self._figsize = figsize
+
+        # variables to set plot formatting
+        if colour_series is not None:
+            self._colour_series = colour_series
+        else:
+            self._colour_series = ['k', 'tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple']
+
+        if marker_series is not None:
+            self._marker_series = marker_series
+        elif lines:
+            self._marker_series = ['-']
+        else:
+            self._marker_series = ['+', 'x', 'o', 's']
+
+        self._font_face = None
+        self._font_size = None
+        self._tick_scale = 0.88
+        self._grid = grid
+        self._legend_location = 'upper right'
+        self._xlim = None
+        self._ylim = None
+
+        # do we display the plot on screen automatically when calling plot()?
+        self.show_plot = show_plot
+
+        self.data_objects = data_objects
+        self.series_labels = series_labels if series_labels is not None else [[]]*len(self.data_objects)
+        self.plots = [Plot(d, series_labels=l, nested=True, parent=self) for d, l in zip(self.data_objects, self.series_labels)]
+
+        if dim is not None:
+            self.dim = dim
+        elif cols:
+            self.dim = (1, len(self.data_objects))
+        else:
+            self.dim = (len(self.data_objects), 1)
+
+        self.sharex = sharex
+        self.sharey = sharey
+        self.wspace = wspace
+        self.hspace = hspace
+
+        self.gridspec = {}
+        if wratio is not None:
+            self.gridspec['width_ratios'] = wratio
+        if hratio is not None:
+            self.gridspec['height_ratios'] = hratio
+
+        if sharex:
+            for p in self.plots[:-1]:
+                p.xlabel = None
+
+        if sharey:
+            for p in self.plots[:-1]:
+                p.ylabel = None
+
+        self.plot()
+        all_plots.append(self)
+
+
+    def plot(self):
+        if self._fig is not None:
+            self.close()
+
+        self._fig, self._ax = plt.subplots(self.dim[0], self.dim[1], figsize=self.figsize, sharex=self.sharex, sharey=self.sharey, gridspec_kw=self.gridspec)
+        plt.subplots_adjust(left=0.1, bottom=0.1, right=0.95, top=0.95, wspace=self.wspace, hspace=self.hspace)
+        if len(self._ax.shape) == 1:
+            for n, p in enumerate(self.plots):
+                p._ax = self._ax[n]
+        else:
+            for n, p in enumerate(self.plots):
+                p._ax = self._ax[n//self.dim[0]][n % self.dim[0]]
+        for p in self.plots:
+            p.plot()
+
+    def paper_format(self):
+        self._font_face = 'Liberation Serif'
+        self._font_size = 18
+        self._tick_scale = 0.88
+        for p in self.plots:
+            p._font_face = self._font_face
+            p._font_size = self._font_size
+            p._tick_scale = self._tick_scale
+        self.plot()
+
+    def _get_getter(attr):
+        """
+        getter = pylag.plot._get_getter(attr)
+
+        Returns a getter function for plot attribute attr.
+
+        A re-usable getter functions for all properties
+
+        Arguments
+        ---------
+        attr : string
+             : The name of the member variable to get
+
+        Returns
+        -------
+        getter : function
+                 The get function
+        """
+
+        def getter(self):
+            return getattr(self, attr)
+
+        return getter
+
+    def _get_multi_setter(attr):
+        """
+        setter = pylag.plot._get_setter(attr)
+
+        Returns a setter function for plot attribute attr which updates the
+        member variable for all of the subplots
+
+        A re-usable setter functions for all properties that need the plot to
+        update
+
+        Arguments
+        ---------
+        attr : string
+             : The name of the member variable to be set
+
+        Returns
+        -------
+        setter : function
+                 The setter function
+        """
+
+        def setter(self, value):
+            setattr(self, attr, value)
+            for p in self.plots:
+                setattr(p, attr, value)
+            self.plot()
+
+        return setter
+
+    labels = property(_get_getter('_labels'), _get_multi_setter('_labels'))
+    xlabel = property(_get_getter('_xlabel'), _get_multi_setter('_xlabel'))
+    ylabel = property(_get_getter('_ylabel'), _get_multi_setter('_ylabel'))
+    xscale = property(_get_getter('_xscale'), _get_multi_setter('_xscale'))
+    yscale = property(_get_getter('_yscale'), _get_multi_setter('_yscale'))
+    xlim = property(_get_getter('_xlim'), _get_multi_setter('_xlim'))
+    ylim = property(_get_getter('_ylim'), _get_multi_setter('_ylim'))
+    grid = property(_get_getter('_grid'), _get_multi_setter('_grid'))
+    legend = property(_get_getter('_legend'), _get_multi_setter('_legend'))
+    legend_location = property(_get_getter('_legend_location'), _get_multi_setter('_legend_location'))
+    colour_series = property(_get_getter('_colour_series'), _get_multi_setter('_colour_series'))
+    marker_series = property(_get_getter('_marker_series'), _get_multi_setter('_marker_series'))
+    font_face = property(_get_getter('_font_face'), _get_multi_setter('_font_face'))
+    font_size = property(_get_getter('_font_size'), _get_multi_setter('_font_size'))
+    tick_scale = property(_get_getter('_tick_scale'), _get_multi_setter('_tick_scale'))
+    xtickformat = property(_get_getter('_xtickformat'), _get_multi_setter('_xtickformat'))
+    ytickformat = property(_get_getter('_ytickformat'), _get_multi_setter('_ytickformat'))
+
+    def __getitem__(self, item):
+        return self.plots[item]
 
 
