@@ -1258,9 +1258,8 @@ class Histogram(DataSeries):
 
 
 class MultiPlot(Plot):
-    def __init__(self, data_objects=[], xscale='', yscale='', xlabel='',
-                 ylabel='', title='', series_labels=None, grid='minor', lines=False, marker_series=None, colour_series=None,
-                 errorbar=True, preset=None, figsize=None, show_plot=True, dim=None, cols=False, sharex=True, sharey=False, wspace=0.05, hspace=0.05, wratio=None, hratio=None):
+    def __init__(self, data_objects=[], title='', series_labels=None, grid='minor', lines=False, marker_series=None, colour_series=None,
+                 preset=None, figsize=None, show_plot=True, dim=None, cols=False, sharex=True, sharey=False, wspace=0.05, hspace=0.05, wratio=None, hratio=None, pargs=None):
         self._fig = None
         self._ax = None
 
@@ -1292,7 +1291,8 @@ class MultiPlot(Plot):
 
         self.data_objects = data_objects
         self.series_labels = series_labels if series_labels is not None else [[]]*len(self.data_objects)
-        self.plots = [Plot(d, series_labels=l, nested=True, parent=self) for d, l in zip(self.data_objects, self.series_labels)]
+        plot_kwargs = pargs if pargs is not None else [{}]*len(self.data_objects)
+        self.plots = [Plot(d, series_labels=l, nested=True, parent=self, **k) for d, l, k in zip(self.data_objects, self.series_labels, plot_kwargs)]
 
         if dim is not None:
             self.dim = dim
@@ -1356,6 +1356,8 @@ class MultiPlot(Plot):
         Returns a getter function for plot attribute attr.
 
         A re-usable getter functions for all properties
+
+        Note this needs to be re-implemented here for the attributes defined in the derived class.
 
         Arguments
         ---------
