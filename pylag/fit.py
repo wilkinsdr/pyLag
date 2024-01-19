@@ -77,7 +77,7 @@ class Fit(object):
             self.yerror = self.yerror[np.logical_not(np.isnan(self.yerror))]
 
         # create a mask of 1s that we can use to notice/ignore data points
-        self.mask = np.ones_like(self.xdata)
+        self.mask = np.ones_like(self.xdata).astype(int)
 
     def ignore(self, start='**', end='**'):
         if start == '**' and end == '**':
@@ -99,7 +99,7 @@ class Fit(object):
         else:
             self.mask[np.logical_and(self.xdata>=start, self.xdata<end)] = 1
 
-    def _dofit(self, params):
+    def _dofit(self, params, method='lbfgsb'):
         """
         Internal function for running the minimizer. Returns the fit results so that we can do
         something with them (e.g. for steppar)
@@ -110,14 +110,14 @@ class Fit(object):
         """
         xd = self.xdata[self.mask]
         yd = self.ydata[self.mask]
-        ye = self.yerror[self.mask]
+        ye = self.yerror[self.mask] if self.yerror is not None else None
 
-        self.minimizer = lmfit.Minimizer(self.statistic, params, fcn_args=(xd, yd, ye, self.modelfn), xtol=1e-10, ftol=1e-10)
-        result = self.minimizer.minimize()
+        self.minimizer = lmfit.Minimizer(self.statistic, params, fcn_args=(xd, yd, ye, self.modelfn))
+        result = self.minimizer.minimize(method=method)
         return result
 
-    def perform_fit(self, fit_range=None):
-        self.fit_result = self._dofit(self.params, fit_range)
+    def perform_fit(self, method='lbfgsb'):
+        self.fit_result = self._dofit(self.params, method=method)
         self.params = self.fit_result.params
 
     def confidence_intervals(self, default_stderr=0.1):
@@ -242,6 +242,11 @@ class Fit(object):
         p.marker_series = ['+', '-']
         return p
 
+    def plot_fit_ratio(self, x=None, params=None, data_marker='+', hratio=[2,1], **kwargs):
+        p = MultiPlot([[self.data_obj, self._getdataseries(x, params)], self._getratioseries(x, params)],
+                      pargs=[{'markers': [data_marker, '-']}, {'markers': [data_marker]}], hratio=hratio, **kwargs)
+        return p
+
     def write_fit(self, filename):
         outdata = [self._getfitdataseries(), self._getdataseries(), self._getratioseries()]
         write_multi_data(outdata, filename)
@@ -249,7 +254,7 @@ class Fit(object):
     def run_mcmc(self, burn=100, steps=1000, thin=1, params=None):
         xd = self.xdata[self.mask]
         yd = self.ydata[self.mask]
-        ye = self.yerror[self.mask]
+        ye = self.yerror[self.mask] if self.yerror is not None else None
 
         if params is None:
                 params = self.fit_result.params if self.fit_result is not None else self.params
