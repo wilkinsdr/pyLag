@@ -29,7 +29,7 @@ def psd_likelihood(params, x, data, err, model):
     l = 2 * data[x>0] / model(params, x[x>0]) + np.log(model(params, x[x>0]))
     #print("\r-log(L) = %6.3g" % np.sum(l) + " for parameters: " + ' '.join(['%6.3g' % p for p in param2array(params)]),
     #      end="")
-    return l
+    return np.sqrt(l)
 
 
 class Fit(object):
@@ -77,27 +77,27 @@ class Fit(object):
             self.yerror = self.yerror[np.logical_not(np.isnan(self.yerror))]
 
         # create a mask of 1s that we can use to notice/ignore data points
-        self.mask = np.ones_like(self.xdata).astype(int)
+        self.mask = np.ones_like(self.xdata).astype(bool)
 
     def ignore(self, start='**', end='**'):
         if start == '**' and end == '**':
-            self.mask[:] = 0
+            self.mask[:] = False
         elif start == '**':
-            self.mask[self.xdata < end] = 0
+            self.mask[self.xdata < end] = False
         elif end == '**':
-            self.mask[self.xdata >= start] = 0
+            self.mask[self.xdata >= start] = False
         else:
-            self.mask[np.logical_and(self.xdata>=start, self.xdata<end)] = 0
+            self.mask[np.logical_and(self.xdata>=start, self.xdata<end)] = False
 
     def notice(self, start='**', end='**'):
         if start == '**' and end == '**':
-            self.mask[:] = 1
+            self.mask[:] = True
         elif start == '**':
-            self.mask[self.xdata < end] = 1
+            self.mask[self.xdata < end] = True
         elif end == '**':
-            self.mask[self.xdata >= start] = 1
+            self.mask[self.xdata >= start] = True
         else:
-            self.mask[np.logical_and(self.xdata>=start, self.xdata<end)] = 1
+            self.mask[np.logical_and(self.xdata>=start, self.xdata<end)] = True
 
     def _dofit(self, params, method='lbfgsb'):
         """
