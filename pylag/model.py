@@ -32,6 +32,15 @@ def array2param(values, params, variable_only=False):
             out_params[p].value = v
     return out_params
 
+def get_param_names(params, variable_only=False):
+    """
+    Return a list of the parameter names
+    """
+    if variable_only:
+        return [k for k in params if params[k].vary]
+    else:
+        return [k for k in params]
+
 
 class Model(object):
     """
@@ -60,6 +69,14 @@ class Model(object):
 
     def get_params(self):
         raise AssertionError("I should be overridden!")
+
+    def get_param_names(self, par=None, variable_only=False):
+        if par is None:
+            par = self.get_params()
+        if variable_only:
+            return [k for k in par if par[k].vary]
+        else:
+            return [k for k in par]
 
     def eval(self, params, x):
         raise AssertionError("I should be overriden")
