@@ -75,6 +75,11 @@ class Periodogram(object):
 
             self.freq, self.periodogram = self.calculate(lc, norm, **kwargs)
 
+            # capture some useful statistics about the light curve
+            self.lcmean = lc.rate.mean()
+            self.dt = lc.dt
+            self.Nt = lc.length
+
         else:
             self.freq = np.array(f)
             self.periodogram = np.array(per)
@@ -264,6 +269,12 @@ class Periodogram(object):
         per_meansq = np.convolve(self.periodogram**2, window, 'same')
         per_std = np.sqrt(per_meansq - per_mean**2)
         return Periodogram(f=self.freq, per=per_mean, err=per_std, ferr=self.freq_error)
+
+    def noise_level(self, bkg=0.):
+        """
+        Calculate the theoretical Poisson noise level from the light curve
+        """
+        return 2.*(self.lcmean + bkg) / self.lcmean**2
 
     def _getplotdata(self):
         return (self.freq, self.freq_error), (self.periodogram, self.error)
