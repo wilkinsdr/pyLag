@@ -270,3 +270,25 @@ class Fit(object):
                                      thin=thin, nan_policy='omit', **kwargs)
         self.params = self.mcmc_result.params
 
+    def plot_corner(self, labels=None, **kwargs):
+        try:
+            import corner
+        except ImportError:
+            raise ImportError("plot_corner requires the package corner to be installed")
+
+        if labels is None:
+            labels = get_param_names(self.params, True)
+
+        corner.corner(self.mcmc_result.flatchain, labels=labels)
+
+    def eval_statistic(self, params=None):
+        xd = self.xdata[self.mask]
+        yd = self.ydata[self.mask]
+        ye = self.yerror[self.mask] if self.yerror is not None else None
+
+        if params is None:
+            params = self.fit_result.params if self.fit_result is not None else self.params
+
+        return self.statistic(params, xd, yd, ye, self.modelfn)
+
+
