@@ -73,7 +73,11 @@ class Model(object):
 
 class AdditiveModel(Model):
     def __init__(self, components):
-        self.components = [c(component_name='add%0d'%n) for n, c in enumerate(components)]
+        self.component_names = [c.__name__ for c in components]
+        for i in range(len(self.component_names)):
+            if self.component_names[i] in self.component_names[:i]:
+                self.component_names[i] += '_%0d' % i
+        self.components = [c(component_name=n) for c, n in zip(components, self.component_names)]
 
     def get_params(self):
         params = lmfit.Parameters()
@@ -145,13 +149,13 @@ class PowerLaw(Model):
 
 
 class BendingPowerLaw(Model):
-    def get_params(self, norm=1., slope=1.):
+    def get_params(self, norm=1., slope1=0., fbend=-5., slope2=-2.):
         params = lmfit.Parameters()
 
         params.add('%snorm' % self.prefix, value=norm, min=-50, max=50)
-        params.add('%sslope1' % self.prefix, value=slope, min=-10, max=10)
-        params.add('%sfbend' % self.prefix, value=slope, min=-6, max=-2)
-        params.add('%sslope2' % self.prefix, value=slope, min=-10, max=10)
+        params.add('%sslope1' % self.prefix, value=slope1, min=-2, max=-0)
+        params.add('%sfbend' % self.prefix, value=fbend, min=-6, max=-2)
+        params.add('%sslope2' % self.prefix, value=slope2, min=-10, max=0)
 
         return params
 
