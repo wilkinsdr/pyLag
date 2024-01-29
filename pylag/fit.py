@@ -25,7 +25,7 @@ def chisq(params, x, data, err, model):
     return (data - model(params, x)) / err
 
 
-def psd_likelihood(params, x, data, err, model):
+def whittle(params, x, data, err, model):
     l = 2 * data[x>0] / model(params, x[x>0]) + np.log(model(params, x[x>0]))
     # print("\r-log(L) = %6.3g" % np.sum(l) + " for parameters: " + ' '.join(['%6.3g' % p for p in param2array(params)]),
     #       end="")
