@@ -251,15 +251,22 @@ class Fit(object):
         outdata = [self._getfitdataseries(), self._getdataseries(), self._getratioseries()]
         write_multi_data(outdata, filename)
 
-    def run_mcmc(self, burn=100, steps=1000, thin=1, params=None):
+    def run_mcmc(self, burn=100, steps=1000, thin=1, params=None, **kwargs):
         xd = self.xdata[self.mask]
         yd = self.ydata[self.mask]
         ye = self.yerror[self.mask] if self.yerror is not None else None
 
         if params is None:
-                params = self.fit_result.params if self.fit_result is not None else self.params
+            params = self.params
 
-        self.mcmc_result = lmfit.minimize(lambda params : self.statistic(params, xd, yd, ye, self.modelfn), params=params, method='emcee', burn=burn, steps=steps,
-                                     thin=thin)
+        def objective(params):
+            l = self.statistic(params, xd, yd, ye, self.modelfn)
+            if isinstance(l, float):
+                return -1. * l
+            else:
+                return l
+
+        self.mcmc_result = lmfit.minimize(objective, params=params, method='emcee', burn=burn, steps=steps,
+                                     thin=thin, nan_policy='omit', **kwargs)
         self.params = self.mcmc_result.params
 
