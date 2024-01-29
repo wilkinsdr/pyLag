@@ -27,9 +27,9 @@ def chisq(params, x, data, err, model):
 
 def psd_likelihood(params, x, data, err, model):
     l = 2 * data[x>0] / model(params, x[x>0]) + np.log(model(params, x[x>0]))
-    #print("\r-log(L) = %6.3g" % np.sum(l) + " for parameters: " + ' '.join(['%6.3g' % p for p in param2array(params)]),
-    #      end="")
-    return np.sqrt(l)
+    # print("\r-log(L) = %6.3g" % np.sum(l) + " for parameters: " + ' '.join(['%6.3g' % p for p in param2array(params)]),
+    #       end="")
+    return np.sum(l)
 
 
 class Fit(object):
@@ -198,7 +198,7 @@ class Fit(object):
 
     def ratio(self, params=None):
         if params is None:
-            params = self.fit_result.params
+            params = self.params
         r = self.ydata / self.modelfn(params, self.xdata)
         if self.yerror is not None:
             e = r * (self.yerror / self.ydata)
