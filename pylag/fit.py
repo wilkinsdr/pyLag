@@ -276,6 +276,9 @@ class Fit(object):
         except ImportError:
             raise ImportError("plot_corner requires the package corner to be installed")
 
+        if self.mcmc_result is None:
+            raise AssertionError("Plotting corners requires MCMC to have been run")
+
         if labels is None:
             labels = get_param_names(self.params, True)
 
@@ -290,5 +293,28 @@ class Fit(object):
             params = self.fit_result.params if self.fit_result is not None else self.params
 
         return self.statistic(params, xd, yd, ye, self.modelfn)
+
+    def sample_posterior(self, points=None, percentiles=[15.9, 84.1]):
+        if self.mcmc_result is None:
+            raise AssertionError("Plotting corners requires MCMC to have been run")
+
+        if points is None:
+            step = 1
+        else:
+            step = len(self.mcmc_result.flatchain) // points
+
+        func_samples = np.array(
+            [self.fit_function(params=array2param(p, self.params, variable_only=True))[1] for p in
+             self.mcmc_result.flatchain.iloc[::step].to_numpy()])
+
+        conf_limit = np.percentile(func_samples, percentiles, axis=0)
+
+        best_par = self.mcmc_result.flatchain.iloc[np.argmax(psd_fit.mcmc_result.lnprob.flatten)]
+        yd = self.fit_function(params=array2param(best_par, self.params, variable_only=True))[1]
+        ye = np.vstack([yd - conf_limit[0], yd + conf_limit[1]])
+        return DataSeries(x=self.xdata, y=(yd, ye))
+
+
+
 
 
