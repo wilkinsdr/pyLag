@@ -357,11 +357,49 @@ class Plot(object):
             if marker == 'stair':
                 edges = np.concatenate([xd[np.isfinite(yd)] - xerr[np.isfinite(yd)], [xd[np.isfinite(yd)][-1] + xerr[np.isfinite(yd)][-1]]])
                 self._ax.stairs(yd[np.isfinite(yd)], edges, color=colour, label=label)
+
             elif marker == 'step':
                 self._ax.step(xd[np.isfinite(yd)], yd[np.isfinite(yd)], where='mid', color=colour, label=label)
+
+            elif marker == 'region':
+                if xerr is not None:
+                    # if we're including the x error points, we need to put in the co-ordinates for the left
+                    # and right hand sides of each error box
+                    high_bound = []
+                    low_bound = []
+                    xpoints = []
+                    if yerr.ndim == 1:
+                        for x, y, xe, ye in zip(xd, yd, xerr, yerr):
+                            high_bound.append(y + ye)
+                            high_bound.append(y + ye)
+                            low_bound.append(y - ye)
+                            low_bound.append(y - ye)
+                            xpoints.append(x - xe)
+                            xpoints.append(x + xe)
+                    else:
+                        for x, y, xe, yem, yep in zip(xd, yd, xerr, yerr[0,:], yerr[1,:]):
+                            high_bound.append(y + yep)
+                            high_bound.append(y + yep)
+                            low_bound.append(y - yem)
+                            low_bound.append(y - yem)
+                            xpoints.append(x - xe)
+                            xpoints.append(x + xe)
+                    self._ax.plot(xd, yd, '-', color=colour, label=label)
+                    self._ax.fill_between(xpoints, low_bound, high_bound, facecolor=colour, alpha=0.5)
+                else:
+                    if yerr.ndim == 1:
+                        high_bound = np.array(yd) + np.array(yerr)
+                        low_bound = np.array(yd) - np.array(yerr)
+                    else:
+                        high_bound = np.array(yd) + np.array(yerr[1,:])
+                        low_bound = np.array(yd) - np.array(yerr[0,:])
+                    self._ax.plot(xd, yd, '-', color=colour, label=label)
+                    self._ax.fill_between(xd, low_bound, high_bound, facecolor=colour, alpha=0.5)
+
             elif self.errorbar:
                 self._ax.errorbar(xd[np.isfinite(yd)], yd[np.isfinite(yd)], yerr=yerr[np.isfinite(yd)] if yerr.ndim==1 else np.vstack([ye[np.isfinite(yd)] for ye in yerr]),
                               xerr=xerr[np.isfinite(yd)], fmt=marker, color=colour, label=label)
+
             else:
                 if marker != '-':
                     mk = marker
