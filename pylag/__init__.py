@@ -7,6 +7,7 @@ from .lightcurve import *
 from .binning import *
 from .periodogram import *
 from .cross_spectrum import *
+from .rms import *
 from .covariance import *
 from .lag_energy_spectrum import *
 from .lag_frequency_spectrum import *
@@ -17,3 +18,4 @@ from .entresponse import *
 from .continuum import *
 from .event_list import *
 from .util import *
+from .fit import *
