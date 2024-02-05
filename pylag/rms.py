@@ -92,24 +92,24 @@ class Rms(object):
         if isinstance(lc, LightCurve):
             self.per = Periodogram(reflc)
             if bins is not None:
-                self.num_freq = reflc.bin_num_freq(bins)
+                self.num_freq = lc.bin_num_freq(bins)
             elif fmin > 0 and fmax > 0:
-                self.num_freq = reflc.num_freq_in_range(fmin, fmax)
+                self.num_freq = lc.num_freq_in_range(fmin, fmax)
             self.lcmean = lc.mean()
 
         # if we're passed lists of light curves, get the stacked cross spectrum
         # and periodograms and count the number of sample frequencies across all
         # the light curves
-        elif isinstance(lc, list) and isinstance(reflc, list):
+        elif isinstance(lc, list):
             self.per = StackedPeriodogram(lc, bins)
             if bins is not None:
                 self.num_freq = np.zeros(bins.num)
 
-                for l in reflc:
+                for l in lc:
                     self.num_freq += l.bin_num_freq(bins)
             elif fmin > 0 and fmax > 0:
                 self.num_freq = 0
-                for l in reflc:
+                for l in lc:
                     self.num_freq += l.num_freq_in_range(fmin, fmax)
             self.lcmean = stacked_mean_count_rate(lc)
 
@@ -285,7 +285,7 @@ class RmsSpectrum(object):
         error = []
         for lc in lclist:
             rms_obj = Rms(lc, fmin=fmin, fmax=fmax, absolute=absolute)
-            rms.append(rms_obj.cov)
+            rms.append(rms_obj.rms)
             error.append(rms_obj.error)
 
         return np.array(rms), np.array(error)
@@ -318,12 +318,12 @@ class RmsSpectrum(object):
         err : ndarray
               The error on the covariance spectrum
         """
-        sed = self.en ** 2 * self.rms / (2 * self.en_error)
-        err = self.en ** 2 * self.error / (2 * self.en_error)
+        sed = self.en ** 2 #* self.rms / (2 * self.en_error)
+        err = self.en ** 2 #* self.error / (2 * self.en_error)
         return sed, err
 
     def _getplotdata(self):
-        return (self.en, self.en_error), ((self.sed, self.sed_error) if self.return_sed else (self.cov, self.error))
+        return (self.en, self.en_error), ((self.sed, self.sed_error) if self.return_sed else (self.rms, self.error))
 
     def _getplotaxes(self):
         return 'Energy / keV', 'log', 'RMS', 'log'
