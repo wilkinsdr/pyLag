@@ -295,7 +295,7 @@ class RmsSpectrum(object):
         for n in range(n_samples):
             this_lclist = lclist.resample_noise()
             this_rms, _ = self.calculate(this_lclist.lclist, fmin, fmax, absolute)
-            cov.append(this_rms)
+            rms.append(this_rms)
 
         rms = np.array(rms)
 
