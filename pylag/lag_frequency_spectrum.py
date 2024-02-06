@@ -75,10 +75,7 @@ class LagFrequencySpectrum(object):
            pyLag LightCurve object for the reference or soft band
     """
 
-    def __init__(self, bins, lc1=None, lc2=None, lc1files=None, lc2files=None, interp_gaps=False, calc_error=True, resample_errors=False, n_samples=10, calculate_args={}, **kwargs):
-        self.freq = bins.bin_cent
-        self.freq_error = bins.x_error()
-
+    def __init__(self, bins=10, lc1=None, lc2=None, lc1files=None, lc2files=None, interp_gaps=False, calc_error=True, resample_errors=False, n_samples=10, calculate_args={}, **kwargs):
         self.lag = np.array([])
         self.error = np.array([])
 
@@ -87,36 +84,57 @@ class LagFrequencySpectrum(object):
         if lc2files is not None:
             lc2 = get_lclist(lc2files, interp_gaps=interp_gaps, **kwargs)
 
+        self.cross_spec, self.coherence = self.calculate_crossspec(lc1, lc2, calc_error, **calculate_args)
+        print(self.cross_spec)
+
+        self.fmin = self.cross_spec.fmin()
+        self.fmax = self.cross_spec.fmax()
+
+        if isinstance(bins, Binning):
+            self._bins = bins
+            self._Nf = len(self._bins)
+        elif isinstance(bins, int):
+            self._Nf = bins
+            self._bins = LogBinning(self.fmin, self.fmax, bins)
+        self.freq = self._bins.bin_cent
+        self.freq_error = self._bins.x_error()
+
+        self.lag, self.error = self.calculate_lag(self._bins)
+
         if resample_errors:
-            self.lag, self.error, self.coh = self.calculate_resample(lc1, lc2, bins, n_samples, **calculate_args)
-        else:
-            self.lag, self.error, self.coh = self.calculate(lc1, lc2, bins, calc_error, **calculate_args)
+            self.error = self.resample_errors(lc1, lc2, self._bins, n_samples)
 
     @staticmethod
-    def calculate(lc1, lc2, bins, calc_error=True, **kwargs):
+    def calculate_crossspec(lc1, lc2, calc_error=True, **kwargs):
         if isinstance(lc1, list) and isinstance(lc2, list):
             printmsg(1, "Constructing lag-frequency spectrum from %d pairs of light curves" % len(lc1))
-            cross_spec = StackedCrossSpectrum(lc1, lc2, bins, **kwargs)
-            if calc_error:
-                coh = Coherence(lc1, lc2, bins, **kwargs)
+            cross_spec = StackedCrossSpectrum(lc1, lc2, bins=None, **kwargs)
         elif isinstance(lc1, LightCurve) and isinstance(lc2, LightCurve):
             printmsg(1, "Computing lag-frequency spectrum from pair of light curves")
-            cross_spec = CrossSpectrum(lc1, lc2, **kwargs).bin(bins)
-            if calc_error:
-                coh = Coherence(lc1, lc2, bins, **kwargs)
+            cross_spec = CrossSpectrum(lc1, lc2, **kwargs)
 
-        _, lag = cross_spec.lag_spectrum()
         if calc_error:
-            error = coh.lag_error()
-            coh = coh.coh
+            coherence = Coherence(lc1, lc2, **kwargs)
+        else:
+            coherence = None
+
+        return cross_spec, coherence
+
+    def calculate_lag(self, bins, cross_spec=None, coherence=None):
+        if cross_spec is None:
+            cross_spec = self.cross_spec
+        if coherence is None:
+            coherence = self.coherence
+
+        _, lag = cross_spec.bin(bins).lag_spectrum()
+        if coherence is not None:
+            error = coherence.lag_error(bins=bins)
         else:
             error = None
-            coh = None
 
-        return lag, error, coh
+        return lag, error
 
-    @staticmethod
-    def calculate_resample(lc1, lc2, bins, n_samples=10, **kwargs):
+    def resample_errors(self, lc1, lc2, bins, n_samples=10, **kwargs):
         lags = []
         for n in range(n_samples):
             if isinstance(lc1, list) and isinstance(lc2, list):
@@ -130,14 +148,14 @@ class LagFrequencySpectrum(object):
                 lc1_resample = lc1.resample_noise()
                 lc2_resample = lc2.resample_noise()
 
-            l, _, _ = LagFrequencySpectrum.calculate(lc1_resample, lc2_resample, bins, calc_error=False, **kwargs)
+            cs, _ = LagFrequencySpectrum.calculate_crossspec(lc1_resample, lc2_resample, calc_error=False, **kwargs)
+            l, _ = self.calculate_lag(bins, cross_spec=cs, coherence=None)
             lags.append(l)
 
         lags = np.array(lags)
-        lag = np.mean(lags, axis=0)
         error = np.std(lags, axis=0)
 
-        return lag, error, None
+        return error
 
 
     def _getplotdata(self):
@@ -145,5 +163,28 @@ class LagFrequencySpectrum(object):
 
     def _getplotaxes(self):
         return 'Frequency / Hz', 'log', 'Lag / s', 'linear'
+
+    def _get_bins(self,):
+        return self._bins
+
+    def _set_bins(self, value):
+        self._bins = value
+        self.freq = self._bins.bin_cent
+        self.freq_error = self._bins.x_error()
+        self.lag, self.error = self.calculate_lag(self._bins)
+
+    bins = property(_get_bins, _set_bins)
+
+    def _get_Nf(self,):
+        return self._Nf
+
+    def _set_Nf(self, value):
+        self._Nf = value
+        self._bins = LogBinning(self.fmin, self.fmax, self._Nf)
+        self.freq = self._bins.bin_cent
+        self.freq_error = self._bins.x_error()
+        self.lag, self.error = self.calculate_lag(self._bins)
+
+    Nf = property(_get_Nf, _set_Nf)
 
 

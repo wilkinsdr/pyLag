@@ -284,6 +284,12 @@ class CrossSpectrum(object):
         lag = np.angle(avgcross) / (2 * np.pi * np.mean([fmin, fmax]))
         return lag
 
+    def fmin(self):
+        return self.freq[1]
+
+    def fmax(self):
+        return np.max(self.freq)
+
     def cross_power(self, psdslope=0.):
         from .plotter import DataSeries
         if self.ferr is not None:
@@ -397,6 +403,25 @@ class StackedCrossSpectrum(CrossSpectrum):
         crossft_list = np.hstack([c.crossft for c in self.cross_spectra])
         return self.bins.bin(freq_list, crossft_list)
 
+    def bin(self, bins):
+        """
+        pylag.StackedCrossSpectrum.StackBinnedCrossSpectrum()
+
+        Calculates the average cross spectrum in each frequency bin. The final
+        cross spectrum in each bin is the average over all of the individual
+        frequency points from all of the light curves that fall into that bin.
+
+        Returns
+        -------
+        cross_spec : ndarray
+                     The average cross spectrum (complex) in each frequency bin
+        """
+        freq_list = np.hstack([c.freq for c in self.cross_spectra])
+        crossft_list = np.hstack([c.crossft for c in self.cross_spectra])
+        crossft_bin = bins.bin(freq_list, crossft_list)
+
+        return CrossSpectrum(f=bins.bin_cent, cs=crossft_bin)
+
     def freq_average_slow(self, fmin, fmax):
         """
         csavg = pylag.CrossSpectrum.freq_average(fmin, fmax)
@@ -454,3 +479,9 @@ class StackedCrossSpectrum(CrossSpectrum):
         real_mean, _, _ = binned_statistic(freq_list, crossft_list.real, statistic='mean', bins=bin_edges)
         imag_mean, _, _ = binned_statistic(freq_list, crossft_list.imag, statistic='mean', bins=bin_edges)
         return complex(real_mean, imag_mean)
+
+    def fmin(self):
+        return np.min([c.freq[1] for c in self.cross_spectra])
+
+    def fmax(self):
+        return np.max([np.max(c.freq) for c in self.cross_spectra])

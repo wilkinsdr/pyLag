@@ -100,6 +100,8 @@ class LagEnergySpectrum(object):
         self.error = np.array([])
         self.coh = np.array([])
 
+        self._freq_range = (fmin, fmax)
+
         if lcfiles != '':
             lclist = EnergyLCList(lcfiles, interp_gaps=interp_gaps)
 
@@ -108,20 +110,22 @@ class LagEnergySpectrum(object):
 
         if isinstance(lclist[0], LightCurve):
             printmsg(1, "Constructing lag energy spectrum in %d energy bins" % len(lclist))
-            self.lag, self.error, self.coh = self.calculate(lclist.lclist, fmin, fmax, refband, self.en, bias, calc_error)
+            self.cross_spec, self.coherence = self.calculate_crossspec(lclist.lclist, refband, self.en, bias, calc_error)
         elif isinstance(lclist[0], list) and isinstance(lclist[0][0], LightCurve):
             printmsg(1, "Constructing lag energy spectrum from %d light curves in each of %d energy bins" % (
                 len(lclist[0]), len(lclist)))
-            self.lag, self.error, self.coh = self.calculate_stacked(lclist.lclist, fmin, fmax, refband, self.en, bias, calc_error)
+            self.cross_spec, self.coherence = self.calculate_crossspec_stacked(lclist.lclist, refband, self.en, bias, calc_error)
 
-    def calculate(self, lclist, fmin, fmax, refband=None, energies=None, bias=True, calc_error=True):
+        self.lag, self.error = self.calculate_lag(self._freq_range[0], self._freq_range[1])
+
+    def calculate_crossspec(self, lclist, refband=None, energies=None, bias=True, calc_error=True):
         """
         lag, error = pylag.LagEnergySpectrum.calculate(lclist, fmin, fmax, refband=None, energies=None)
 
-        calculate the lag-energy spectrum from a list of light curves, one in
-        each energy band, averaged over some frequency range.
+        calculate the cross spectra and coherence in preparation for calculating the lag-energy spectrum
+        from a list of light curves, one in each energy band.
 
-        The lag is calculated with respect to a reference light curve that is
+        The lags/cross spectra are calculated with respect to a reference light curve that is
         computed as the sum of all energy bands, but subtracting the energy band
         of interest for each lag/energy point, so to avoid correlated noise
         between the subject and reference light curves.
@@ -165,9 +169,8 @@ class LagEnergySpectrum(object):
                     continue
             reflc = reflc + lc
 
-        lag = []
-        error = []
-        coh = []
+        cross_spec = []
+        coherence = []
         for lc in lclist:
             thisref = reflc - lc
             # if we're only using a specific reference band, we did not need to
@@ -175,18 +178,13 @@ class LagEnergySpectrum(object):
             if refband is not None:
                 if energies[energy_num] < refband[0] or energies[energy_num] > refband[1]:
                     thisref = reflc
-            lag.append(CrossSpectrum(lc, thisref).lag_average(fmin, fmax))
+            cross_spec.append(CrossSpectrum(lc, thisref))
             if calc_error:
-                coherence_obj = Coherence(lc, reflc, fmin=fmin, fmax=fmax, bias=bias)
-                error.append(coherence_obj.lag_error())
-                coh.append(coherence_obj.coh)
-            else:
-                error.append(np.nan)
-                coh.append(np.nan)
+                coherence.append(Coherence(lc, reflc, fmin=None, fmax=None, bias=bias))
 
-        return np.array(lag), np.array(error), np.array(coh)
+        return cross_spec, coherence
 
-    def calculate_stacked(self, lclist, fmin, fmax, refband=None, energies=None, bias=True, calc_error=True):
+    def calculate_crossspec_stacked(self, lclist, refband=None, energies=None, bias=True, calc_error=True):
         """
         lag, error = pylag.LagEnergySpectrum.CalculateStacked(lclist, fmin, fmax, refband=None, energies=None)
 
@@ -250,9 +248,8 @@ class LagEnergySpectrum(object):
             for segment_num, segment_lc in enumerate(energy_lcs):
                 reflc[segment_num] = reflc[segment_num] + segment_lc
 
-        lag = []
-        error = []
-        coh = []
+        cross_spec = []
+        coherence = []
         for energy_num, energy_lclist in enumerate(lclist):
             # subtract this energy band from the reference light curve for each
             # light curve segment to be stacked (subtracting the current band
@@ -267,19 +264,40 @@ class LagEnergySpectrum(object):
                         ref_lclist.append(reflc[segment_num])
                         continue
                 ref_lclist.append(reflc[segment_num] - segment_lc)
-            # now get the lag and error from the stacked cross spectrum and
+            # now get stacked cross spectrum and
             # coherence between the sets of lightcurves for this energy band and
             # for the reference
-            lag.append(StackedCrossSpectrum(energy_lclist, ref_lclist).lag_average(fmin, fmax))
+            cross_spec.append(StackedCrossSpectrum(energy_lclist, ref_lclist))
             if calc_error:
-                coherence_obj = Coherence(energy_lclist, ref_lclist, fmin=fmin, fmax=fmax, bias=bias)
-                error.append(coherence_obj.lag_error())
-                coh.append(coherence_obj.coh)
+                coherence.append(Coherence(energy_lclist, ref_lclist, fmin=None, fmax=None, bias=bias))
 
-        return np.array(lag), np.array(error), np.array(coh)
+        return cross_spec, coherence
+
+    def calculate_lag(self, fmin, fmax, cross_spec=None, coherence=None):
+        if cross_spec is None:
+            cross_spec = self.cross_spec
+        if coherence is None:
+            coherence = self.coherence
+
+        lag = np.array([cs.lag_average(fmin, fmax) for cs in cross_spec])
+        if len(coherence) > 0:
+            error = np.array([coh.lag_error(fmin=fmin, fmax=fmax) for coh in coherence])
+        else:
+            error = None
+
+        return lag, error
 
     def _getplotdata(self):
         return (self.en, self.en_error), (self.lag, self.error)
 
     def _getplotaxes(self):
         return 'Energy / keV', 'log', 'Lag / s', 'linear'
+
+    def _get_freq_range(self,):
+        return self._freq_range
+
+    def _set_freq_range(self, value):
+        self._freq_range = value
+        self.lag, self.error = self.calculate_lag(self._freq_range[0], self._freq_range[1])
+
+    freq_range = property(_get_freq_range, _set_freq_range)

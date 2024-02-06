@@ -224,6 +224,48 @@ class Periodogram(object):
         per_mean, _, _ = binned_statistic(self.freq, self.periodogram, statistic='mean', bins=bin_edges)
         return per_mean[0]
 
+    def num_freq_in_bins(self, bins):
+        """
+        numfreq = pylag.Periodogram.num_freq_in_bins(bins)
+
+        Returns the number of sample frequencies that fall into bins specified
+        in a pyLag Binning object
+
+        Arguments
+        ---------
+        bins : Binning
+               pyLag Binning object defining the bins into which sample frequencies
+               are to be counted
+
+        Returns
+        -------
+        numfreq : ndarray
+                  The number of frequencies falling into each bin
+        """
+        return bins.num_points_in_bins(self.freq)
+
+    def num_freq_in_range(self, fmin, fmax):
+        """
+        num_freq = pylag.Periodogram.num_freq_in_range(fmin, fmax)
+
+        Return the number of FFT frequency points that fall in a specified frequency
+        interval.
+
+        Arguments
+        ---------
+        fmin : float
+               Lower bound of frequency range
+        fmax : float
+               Upper bound of frequency range
+
+        Returns
+        -------
+        num_freq : int
+                   Number of frequency points in ranhe
+
+        """
+        return np.sum(np.logical_and(self.freq>=fmin, self.freq<fmax))
+
     def points_in_freqrange(self, fmin, fmax):
         """
         range_points = pylag.Periodogram.points_in_freqrange(fmin, fmax)
@@ -421,33 +463,38 @@ class StackedPeriodogram(Periodogram):
 
         return self.bins.bin(freq_list, per_list), error
 
-    def freq_average_slow(self, fmin, fmax):
+    def bin(self, bins, calc_error=True):
         """
-        per_avg = pylag.StackedPeriodogram.freq_average(fmin, fmax)
+        per, err = pylag.StackedPeriodogram.calculate_binned()
 
-        calculate the average value of the periodogram over a specified
-        frequency interval. The final periodogram is the average over all of
-        the individual frequency points from all of the light curves that fall
-        into the range.
+        Calculates the average periodogram in each frequency bin. The final
+        periodogram in each bin is the average over all of the individual
+        frequency points from all of the light curves that fall into that bin.
 
         Arguments
         ---------
-        fmin : float
-               Lower bound of frequency range
-        fmax : float
-               Upper bound of frequency range
+        bins : Binning
+               Binning object describing the bins into which the stacked periodograms
+               are to be averaged
 
         Returns
         -------
-        per_avg : complex
-                  The average value of the cross spectrum over the frequency range
-
+        per : Peridogram
+              The binned periodogram
+        err : ndarray
+              The standard error of the periodogram in each bin
         """
-        per_points = []
-        for per in self.periodograms:
-            per_points += per.points_in_freqrange(fmin, fmax)
+        freq_list = np.hstack([p.freq for p in self.periodograms])
+        per_list = np.hstack([p.periodogram for p in self.periodograms])
 
-        return np.mean(per_points)
+        per_bin = bins.bin(freq_list, per_list)
+
+        if calc_error:
+            error = bins.std_error(freq_list, per_list)
+        else:
+            error = None
+
+        return Periodogram(f=bins.bin_cent, per=per_bin, err=error, ferr=bins.x_error())
 
     def freq_average(self, fmin, fmax):
         """
@@ -477,3 +524,46 @@ class StackedPeriodogram(Periodogram):
         bin_edges = [fmin, fmax]
         per_mean, _, _ = binned_statistic(freq_list, per_list, statistic='mean', bins=bin_edges)
         return per_mean[0]
+
+    def num_freq_in_range(self, fmin, fmax):
+        """
+        num_freq = pylag.Periodogram.num_freq_in_range(fmin, fmax)
+
+        Return the number of FFT frequency points that fall in a specified frequency
+        interval.
+
+        Arguments
+        ---------
+        fmin : float
+               Lower bound of frequency range
+        fmax : float
+               Upper bound of frequency range
+
+        Returns
+        -------
+        num_freq : int
+                   Number of frequency points in ranhe
+
+        """
+        return np.sum([np.sum(np.logical_and(p.freq>=fmin, p.freq<fmax)) for p in self.periodograms])
+
+    def num_freq_in_bins(self, bins):
+        """
+        num_freq = pylag.Periodogram.num_freq_in_range(fmin, fmax)
+
+        Return the number of FFT frequency points that fall in specified bins.
+
+        Arguments
+        ---------
+        fmin : float
+               Lower bound of frequency range
+        fmax : float
+               Upper bound of frequency range
+
+        Returns
+        -------
+        num_freq : int
+                   Number of frequency points in ranhe
+
+        """
+        return np.sum(np.vstack([p.num_freq_in_bins(bins) for p in self.periodograms]), axis=0)

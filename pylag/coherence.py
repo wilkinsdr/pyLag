@@ -87,7 +87,7 @@ class Coherence(object):
         if bins is not None:
             self.freq = bins.bin_cent
             self.freq_error = bins.x_error()
-        elif fmin > 0 and fmax > 0:
+        elif fmin is not None and fmax is not None and (fmin > 0 and fmax > 0):
             self.freq = np.mean([fmin, fmax])
             self.freq_error = None
 
@@ -98,14 +98,6 @@ class Coherence(object):
             self.cross_spec = CrossSpectrum(lc1, lc2, **kwargs)
             self.per1 = Periodogram(lc1, **kwargs)
             self.per2 = Periodogram(lc2, **kwargs)
-            if bins is not None:
-                self.num_freq = lc1.bin_num_freq(bins)
-                # apply binning to cross spectrum and periodogram
-                self.cross_spec = self.cross_spec.bin(bins)
-                self.per1 = self.per1.bin(bins, calc_error=False)
-                self.per2 = self.per2.bin(bins, calc_error=False)
-            elif fmin > 0 and fmax > 0:
-                self.num_freq = lc1.num_freq_in_range(fmin, fmax)
             self.lc1mean = lc1.mean()
             self.lc2mean = lc2.mean()
 
@@ -114,25 +106,15 @@ class Coherence(object):
         # the light curves
         elif isinstance(lc1, list) and isinstance(lc2, list):
             self.cross_spec = StackedCrossSpectrum(lc1, lc2, bins, **kwargs)
-            self.per1 = StackedPeriodogram(lc1, bins, calc_error=False, **kwargs)
-            self.per2 = StackedPeriodogram(lc2, bins, calc_error=False, **kwargs)
-            if bins is not None:
-                self.num_freq = np.zeros(bins.num)
-
-                for lc in lc1:
-                    self.num_freq += lc.bin_num_freq(bins)
-            elif fmin > 0 and fmax > 0:
-                self.num_freq = 0
-                for lc in lc1:
-                    self.num_freq += lc.num_freq_in_range(fmin, fmax)
+            self.per1 = StackedPeriodogram(lc1, bins=None, calc_error=False, **kwargs)
+            self.per2 = StackedPeriodogram(lc2, bins=None, calc_error=False, **kwargs)
             self.lc1mean = stacked_mean_count_rate(lc1)
             self.lc2mean = stacked_mean_count_rate(lc2)
 
-        self.coh = self.calculate(bins, fmin, fmax, bias)
-
-        # delete the cross spectrum and periodograms to save some memory once
-        # we've finished the calculation
-        del self.cross_spec, self.per1, self.per2
+        if bins is not None or (fmin is not None and fmax is not None):
+            self.coh, self.num_freq = self.calculate(bins, fmin, fmax, bias)
+        else:
+            self.coh, self.num_freq = np.nan, 0
 
     def calculate(self, bins=None, fmin=None, fmax=None, bias=True):
         """
@@ -164,31 +146,45 @@ class Coherence(object):
               calculated over a single frequency range
         """
         if bins is not None:
-            # note the binning is already taken care of in the constructor
-            # since the StackedPeriodogram needs to be binned when created
-            cross_spec = self.cross_spec.crossft
-            per1 = self.per1.periodogram
-            per2 = self.per2.periodogram
+            cross_spec = self.cross_spec.bin(bins).crossft
+            per1 = self.per1.bin(bins).periodogram
+            per2 = self.per2.bin(bins).periodogram
+            num_freq = self.per1.num_freq_in_bins(bins)
         elif fmin > 0 and fmax > 0:
             cross_spec = self.cross_spec.freq_average(fmin, fmax)
             per1 = self.per1.freq_average(fmin, fmax)
             per2 = self.per2.freq_average(fmin, fmax)
+            num_freq = self.per1.num_freq_in_range(fmin, fmax)
 
         if bias:
             pnoise1 = 2 * (self.lc1mean + self.bkg1) / self.lc1mean ** 2
             pnoise2 = 2 * (self.lc2mean + self.bkg2) / self.lc2mean ** 2
-            nbias = (pnoise2 * (per1 - pnoise1) + pnoise1 * (per2 - pnoise2) + pnoise1 * pnoise2) / self.num_freq
+            nbias = (pnoise2 * (per1 - pnoise1) + pnoise1 * (per2 - pnoise2) + pnoise1 * pnoise2) / num_freq
         else:
             nbias = 0
 
         coh = (np.abs(cross_spec) ** 2 - nbias) / (per1 * per2)
-        return coh
+        return coh, num_freq
 
-    def phase_error(self):
-        return np.sqrt((1 - self.coh) / (2 * self.coh * self.num_freq))
+    def phase_error(self, fmin=None, fmax=None, bins=None):
+        if fmin is not None and fmax is not None:
+            coh, num_freq = self.calculate(fmin=fmin, fmax=fmax)
+        elif bins is not None:
+            coh, num_freq = self.calculate(bins=bins)
+        else:
+            coh, num_freq = self.coh, self.num_freq
+        return np.sqrt((1 - coh) / (2 * coh * num_freq))
 
-    def lag_error(self):
-        return self.phase_error() / (2 * np.pi * self.freq)
+    def lag_error(self, fmin=None, fmax=None, bins=None):
+        # get the central frequency of the range or bins
+        if fmin is not None and fmax is not None:
+            freq = np.mean([fmin, fmax])
+        elif bins is not None:
+            freq = bins.bin_cent
+        else:
+            freq = self.freq
+
+        return self.phase_error(fmin, fmax, bins) / (2 * np.pi * freq)
 
     def _getplotdata(self):
         return (self.freq, self.freq_error), self.coh
