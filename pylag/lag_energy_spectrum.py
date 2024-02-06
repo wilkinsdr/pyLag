@@ -120,9 +120,9 @@ class LagEnergySpectrum(object):
 
     def calculate_crossspec(self, lclist, refband=None, energies=None, bias=True, calc_error=True):
         """
-        lag, error = pylag.LagEnergySpectrum.calculate(lclist, fmin, fmax, refband=None, energies=None)
+        cross_spec, coherence = pylag.LagEnergySpectrum.ccalculate_crossspec(self, lclist, refband=None, energies=None, bias=True, calc_error=True)
 
-        calculate the cross spectra and coherence in preparation for calculating the lag-energy spectrum
+        Calculate the cross spectra and coherence in preparation for calculating the lag-energy spectrum
         from a list of light curves, one in each energy band.
 
         The lags/cross spectra are calculated with respect to a reference light curve that is
@@ -136,10 +136,6 @@ class LagEnergySpectrum(object):
                    1-dimensional list containing the pylag
                    LightCurve objects for the light curve in each of the energy
                    bands, i.e. [en1_lc, en2_lc, ...]
-        fmin     : float
-                   Lower bound of frequency range
-        fmax     : float
-                   Upper bound of frequency range
         refband  : list of floats
                  : If specified, the reference band will be restricted to this
                    energy range [min, max]. If not specified, the full band will
@@ -186,9 +182,9 @@ class LagEnergySpectrum(object):
 
     def calculate_crossspec_stacked(self, lclist, refband=None, energies=None, bias=True, calc_error=True):
         """
-        lag, error = pylag.LagEnergySpectrum.CalculateStacked(lclist, fmin, fmax, refband=None, energies=None)
+        cross_spec, coherence = pylag.LagEnergySpectrum.calculate_crossspec_stacked(self, lclist, refband=None, energies=None, bias=True, calc_error=True)
 
-        calculate the lag-energy spectrum from a list of light curves, averaged
+        Calculate the lag-energy spectrum from a list of light curves, averaged
         over some frequency range. The lag-energy spectrum is calculated from
         the cross spectrum and coherence stacked over multiple light curve
         segments in each energy band.
@@ -206,10 +202,6 @@ class LagEnergySpectrum(object):
                    list of LightCurve objects that represent the light curves in that
                    energy band from each observation segment.
                    i.e. [[en1_obs1, en1_obs2, ...], [en2_obs1, en2_obs2, ...], ...]
-        fmin     : float
-                   Lower bound of frequency range
-        fmax     : float
-                   Upper bound of frequency range
         refband  : list of floats
                  : If specified, the reference band will be restricted to this
                    energy range [min, max]. If not specified, the full band will
@@ -224,13 +216,10 @@ class LagEnergySpectrum(object):
 
         Returns
         -------
-        lag   : ndarray
-                numpy array containing the lag of each energy band with respect
-                to the reference band
-        error : ndarray
-                numpy array containing the error in each lag measurement
-        coh   : ndarray
-                numpy array containing the coherence in each energy band
+        cross_spec : list of CrossSpectrum objects
+                     The cross spectrum for each energy band vs. the reference
+        coherence  : list of Coherence objects
+                     The Coherence between each energy band and the reference
         """
         reflc = []
         # initialise a reference light curve for each of the observations/light
@@ -274,6 +263,39 @@ class LagEnergySpectrum(object):
         return cross_spec, coherence
 
     def calculate_lag(self, fmin, fmax, cross_spec=None, coherence=None):
+        """
+        lag, error = pylag.LagEnergySpectrum.calculate_lag(fmin, fmax, , cross_spec=None, coherence=None)
+
+        Ralculate the lag-energy spectrum by averaging the cross spectra for each energy band
+        over the requested frequency range.
+
+        Requires that the cross spectrum and coherence for each band vs the reference have been pre-calculated
+
+        Arguments
+        ---------
+        fmin        : float
+                      Lower bound of frequency range
+        fmax        : float
+                      Upper bound of frequency range
+        cross_spec  : list of CrossSpectrum objects, optional (default=None)
+                      The CrossSpectrum object for each band vs. the reference from
+                      which the lags are to be calculated. If None, the CrossSpectrum objects
+                      that were pre-calculated when this objected was constructed will be
+                      used
+        coherence   : list of CrossSpectrum objects, optional (default=None)
+                      The Coherence object for each band vs. the reference from
+                      which the errors are to be calculated. If None, the Coherence objects
+                      that were pre-calculated when this objected was constructed will be
+                      used
+
+        Returns
+        -------
+        lag   : ndarray
+                numpy array containing the lag of each energy band with respect
+                to the reference band
+        error : ndarray
+                numpy array containing the error in each lag measurement
+        """
         if cross_spec is None:
             cross_spec = self.cross_spec
         if coherence is None:
