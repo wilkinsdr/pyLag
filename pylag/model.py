@@ -206,26 +206,26 @@ class Lorentzian(Model):
 
         params.add('%snorm' % self.prefix, value=norm, min=-50, max=50)
         params.add('%scentre' % self.prefix, value=centre, min=-6, max=-2)
-        params.add('%swidth' % self.prefix, value=width, min=1e-6, max=100)
+        params.add('%swidth' % self.prefix, value=width, min=-10, max=-3)
 
         return params
 
     def eval(self, params, x):
         norm = np.exp(params['%snorm' % self.prefix].value)
         centre = 10. ** params['%scentre' % self.prefix].value
-        width = params['%swidth' % self.prefix].value
+        width = 10. ** params['%swidth' % self.prefix].value
 
         return norm * (1./np.pi) * 0.5 * width / ((x - centre)**2 + 0.25*width**2)
 
     def eval_gradient(self, params, x):
         norm = np.exp(params['%snorm' % self.prefix].value)
         centre = 10. ** params['%scentre' % self.prefix].value
-        width = params['%swidth' % self.prefix].value
+        width = 10. ** params['%swidth' % self.prefix].value
 
         return np.stack([norm * (1. / np.pi) * 0.5 * width / ((x - centre) ** 2 + 0.25 * width ** 2),
                          centre * np.log(10) * (norm * width / np.pi) * (x - centre) / (
                                      (x - centre) ** 2 + 0.25 * width ** 2) ** 2,
-                         norm * (1. / (2. * np.pi)) * (((x - centre) ** 2 + 0.25 * width ** 2) - width ** 2) / (
+                         width * np.log(10) * norm * (1. / (2. * np.pi)) * (((x - centre) ** 2 + 0.25 * width ** 2) - width ** 2) / (
                                      (x - centre) ** 2 + 0.25 * width ** 2) ** 2
                          ], axis=-1)
 
@@ -245,3 +245,22 @@ class Constant(Model):
 
     def eval_gradient(self, params, x):
         return np.ones_like(x)[:, np.newaxis]   # add a dimension to match the shape of gradients from other models
+
+
+class LogConstant(Model):
+    def get_params(self, slope=1., intercept=0.):
+        params = lmfit.Parameters()
+
+        params.add('%slgconstant' % self.prefix, value=slope, min=-10, max=10)
+
+        return params
+
+    def eval(self, params, x):
+        constant = 10. ** params['%slgconstant' % self.prefix].value
+
+        return constant * np.ones_like(x)
+
+    def eval_gradient(self, params, x):
+        constant = 10. ** params['%slgconstant' % self.prefix].value
+
+        return constant * np.log(10) * np.ones_like(x)[:, np.newaxis]   # add a dimension to match the shape of gradients from other models
