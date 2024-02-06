@@ -80,21 +80,15 @@ class Rms(object):
         if bins is not None:
             self.freq = bins.bin_cent
             self.freq_error = bins.x_error()
-            self.delta_f = bins.delta_x()
-        elif fmin > 0 and fmax > 0:
+        elif fmin is not None and fmax is not None and (fmin > 0 and fmax > 0):
             self.freq = np.mean([fmin, fmax])
             self.freq_error = None
-            self.delta_f = fmax - fmin
 
         # if we're passed a single pair of light curves, get the cross spectrum
         # and periodograms and count the number of sample frequencies in either
         # the bins or specified range
         if isinstance(lc, LightCurve):
-            self.per = Periodogram(reflc)
-            if bins is not None:
-                self.num_freq = lc.bin_num_freq(bins)
-            elif fmin > 0 and fmax > 0:
-                self.num_freq = lc.num_freq_in_range(fmin, fmax)
+            self.per = Periodogram(lc)
             self.lcmean = lc.mean()
 
         # if we're passed lists of light curves, get the stacked cross spectrum
@@ -102,18 +96,14 @@ class Rms(object):
         # the light curves
         elif isinstance(lc, list):
             self.per = StackedPeriodogram(lc, bins)
-            if bins is not None:
-                self.num_freq = np.zeros(bins.num)
-
-                for l in lc:
-                    self.num_freq += l.bin_num_freq(bins)
-            elif fmin > 0 and fmax > 0:
-                self.num_freq = 0
-                for l in lc:
-                    self.num_freq += l.num_freq_in_range(fmin, fmax)
             self.lcmean = stacked_mean_count_rate(lc)
 
-        self.rms, self.error = self.calculate(bins, fmin, fmax, absolute)
+        self.pnoise = 2 * (self.lcmean + self.bkg) / self.lcmean ** 2
+
+        if bins is not None or (fmin is not None and fmax is not None):
+            self.rms, self.error = self.calculate(bins, fmin, fmax, absolute)
+        else:
+            self.cov, self.error = np.nan, np.nan
 
     def calculate(self, bins=None, fmin=None, fmax=None, absolute=True):
         """
@@ -146,21 +136,23 @@ class Rms(object):
         """
         if bins is not None:
             per = self.per.bin(self.bins).periodogram
+            num_freq = self.per.num_freq_in_bins(bins)
+            delta_f = bins.delta_x()
         elif fmin > 0 and fmax > 0:
             per = self.per.freq_average(fmin, fmax)
+            num_freq = self.per.num_freq_in_range(fmin, fmax)
+            delta_f = fmax - fmin
 
-        pnoise = 2 * (self.lcmean + self.bkg) / self.lcmean ** 2
-
-        rms = np.sqrt(self.delta_f * (per - pnoise))
+        rms = np.sqrt(delta_f * (per - self.pnoise))
         if absolute:
             rms *= self.lcmean
 
         # rms = (per - pnoise) * self.lcmean ** 2 * self.delta_f
-        rmssq_noise = pnoise * self.delta_f
+        rmssq_noise = self.pnoise * delta_f
         if absolute:
             rmssq_noise *= self.lcmean ** 2
 
-        err = np.sqrt((2. * rms**2 * rmssq_noise + rmssq_noise**2) / (2 * self.num_freq * rms**2))
+        err = np.sqrt((2. * rms**2 * rmssq_noise + rmssq_noise**2) / (2 * num_freq * rms**2))
 
         return rms, err
 
@@ -239,6 +231,9 @@ class RmsSpectrum(object):
         self.rms = np.array([])
         self.error = np.array([])
 
+        self._freq_range = (fmin, fmax)
+
+        self.absolute = absolute
         self.return_sed = True
 
         if lcfiles != '':
@@ -248,7 +243,9 @@ class RmsSpectrum(object):
         self.en_error = np.array(lclist.en_error)
 
         printmsg(1, "Constructing RMS spectrum in %d energy bins" % len(lclist))
-        self.rms, self.error = self.calculate(lclist.lclist, fmin, fmax, absolute=absolute)
+        self.rms_obj = self.calculate_rms(lclist.lclist)
+
+        self.rms, self.error = self.calculate_spectrum(self._freq_range[0], self._freq_range[1], absolute=self.absolute)
 
         if resample_errors:
             printmsg(1, "Estimating errors from %d resamples" % n_samples)
@@ -256,12 +253,12 @@ class RmsSpectrum(object):
 
         self.sed, self.sed_error = self.calculate_sed()
 
-    def calculate(self, lclist, fmin, fmax, absolute=True):
+    def calculate_rms(self, lclist):
         """
         rms, error = pylag.RmsSpectrum.calculate(lclist, fmin, fmax, refband=None, energies=None)
 
-        calculate the RMS spectrum from a list of light curves, one in
-        each energy band, averaged over some frequency range.
+        Pre-calculate the RMS objects from a list of energy channels, one in
+        each energy band, to be used in the calculation of the RMS spectrum.
 
         Arguments
         ---------
@@ -269,32 +266,60 @@ class RmsSpectrum(object):
                    1-dimensional list containing the pylag
                    LightCurve objects for the light curve in each of the energy
                    bands, i.e. [en1_lc, en2_lc, ...]
-        fmin     : float
-                   Lower bound of frequency range
-        fmax     : float
-                   Upper bound of frequency range
+
+        Returns
+        -------
+        rms_obj  : ndarray
+                   List of Rms objects for each energy channel
+        """
+        rms_obj = []
+        for lc in lclist:
+            rms_obj.append(Rms(lc, fmin=None, fmax=None))
+
+        return rms_obj
+
+    def calculate_spectrum(self, fmin, fmax, rms_obj=None, absolute=True):
+        """
+        rms, error = pylag.RmsSpectrum.calculate_spectrum(fmin, fmax, rms_obj=None, absolute=True)
+
+        calculate the RMS spectrum by averaging the RMS for each band
+        over the requested frequency range.
+
+        Requires that the Rms objects for each band have been pre-calculated
+
+        Arguments
+        ---------
+        fmin        : float
+                      Lower bound of frequency range
+        fmax        : float
+                      Upper bound of frequency range
+        rms_obj     : list of Rms objects, optional (default=None)
+                      The Rms object for each band from which the spectrum is to be calculated.
+                      If None, the Rms objects that were pre-calculated when this objected was
+                      constructed will be used
+        absolute    : boolean (default=True)
+                      Calculate the absolute RMS in units of count rate, rather than the
+                      fractional RMS
 
         Returns
         -------
         rms   : ndarray
                 numpy array containing the RMS of each energy band
         error : ndarray
-                numpy array containing the error in each lag measurement
+                numpy array containing the error in each covariance measurement
         """
-        rms = []
-        error = []
-        for lc in lclist:
-            rms_obj = Rms(lc, fmin=fmin, fmax=fmax, absolute=absolute)
-            rms.append(rms_obj.rms)
-            error.append(rms_obj.error)
+        if rms_obj is None:
+            rms_obj = self.rms_obj
 
+        rms, error = zip(*[r.calculate(fmin=fmin, fmax=fmax, absolute=absolute) for r in rms_obj])
         return np.array(rms), np.array(error)
 
-    def resample_errors(self, lclist, fmin, fmax, energies, absolute, n_samples, mode='std'):
+    def resample_errors(self, lclist, fmin, fmax,  absolute, n_samples, mode='std'):
         rms = []
         for n in range(n_samples):
             this_lclist = lclist.resample_noise()
-            this_rms, _ = self.calculate(this_lclist.lclist, fmin, fmax, absolute)
+            rms_obj = self.calculate_rms(this_lclist.lclist)
+            this_rms, _ = self.calculate_spectrum(fmin, fmax, rms_obj, absolute)
             rms.append(this_rms)
 
         rms = np.array(rms)
@@ -332,4 +357,12 @@ class RmsSpectrum(object):
         data = [self.en - self.en_error, self.en + self.en_error, self.rms, self.error]
         np.savetxt(filename, list(zip(*data)), fmt='%15.10g', delimiter=' ')
 
+    def _get_freq_range(self,):
+        return self._freq_range
 
+    def _set_freq_range(self, value):
+        self._freq_range = value
+        self.rms, self.error = self.calculate_spectrum(self._freq_range[0], self._freq_range[1], absolute=self.absolute)
+        self.sed, self.sed_error = self.calculate_sed()
+
+    freq_range = property(_get_freq_range, _set_freq_range)
