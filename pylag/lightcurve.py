@@ -2033,6 +2033,9 @@ class EnergyLCList(object):
             t = self.lclist[0].time
             np.savetxt(filename, np.vstack([t, arr]).T, fmt=fmt, delimiter=delimiter)
 
+    def split(self):
+        split_lclist = [segment_lclist for segment_lclist in zip(*self.lclist)]
+        return [EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=l) for l in split_lclist]
 
     def __getitem__(self, index):
         return self.lclist[index]
