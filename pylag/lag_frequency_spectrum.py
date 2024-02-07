@@ -85,7 +85,6 @@ class LagFrequencySpectrum(object):
             lc2 = get_lclist(lc2files, interp_gaps=interp_gaps, **kwargs)
 
         self.cross_spec, self.coherence = self.calculate_crossspec(lc1, lc2, calc_error, **calculate_args)
-        print(self.cross_spec)
 
         self.fmin = self.cross_spec.fmin()
         self.fmax = self.cross_spec.fmax()
