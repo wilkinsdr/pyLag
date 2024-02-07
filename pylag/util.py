@@ -16,6 +16,19 @@ def chatter(level=None):
     return __PYLAG_CHATTER__
 
 
+def save_obj(obj, filename):
+    import pickle
+    with open(filename, 'wb') as f:
+        pickle.dump(obj, f)
+
+
+def load_obj(filename):
+    import pickle
+    with open(filename, 'rb') as f:
+        obj = pickle.load(f)
+    return obj
+
+
 def get_nustar_lclist(src_files_fpma='nu*A01_sr.lc', bkg_files_fpma='nu*A01_bk.lc', src_files_fpmb='nu*B01_sr.lc', bkg_files_fpmb='nu*B01_bk.lc', **kwargs):
     #
     # returns list of background-subtracted NuSTAR light curves
