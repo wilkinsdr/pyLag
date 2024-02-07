@@ -88,3 +88,46 @@ def orbit_lightcurve(lc, error_mode='counts'):
 
     orbit_lc = VariableBinLightCurve(t=orbit_time, te=orbit_time_err, r=orbit_rate, e=orbit_rate_err)
     return orbit_lc
+
+
+def sum_mos_pn_energy_lightcurves(pn_lcpath, mos_lcpath, outpath):
+    from .lightcurve import LightCurve, get_lclist, extract_sim_lightcurves
+    import re
+    import glob
+    import os
+
+    # define a regex to extract useful information from the filenames
+    lc_re = re.compile(r'([0-9]+)_.*?src_(mos|pn)_tbin([0-9]+)_en([0-9\-]+).lc_corr')
+    lc_obsid = lambda f: lc_re.match(f).group(1)
+    lc_inst = lambda f: lc_re.match(f).group(2)
+    lc_tbin = lambda f: lc_re.match(f).group(3)
+    lc_enband = lambda f: lc_re.match(f).group(4)
+
+    # find the unique OBSIDs, time binnings and energy bands
+    # since we want to create a new light curve for each of these
+    pn_lcfiles = sorted(glob.glob(pn_lcpath + '/*.lc_corr'))
+    obsids = set([lc_obsid(os.path.basename(f)) for f in pn_lcfiles])
+    tbins = set([lc_tbin(os.path.basename(f)) for f in pn_lcfiles])
+    enbands = set([lc_enband(os.path.basename(f)) for f in pn_lcfiles])
+
+    for obsid in obsids:
+        for tbin in tbins:
+            for enband in enbands:
+                lcl_mos1 = get_lclist(mos_lcpath + '/%s_EMOS1_*src_mos_tbin%s_en%s.lc_corr' % (obsid, tbin, enband))
+                lcl_mos2 = get_lclist(mos_lcpath + '/%s_EMOS2_*src_mos_tbin%s_en%s.lc_corr' % (obsid, tbin, enband))
+                lcl_pn = get_lclist(pn_lcpath + '/%s_*src_pn_tbin%s_en%s.lc_corr' % (obsid, tbin, enband))
+
+                lcl_mos1 = [l[1:-1] for l in lcl_mos1 if l.rate.max() > 0.1]
+                lcl_mos2 = [l[1:-1] for l in lcl_mos2 if l.rate.max() > 0.1]
+
+                mos1_lc = LightCurve().concatenate(lcl_mos1).remove_gaps().fill_time(dt=float(tbin)).interp_gaps()
+                mos2_lc = LightCurve().concatenate(lcl_mos2).remove_gaps().fill_time(dt=float(tbin)).interp_gaps()
+                pn_lc = lcl_pn[0].interp_gaps()
+
+                mos1_lc, mos2_lc = extract_sim_lightcurves(mos1_lc, mos2_lc)
+                mos_sum_lc = mos1_lc + mos2_lc
+
+                mos_sum_lc, pn_lc = extract_sim_lightcurves(mos_sum_lc, pn_lc)
+                sum_lc = mos_sum_lc + pn_lc
+                sum_lc.write_fits(outpath + '/%s_src_mospn_tbin%s_en%s.lc' % (obsid, tbin, enband))
+
