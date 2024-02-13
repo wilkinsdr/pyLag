@@ -18,4 +18,3 @@ from .entresponse import *
 from .continuum import *
 from .event_list import *
 from .util import *
-from .fit import *
