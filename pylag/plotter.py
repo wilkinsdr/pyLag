@@ -94,12 +94,12 @@ class Plot(object):
                     The matplotlib string specifying the location the legend
                     should be placed ('best', 'upper right', 'center right',
                     'lower left' etc.)
-    colour_series : list of strings (default=['k', 'b', 'g', 'r', 'c', 'm'])
+    colours       : list of strings (default=['k', 'b', 'g', 'r', 'c', 'm'])
                     The repeating sequence of matplotlib colour specifiers
                     setting the order in which colours are assigned to plot
                     series. The sequence is repeated as many times as necessary
                     to cover all the series
-    marker_series : list of strings (default=['+', 'x', 'o', 's'])
+    markers       : list of strings (default=['+', 'x', 'o', 's'])
                     The repeating sequence of matplotlib plot marker specifiers
                     setting the order in which they are applied to data series.
                     To plot all series as lines, use a single entry ['-']
