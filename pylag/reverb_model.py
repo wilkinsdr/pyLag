@@ -38,12 +38,12 @@ class ReverbModel(Model):
     def get_params(self, mass=7.3, source_h=5, le_fmin=1e-4, le_fmax=1e-3):
         params = lmfit.Parameters()
 
-        params.add('mass', value=mass, min=6, max=8, vary=False)
+        params.add('mass', value=mass, min=6., max=8., vary=False)
         params.add('spin', value=mass, min=self.response.spin.min(), max=self.response.spin.max(), vary=False)
         params.add('h', value=source_h, min=self.response.heights.min(), max=self.response.heights.max())
-        params.add('reffrac', value=1.0, min=0.1, max=5., vary=False)
-        params.add('gamma', value=2.15, min=2.0, max=3.0, vary=False)
-        params.add('logxi', value=2, min=0, max=3.5, vary=False)
+        params.add('reffrac', value=1.0, min=0.1, max=10., vary=False)
+        params.add('gamma', value=2.0, min=1.7, max=3.5, vary=False)
+        params.add('logxi', value=2, min=0, max=4.7, vary=False)
         params.add('A_Fe', value=2, min=0, max=10, vary=False)
         params.add('incl', value=30, min=self.response.incl.min(), max=self.response.incl.max(), vary=False)
 
