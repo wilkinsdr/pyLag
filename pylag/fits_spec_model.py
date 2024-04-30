@@ -88,11 +88,16 @@ class FITSSpecModel(object):
         self.en_low = en_bins.bin_start
         self.en_high = en_bins.bin_end
 
+        # need to reinitialise the interpolator after rebinning
+        if self.interpolator is not None:
+            self.init_interpolator()
+
     def init_interpolator(self):
         from scipy.interpolate import RegularGridInterpolator
 
         spec_array = np.array(self.spectra)
-        spec_array = spec_array.reshape(13, 4, 15, 11, 10, 2999)
+        dim = list(self.param_num_vals) + [len(self.energy)]
+        spec_array = spec_array.reshape(*dim)
 
         vals = [np.trim_zeros(a, 'b') for a in self.param_tab_vals]
         self.interpolator = RegularGridInterpolator(tuple(vals), spec_array)
