@@ -1022,7 +1022,7 @@ class ENTResponse(object):
 
 
 class ENTResponseSet(object):
-    def __init__(self, response_file):
+    def __init__(self, response_file, interp=False):
         try:
             import h5py
         except ModuleNotFoundError:
@@ -1040,17 +1040,38 @@ class ENTResponseSet(object):
             Nt = hdf['responses'].attrs['Nt']
             self.time = t0 + dt * np.arange(0, Nt, 1)
 
-            self.heights = np.array(hdf['heights'])
+            self.spin = np.array(hdf['spin'])
             self.incl = np.array(hdf['incl'])
+            self.heights = np.array(hdf['heights'])
             self.tstart = np.array(hdf['tstart'])
             self.responses = np.array(hdf['responses'])
 
-    def get_response(self, incl, h):
-        i_num = np.argmin(np.abs(self.incl - incl))
-        h_num = np.argmin(np.abs(self.heights - h))
+        self.ent_interpolator = None
+        self.tstart_interpolator = None
+        if interp:
+            self.init_interpolator()
 
-        return ENTResponse(en_bins=self.en_bins, t=self.time, ent=self.responses[i_num, h_num],
-                           logbin_en=self.logbin_en, tstart=self.tstart[i_num, h_num])
+    def init_interpolator(self):
+        from scipy.interpolate import RegularGridInterpolator
+
+        vals = [np.trim_zeros(a, 'b') for a in (self.spin, self.incl, self.heights)]
+        self.ent_interpolator = RegularGridInterpolator(tuple(vals), self.responses)
+        self.tstart_interpolator = RegularGridInterpolator(tuple(vals), self.tstart)
+
+    def get_response(self, spin, incl, h):
+        if self.ent_interpolator is not None:
+            ent = self.ent_interpolator([spin, incl, h])[0]
+            tstart = self.tstart_interpolator([spin, incl, h])[0]
+            return ENTResponse(en_bins=self.en_bins, t=self.time, ent=ent,
+                               logbin_en=self.logbin_en, tstart=tstart)
+
+        else:
+            spin_num = np.argmin(np.abs(self.spin - spin))
+            incl_num = np.argmin(np.abs(self.incl - incl))
+            h_num = np.argmin(np.abs(self.heights - h))
+
+            return ENTResponse(en_bins=self.en_bins, t=self.time, ent=self.responses[spin_num, incl_num, h_num],
+                               logbin_en=self.logbin_en, tstart=self.tstart[spin_num, incl_num, h_num])
 
 
 class RadiusENTResponse(object):
