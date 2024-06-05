@@ -298,7 +298,8 @@ class ENTResponse(object):
         """
         ti = self.t_index(tcont, from_start)
 
-        cont = self.en_bins.bin_cent ** -gamma
+        # the power law continuum, factoring in variable-width energy bins (i.e. logarithmically spaced)
+        cont = self.en_bins.bin_cent ** -gamma * (self.en_bins.bin_end - self.en_bins.bin_start)
 
         cont_ent = np.zeros(self.ent.shape)
         cont_ent[:, ti] = np.sum(self.ent) * cont / (ref_frac * np.sum(cont))
