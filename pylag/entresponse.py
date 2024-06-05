@@ -23,6 +23,7 @@ from scipy.stats import binned_statistic
 
 from .binning import *
 from .plotter import Spectrum
+from .fits_spec_model import FITSSpecModel
 
 from .math_functions import *
 
@@ -892,7 +893,12 @@ class ENTResponse(object):
         ents : ENTResponse
                pyLag SimEnergyLCList object, containing the full spectral (i.e. the convolved) response.
         """
-        spec = spectrum.spectrum(**kwargs)
+        if isinstance(spectrum, FITSSpecModel):
+            spec = spectrum.spectrum(**kwargs)
+        elif isinstance(spectrum, Spectrum):
+            spec = spectrum
+        else:
+            raise ValueError("spectrum must either be a FITSSpecModel or Spectrum object")
 
         if binspec is not None:
             spec = Spectrum(binspec.bin_cent, binspec.bin(spec.en, spec.spec))
