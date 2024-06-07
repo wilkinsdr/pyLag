@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.stats import binned_statistic
 
 class TBabs(object):
     def __init__(self, enmin=0.1, enmax=100, Nen=1000):
