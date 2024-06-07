@@ -43,7 +43,7 @@ class XspecModel(object):
             par = getattr(component, par_name)
             par.values = v
 
-            spec = self.model.values(0) / self.en_width
+        spec = self.model.values(0) / self.en_width
 
         if norm_spec:
             spec /= np.sum(spec)
