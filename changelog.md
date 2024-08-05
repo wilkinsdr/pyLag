@@ -1,3 +1,8 @@
+## Version 2.3 (August 2024)
+- XspecModel class for incorporating Xspec spectral models into timing simulations
+- Functionality to check and extract simultaneous light curve segments in EnergyLCList
+- Enhancements to Gaussian process classes
+
 ## Version 2.2 (May 2024)
 - MultiPlot class to create figures with multiple panels
 - Reverberation model to compute and fit lag spectra and other timing products from realistic GR ray tracing simulations

@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='pylag',
-    version='2.2',
+    version='2.3',
     license='MIT',
     author='Dan Wilkins',
     author_email='dan.wilkins@stanford.edu',
