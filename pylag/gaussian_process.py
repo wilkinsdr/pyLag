@@ -505,8 +505,8 @@ class GPLagEnergySpectrum(LagEnergySpectrum):
             sample_t = np.arange(start, end, np.min(np.diff(self.gplclist.lclist[0].time)))
 
         for n in range(n_samples):
-            if n % int(n_samples/10) == 0:
-                print('Sample %d/%d' % (n, n_samples))
+            if n_samples > 10 and n % int(n_samples/10) == 0:
+                printmsg(1, 'Sample %d/%d' % (n, n_samples))
             try:
                 sample_lclist = self.gplclist.sample(t=sample_t, n_samples=1, sample_posterior=sample_posterior)
 
