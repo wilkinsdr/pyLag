@@ -473,7 +473,14 @@ class GPLagEnergySpectrum(LagEnergySpectrum):
             self.lag, self.error = self.calculate_batch(fmin, fmax, n_samples, refband, save_samples, sample_posterior=sample_posterior)
 
     def calculate_batch(self, fmin, fmax, n_samples=10, refband=None, save_samples=False, sample_posterior=False):
-        sample_lclists = self.gplclist.sample(t=None, n_samples=n_samples, sample_posterior=sample_posterior)
+        sample_t = None
+        # get the maximal time interval that overlaps all of the light curves
+        if isinstance(self.gplclist.lclist, GPLightCurve):
+            start = max([l.time.min() for l in self.lclist])
+            end = min([l.time.max() for l in self.lclist])
+            sample_t = np.arange(start, end, np.min(np.diff(self.gplclist.lclist[0].time)))
+
+        sample_lclists = self.gplclist.sample(t=sample_t, n_samples=n_samples, sample_posterior=sample_posterior)
         if not isinstance(sample_lclists, list):
             sample_lclists = [sample_lclists]
 
@@ -489,11 +496,20 @@ class GPLagEnergySpectrum(LagEnergySpectrum):
 
     def calculate_seq(self, fmin, fmax, n_samples=10, refband=None, save_samples=False, sample_posterior=False):
         lag = []
+
+        sample_t = None
+        # get the maximal time interval that overlaps all of the light curves
+        if isinstance(self.gplclist.lclist, GPLightCurve):
+            start = max([l.time.min() for l in self.lclist])
+            end = min([l.time.max() for l in self.lclist])
+            sample_t = np.arange(start, end, np.min(np.diff(self.gplclist.lclist[0].time)))
+
         for n in range(n_samples):
             if n % int(n_samples/10) == 0:
                 print('Sample %d/%d' % (n, n_samples))
             try:
-                sample_lclist = self.gplclist.sample(t=None, n_samples=1, sample_posterior=sample_posterior)
+                sample_lclist = self.gplclist.sample(t=sample_t, n_samples=1, sample_posterior=sample_posterior)
+
             except:
                 continue
             lag.append(LagEnergySpectrum(fmin, fmax, sample_lclist, refband=refband, calc_error=False).lag)
