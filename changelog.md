@@ -1,3 +1,6 @@
+## Version 2.3.1 (August 2024)
+- Bugfixes
+
 ## Version 2.3 (August 2024)
 - XspecModel class for incorporating Xspec spectral models into timing simulations
 - Functionality to check and extract simultaneous light curve segments in EnergyLCList
