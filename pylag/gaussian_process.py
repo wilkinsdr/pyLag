@@ -500,8 +500,8 @@ class GPLagEnergySpectrum(LagEnergySpectrum):
         sample_t = None
         # get the maximal time interval that overlaps all of the light curves
         if isinstance(self.gplclist.lclist[0], GPLightCurve):
-            start = max([l.time.min() for l in self.lclist])
-            end = min([l.time.max() for l in self.lclist])
+            start = max([l.time.min() for l in self.gplclist.lclist])
+            end = min([l.time.max() for l in self.gplclist.lclist])
             sample_t = np.arange(start, end, np.min(np.diff(self.gplclist.lclist[0].time)))
 
         for n in range(n_samples):

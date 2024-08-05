@@ -1,4 +1,4 @@
-## Version 2.3.1 (August 2024)
+## Version 2.3.1 and 2.3.2 (August 2024)
 - Bugfixes
 
 ## Version 2.3 (August 2024)
