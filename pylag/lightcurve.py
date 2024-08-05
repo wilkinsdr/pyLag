@@ -1876,6 +1876,67 @@ class EnergyLCList(object):
 
         return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
 
+    def check_simultaneous(self):
+        """
+        new_lclist = pylag.EnergyLCList.check_simultaneous()
+
+        Returns True if light curves from each segment are simultaneous, with the same number of time bins
+        """
+        if isinstance(self.lclist[0], list):
+            start = []
+            end = []
+            bins = []
+            for seg in range(len(self.lclist[0])):
+                start.append(np.array([en_lclist[seg].time.min() for en_lclist in self.lclist]))
+                end.append(np.array([en_lclist[seg].time.max() for en_lclist in self.lclist]))
+                bins.append(np.array([len(en_lclist[seg].rate) for en_lclist in self.lclist]))
+
+            # per segment, check if all the energy bands line up
+            start_equal = [np.all(s == s[0]) for s in start]
+            end_equal = [np.all(e == e[0]) for e in end]
+            bins_equal = [np.all(b == b[0]) for b in bins]
+
+            return np.all(start_equal) and np.all(end_equal) and np.all(bins_equal)
+
+        elif isinstance(self.lclist[0], LightCurve):
+            start = np.array([l.time.min() for l in self.lclist])
+            end = np.array([l.time.max() for l in self.lclist])
+            bins = np.array([len(l.rate) for l in self.lclist])
+            return np.all(start == start[0]) and np.all(end == end[0]) and np.all(bins == bins[0])
+
+
+    def extract_simultaneous(self):
+        """
+        new_lclist = pylag.EnergyLCList.extract_simultaneous()
+
+        Returns a new EnergyLCList containing the simultaneous segments of the original light curves
+        """
+        new_lclist = []
+
+        if isinstance(self.lclist[0], list):
+            start = []
+            end = []
+            bins = []
+            for seg in range(len(self.lclist[0])):
+                start.append(max([en_lclist[seg].time.min() for en_lclist in self.lclist]))
+                end.append(min([en_lclist[seg].time.max() for en_lclist in self.lclist]))
+
+            for en_lclist in self.lclist:
+                new_lclist.append([])
+                for lc, s, e, b in zip(en_lclist, start, end, bins):
+                    lcseg = lc.time_segment(s, e)
+                    new_lclist[-1].append(lcseg)
+
+        elif isinstance(self.lclist[0], LightCurve):
+            start = max([l.time.min() for l in self.lclist])
+            end = min([l.time.max() for l in self.lclist])
+            for lc in self.lclist:
+                lcseg = lc.time_segment(start, end)
+                new_lclist.append(lcseg)
+
+        return EnergyLCList(enmin=self.enmin, enmax=self.enmax, lclist=new_lclist)
+
+
     def split_on_gaps(self, min_segment=0):
         """
         new_lclist = pylag.extract_lclist_time_segment(lclist, tstart, tend)
