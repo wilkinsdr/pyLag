@@ -114,8 +114,9 @@ class MLFit(object):
         self.params = self.get_params()
 
         self.fit_result = None
+        self.param_error = None
 
-        self.mcmc_minimizer = None
+        self.mcmc_sampler = None
         self.mcmc_result = None
 
     def log_likelihood(self, params, eval_gradient=True):
@@ -277,12 +278,16 @@ class MLFit(object):
             hess = self.fit_result.hess_inv(self.fit_result.x) if callable(self.fit_result.hess_inv) else np.diag(self.fit_result.hess_inv)
 
             # make sure we only get the finite parameter errors
-            self.param_error = np.zeros(len(self.params))
-            self.param_error[hess>0] =  hess[hess>0] ** 0.5
+            self.param_error = {}
+            for p, h in zip([p for p in self.params if self.params[p].vary], hess):
+                self.param_error[p] = h**0.5 if h > 0 else 0
 
-            self.process_fit_results(self.fit_result, self.params)
+            self.calculate_from_params(self.params, self.param_error)
 
-    def run_mcmc(self, init_params=None, burn=300, steps=1000, thin=1, walkers=50, **kwargs):
+    def calculate_from_params(self, params, param_error):
+        raise NotImplementedError()
+
+    def run_mcmc(self, burn=300, steps=1000, thin=1, walkers=50, start_pos=None, init_params=None, scatter=None, continue_chain=False, parallel=0, bounds=True, **kwargs):
         """
         pylag.mlfit.MLFit.run_mcmc(init_params=None, burn=300, steps=1000, thin=1, walkers=50, **kwargs)
 
@@ -300,21 +305,92 @@ class MLFit(object):
         free parameters
         :param kwargs: passed to lmfit.Minimizer.emcee()
         """
+        try:
+            import emcee
+        except ImportError:
+            raise ImportError("run_mcmc requires package emcee to be installed")
+
+        pool = None
+        if parallel > 0:
+            try:
+                import multiprocessing
+            except ImportError:
+                raise ImportError("Parallel processing requires package multiprocessing to be installed")
+            pool = multiprocessing.Pool(processes=parallel)
+
         if init_params is None:
             init_params = self.params
+        npar = len([p for p in init_params if init_params[p].vary])
+
+        if continue_chain:
+            start_pos = None
+        elif start_pos is None:
+            start_val = param2array(init_params, variable_only=True)
+            if scatter is None:
+                # if not specified, scatter the walkers according to the uncertainties estimated from the covariance matrix
+                # (requires fit to have been performed)
+                hess = self.fit_result.hess_inv(self.fit_result.x) if callable(self.fit_result.hess_inv) else np.diag(
+                    self.fit_result.hess_inv)
+            elif isinstance(scatter, float):
+                scatter = scatter * start_val
+            # draw the starting positions of the walkers from a Gaussian centred at the starting position
+            start_pos = np.array([start_val] * walkers) + np.array([scatter] * walkers) * np.random.randn(walkers, npar)
+
+        param_min = [init_params[p].min for p in init_params if init_params[p].vary]
+        param_max = [init_params[p].min for p in init_params if init_params[p].vary]
+
+        def objective(par_arr):
+            """
+            wrapper around log_likelihood method to evaluate for an array of just the variable parameters,
+            which can be used directly with scipy.optimise methods.
+            """
+            if bounds:
+                if np.any(par_arr < param_min) or np.any(par_arr > param_max):
+                    return -np.inf
+
+            fit_params = copy.copy(init_params)
+            for par, value in zip([p for p in init_params if init_params[p].vary], par_arr):
+                fit_params[par].value = value
+
+            return self.log_likelihood(fit_params, eval_gradient=False)
 
         # we initialise a Minimizer object, but only if there isn't one already, so we can
-        if self.mcmc_minimizer is None:
-            self.mcmc_minimizer = lmfit.Minimizer(lambda p: self.log_likelihood(p, eval_gradient=False), params=init_params,
-                                                  nan_policy='propagate')
+        if self.mcmc_sampler is None:
+            self.mcmc_sampler = emcee.EnsembleSampler(walkers, npar, objective, pool=pool)
 
-        self.mcmc_result = self.mcmc_minimizer.emcee(init_params, burn=burn, steps=steps, thin=thin, nwalkers=walkers, **kwargs)
+        if burn > 0:
+            self.mcmc_sampler.run_mcmc(start_pos, burn, store=False, **kwargs)
+            start_pos = None
+        self.mcmc_result = self.mcmc_sampler.run_mcmc(start_pos, steps, **kwargs)
 
-    def process_mcmc(self, mcmc_result):
-        maxprob = np.argmax(mcmc_result.lnprob)
-        for p in self.params:
-            self.params[p].value = mcmc_result.flatchain[p][maxprob]
-        self.param_error = np.array([np.percentile(mcmc_result.flatchain[p], [15.9, 84.1]) for p in self.params])
+    def save_chain(self, filename):
+        if self.mcmc_sampler is None:
+            raise AssertionError('Chain does not seem to have been run')
+        np.savez(filename, chain=self.mcmc_sampler.flatchain, lnprob=self.mcmc_sampler.flatlnprobability)
+
+    def get_params_from_chain(self, chain=None, lnprob=None, best='maxprob', error='1sigma'):
+        if chain is None:
+            chain = self.mcmc_sampler.flatchain
+        if lnprob is None:
+            lnprob = self.mcmc_sampler.flatlnprobability
+
+        if best == 'maxprob':
+            maxprob = np.argmax(lnprob)
+            best_fit = chain[maxprob]
+        elif best == 'median':
+            best_fit = np.median(chain, axis=0)
+        elif best == 'mean':
+            best_fit = np.mean(chain, axis=0)
+
+        for p, v in zip([p for p in self.params if self.params[p].vary], best_fit):
+            self.params[p].value = v
+
+        if error == '1sigma':
+            self.param_error = np.array([np.percentile(chain[:,i], [15.9, 84.1]) for i in range(chain.shape[1])])
+        if error == '90percent':
+            self.param_error = np.array([np.percentile(chain[:,i], [5., 95.]) for i in range(chain.shape[1])])
+        elif error == 'std':
+            self.param_error = np.std(chain, axis=0)
 
     def nested_sample(self, params=None, prior_fn=None, log_dir=None, resume=True, frac_remain=None, step='adaptive', **kwargs):
         try:
@@ -414,8 +490,7 @@ class MLPSD(MLFit):
 
         MLFit.__init__(self, t, y, noise=noise_arr, psdnorm=psdnorm, **kwargs)
 
-        self.psd = self.get_psd()
-        self.psd_error = None
+        self.psd, self.psd_error = self.get_psd()
 
         self.noise_level = (2. / np.mean(r)**2) * np.ones_like(self.fbins.bin_cent)
 
@@ -462,7 +537,7 @@ class MLPSD(MLFit):
             psd_deriv = self.model.eval_gradient(params, self.fbins.bin_cent) * self.psdnorm
             return np.stack([np.sum([c * p for c, p in zip(self.cos_integral, psd_deriv[:, par])], axis=0) for par in range(psd_deriv.shape[-1])], axis=-1)
 
-    def get_psd(self, params=None):
+    def get_psd(self, params=None, param_error=None):
         """
         psd = pylag.mlfit.MLPSD.get_psd(params)
 
@@ -471,18 +546,30 @@ class MLPSD(MLFit):
         :param params: Parameters, optional (default=None): Parameters object containing the parameters from which to
         calculate the power spectrum. If none, will use the current values of the params member variable (which
         will either be the initial values or the results of the last fit).
+        :param param_error: Dictionary, optional (default=None): Dictionary containing the estimated error for each
+        of the model parameters
         
         :return: psd: ndarray: the power spectrum in each frequency bin
         """
         if params is None:
             params = self.params
+        if param_error is None:
+            param_error = self.param_error
 
         if self.model is None:
-            return np.array([self.params[p].value for p in self.params])
+            psd = np.array([self.params[p].value for p in self.params])
+            psd_error = np.array([param_error[p] for p in param_error]) if param_error is not None else None
         else:
-            return np.log(self.model(self.params, self.fbins.bin_cent))
+            psd = np.log(self.model(self.params, self.fbins.bin_cent))
+            # calculate the error on each PSD point from the error on each parameter
+            psd_deriv = self.model.eval_gradient(params, self.fbins.bin_cent)
+            self.psd_error = np.sum([e * psd_deriv[..., i] for i, e in enumerate([param_error[p] for p in param_error])], axis=0) / self.psd  if param_error is not None else None
+            if np.any(np.isnan(self.psd_error)):
+                psd_error = None
 
-    def process_fit_results(self, fit_result, params):
+        return psd, psd_error
+
+    def calculate_from_params(self, params=None, param_error=None):
         """
         pylag.mlfit.MLPSD.process_fit_results(fit_result, params)
 
@@ -492,15 +579,7 @@ class MLPSD(MLFit):
         :param params: Parameters() object containing the best-fitting parameters (including the frozen parameters,
         which are not included in fit_result.x)
         """
-        self.psd = self.get_psd()
-        if self.model is None:
-            self.psd_error = self.param_error
-        else:
-            # calculate the error on each PSD point from the error on each parameter
-            psd_deriv = self.model.eval_gradient(params, self.fbins.bin_cent)
-            self.psd_error = np.sum([e * psd_deriv[..., i] for i, e in enumerate(self.param_error)], axis=0) / self.psd
-            if np.any(np.isnan(self.psd_error)):
-                self.psd_error = None
+        self.psd, self.psd_error = self.get_psd(params, param_error)
 
     def _getplotdata(self):
         x = (self.fbins.bin_cent, self.fbins.x_error())
@@ -787,7 +866,7 @@ class MLCrossSpectrum(MLFit):
 
         return np.stack([np.vstack([np.hstack([ac1[...,p], cc[...,p].T]), np.hstack([cc[...,p], ac2[...,p]])]) for p in range(len(self.params))], axis=-1)
 
-    def get_cpsd(self, params=None):
+    def get_cpsd(self, params=None, param_error=None):
         """
         cpsd = pylag.mlfit.MLCrossSpectrum.get_cpsd(params)
 
@@ -796,18 +875,26 @@ class MLCrossSpectrum(MLFit):
         :param params: Parameters, optional (default=None): Parameters object containing the parameters from which to
         calculate the cross power spectrum. If none, will use the current values of the params member variable (which
         will either be the initial values or the results of the last fit).
+        :param param_error: Dictionary, optional (default=None): Dictionary containing the estimated error for each
+        of the model parameters
 
         :return: cpsd: ndarray: the power spectrum in each frequency bin
         """
         if params is None:
             params = self.params
+        if param_error is None:
+            param_error = self.param_error
 
         if self.cpsd_model is None:
-            return np.array([self.params['%sln_cpsd%01d' % (self.prefix, i)].value for i in range(len(self.fbins))])
+            cpsd = np.array([self.params['%sln_cpsd%01d' % (self.prefix, i)].value for i in range(len(self.fbins))])
+            cpsd_error = np.array([param_error['%sln_cpsd%01d' % (self.prefix, i)] for i in range(len(self.fbins))]) if param_error is not None else None
         else:
-            return np.log(self.cpsd_model(self.params, self.fbins.bin_cent))
+            cpsd = np.log(self.cpsd_model(self.params, self.fbins.bin_cent))
+            cpsd_error = None
 
-    def get_lag(self, params=None, time_lag=True):
+        return cpsd, cpsd_error
+
+    def get_lag(self, params=None, param_error=None, time_lag=True):
         """
         lag = pylag.mlfit.MLCrossSpectrum.get_cpsd(params)
 
@@ -816,6 +903,8 @@ class MLCrossSpectrum(MLFit):
         :param params: Parameters, optional (default=None): Parameters object containing the parameters from which to
         calculate the lags. If none, will use the current values of the params member variable (which
         will either be the initial values or the results of the last fit).
+        :param param_error: Dictionary, optional (default=None): Dictionary containing the estimated error for each
+        of the model parameters
         :param time_lag: bool, optional (default=True): If True, return the time lag (in seconds), otherwise return the
         phase lag (in radians)
 
@@ -823,43 +912,37 @@ class MLCrossSpectrum(MLFit):
         """
         if params is None:
             params = self.params
+        if param_error is None:
+            param_error = self.param_error
 
         if self.lag_model is None:
-            lag = np.array([self.params['%slag%01d' % (self.prefix, i)].value for i in range(len(self.fbins))])
+            lag = np.array([params['%slag%01d' % (self.prefix, i)].value for i in range(len(self.fbins))])
+            lag_error = np.array([param_error['%slag%01d' % (self.prefix, i)] for i in range(len(self.fbins))]) if param_error is not None else None
         else:
             lag = self.lag_model(self.params, self.fbins.bin_cent)
+            lag_error = None
 
-        return lag / (2. * np.pi * self.fbins.bin_cent) if time_lag else lag
+        if time_lag:
+            lag /= (2. * np.pi * self.fbins.bin_cent)
+            lag_error /= (2. * np.pi * self.fbins.bin_cent)
 
-    def process_fit_results(self, fit_result, params):
+        return lag, lag_error
+
+    def calculate_from_params(self, params=None, param_error=None):
         """
         pylag.mlfit.MLCrossSpectrum.process_fit_results(fit_result, params)
 
-        Process a scipy.optimise fit result to calculate the best-fitting cross spectrum, lag spectrum and errors
+        Process the parameters from the fit to calculate the best-fitting cross spectrum, lag spectrum and errors
         from the model.
 
-        :param fit_result: scipy.optimise fit result to be processed
-        :param params: Parameters() object containing the best-fitting parameters (including the frozen parameters,
-        which are not included in fit_result.x)
+        :param params: Parameters, optional (default=None): Parameters object containing the parameters from which to
+        calculate the lags. If none, will use the current values of the params member variable (which
+        will either be the initial values or the results of the last fit).
+        :param param_error: Dictionary, optional (default=None): Dictionary containing the estimated error for each
+        of the model parameters
         """
-        hess = fit_result.hess_inv(fit_result.x) if callable(fit_result.hess_inv) else np.diag(fit_result.hess_inv)
-
-        self.cpsd = self.get_cpsd()
-        if self.cpsd_model is None:
-            self.cpsd_error = hess[:len(self.fbins)] ** 0.5
-        else:
-            return NotImplemented
-            # # calculate the error on each PSD point from the error on each parameter
-            # psd_deriv = self.model.eval_gradient(params, self.fbins.bin_cent)
-            # self.psd_error = np.sum([e * psd_deriv[..., i] for i, e in enumerate(self.param_error)], axis=0) / self.psd
-            # if np.any(np.isnan(self.psd_error)):
-            #     self.psd_error = None
-
-        self.lag = self.get_lag()
-        if self.cpsd_model is None:
-            self.lag_error = hess[len(self.fbins):] ** 0.5 / (2. * np.pi * self.fbins.bin_cent)
-        else:
-            return NotImplemented
+        self.cpsd, self.cpsd_error = self.get_cpsd(params, param_error)
+        self.lag, self.lag_error = self.get_lag(params, param_error, time_lag=True)
 
 
 class StackedMLPSD(MLPSD):
