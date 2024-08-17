@@ -141,6 +141,8 @@ class LightCurve(object):
                 self.time_format = 'cxcsec'
             elif self.telescope == 'NuSTAR':
                 self.time_format = 'nustarsec'
+            elif self.telescope == 'XRISM':
+                self.time_format = 'xrismsec'
 
         if len(self.time) > 1:
             self.dt = self.time[1] - self.time[0]

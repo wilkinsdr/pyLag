@@ -41,3 +41,14 @@ class TimeNicerSec(astropy.time.TimeFromEpoch):
     epoch_val2 = None
     epoch_scale = "tt"
     epoch_format = "iso"
+
+class TimeXrismSec(astropy.time.TimeFromEpoch):
+    """
+    NuSTAR seconds from 2010-01-01 00:00:00 TT.
+    """
+    name = "xrismsec"
+    unit = 1.0 / erfa.DAYSEC  # in days (1 day == 86400 seconds)
+    epoch_val = "2019-01-01 00:00:00"
+    epoch_val2 = None
+    epoch_scale = "tt"
+    epoch_format = "iso"
