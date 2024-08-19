@@ -1,3 +1,7 @@
+## Version 2.4 (August 2024)
+- MCMC for maximum likelihood fitting of power and cross spectra reimplemented using Emcee
+- Support for XRISM time conversion
+
 ## Version 2.3.1 and 2.3.2 (August 2024)
 - Bugfixes
 
