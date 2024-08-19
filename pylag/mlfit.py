@@ -117,6 +117,7 @@ class MLFit(object):
         self.param_error = None
 
         self.mcmc_sampler = None
+        self.emcee_backend = None
         self.mcmc_result = None
 
     def log_likelihood(self, params, eval_gradient=True):
@@ -285,9 +286,14 @@ class MLFit(object):
             self.calculate_from_params(self.params, self.param_error)
 
     def calculate_from_params(self, params, param_error):
-        raise NotImplementedError()
+        """
+        This is a placeholder function that meant to be overridden by derived classes,
+        and is run automatically after processing fit or chain parameters to calculate
+        the power spectrum and lag values specific to each derived class.
+        """
+        pass
 
-    def run_mcmc(self, burn=300, steps=1000, thin=1, walkers=50, start_pos=None, init_params=None, scatter=None, continue_chain=False, parallel=0, bounds=True, **kwargs):
+    def run_mcmc(self, burn=300, steps=1000, thin=1, walkers=50, chain_file=None, start_pos=None, init_params=None, scatter=None, continue_chain=False, parallel=0, bounds=True, **kwargs):
         """
         pylag.mlfit.MLFit.run_mcmc(init_params=None, burn=300, steps=1000, thin=1, walkers=50, **kwargs)
 
@@ -318,33 +324,13 @@ class MLFit(object):
                 raise ImportError("Parallel processing requires package multiprocessing to be installed")
             pool = multiprocessing.Pool(processes=parallel)
 
-        if init_params is None:
-            init_params = self.params
-        npar = len([p for p in init_params if init_params[p].vary])
-
-        if continue_chain:
-            start_pos = None
-        elif start_pos is None:
-            start_val = param2array(init_params, variable_only=True)
-            if scatter is None:
-                # if not specified, scatter the walkers according to the uncertainties estimated from the covariance matrix
-                # (requires fit to have been performed)
-                hess = self.fit_result.hess_inv(self.fit_result.x) if callable(self.fit_result.hess_inv) else np.diag(
-                    self.fit_result.hess_inv)
-            elif isinstance(scatter, float):
-                scatter = scatter * start_val
-            # draw the starting positions of the walkers from a Gaussian centred at the starting position
-            start_pos = np.array([start_val] * walkers) + np.array([scatter] * walkers) * np.random.randn(walkers, npar)
-
-        param_min = [init_params[p].min for p in init_params if init_params[p].vary]
-        param_max = [init_params[p].min for p in init_params if init_params[p].vary]
-
         def objective(par_arr):
             """
             wrapper around log_likelihood method to evaluate for an array of just the variable parameters,
             which can be used directly with scipy.optimise methods.
             """
             if bounds:
+                # zero probability outside hard parameter limits
                 if np.any(par_arr < param_min) or np.any(par_arr > param_max):
                     return -np.inf
 
@@ -355,24 +341,68 @@ class MLFit(object):
             return self.log_likelihood(fit_params, eval_gradient=False)
 
         # we initialise a Minimizer object, but only if there isn't one already, so we can
+        self.emcee_backend = emcee.backends.HDFBackend(chain_file) if chain_file is not None else None
         if self.mcmc_sampler is None:
-            self.mcmc_sampler = emcee.EnsembleSampler(walkers, npar, objective, pool=pool)
+            self.mcmc_sampler = emcee.EnsembleSampler(walkers, npar, objective, pool=pool, backend=self.emcee_backend)
 
-        if burn > 0:
+        if self.mcmc_sanpler.iteration >= steps:
+            printmsg(1, "Chain has already run %d steps" % steps)
+            self.get_params_from_chain()
+            return
+
+        # if no parameters are provided, assume we want to start at the current fit
+        if init_params is None:
+            init_params = self.params
+        npar = len([p for p in init_params if init_params[p].vary])
+
+        start_pos = None
+        # note we only actually specify a start position if the chain has not yet been run
+        # otherwise we set the start position to None to pick up where the chain left off
+        if self.mcmc_sampler.iteration == 0:
+            if proposal is not None:
+                start_pos = proposal
+            else:
+                start_val = param2array(init_params, variable_only=True)
+                if scatter is None:
+                    # if not specified, scatter the parameters based on the estimated uncertainty from the last fit
+                    # (by default, this is estimated from the Hessian/Fisher matrix)
+                    scatter = np.array([self.param_error[p] for p in self.param_error])
+                elif isinstance(scatter, float):
+                    # if a single float is provided, assume this is the fractional uncertainty on all parameters
+                    scatter = scatter * start_val
+                # draw the starting positions of the walkers from a Gaussian centred at the starting position
+                start_pos = np.array([start_val] * walkers) + np.array([scatter] * walkers) * np.random.randn(walkers, npar)
+        else:
+            printmsg(1, "Chain has already run some steps, continuing")
+
+        param_min = [init_params[p].min for p in init_params if init_params[p].vary]
+        param_max = [init_params[p].max for p in init_params if init_params[p].vary]
+
+        if burn > 0 and self.mcmc_sampler.iteration == 0:
+            printmsg(1, "Burning chain in for %d steps..." % burn)
             self.mcmc_sampler.run_mcmc(start_pos, burn, store=False, **kwargs)
-            start_pos = None
-        self.mcmc_result = self.mcmc_sampler.run_mcmc(start_pos, steps, **kwargs)
+            start_pos = None    # now set start_pos to None so the chain picks up from the end of the burn-in
+
+        printmsg(1, "Running chain for %d steps..." % (steps - self.mcmc_sampler.iteration))
+        self.mcmc_result = self.mcmc_sampler.run_mcmc(start_pos, steps - self.mcmc_sampler.iteration, store=True, **kwargs)
+
+        self.get_params_from_chain()
 
     def save_chain(self, filename):
         if self.mcmc_sampler is None:
             raise AssertionError('Chain does not seem to have been run')
         np.savez(filename, chain=self.mcmc_sampler.flatchain, lnprob=self.mcmc_sampler.flatlnprobability)
 
-    def get_params_from_chain(self, chain=None, lnprob=None, best='maxprob', error='1sigma'):
-        if chain is None:
-            chain = self.mcmc_sampler.flatchain
-        if lnprob is None:
-            lnprob = self.mcmc_sampler.flatlnprobability
+    def get_params_from_chain(self, chain_file=None, chain=None, lnprob=None, best='maxprob', error='1sigma'):
+        if chain_file is not None:
+            emcee_backend = emcee.backends.HDFBackend(chain_file)
+            chain = emcee_backend.get_chain(flat=True)
+            lnprob = emcee_backend.get_log_prob(flat=True)
+        else:
+            if chain is None:
+                chain = self.mcmc_sampler.flatchain
+            if lnprob is None:
+                lnprob = self.mcmc_sampler.flatlnprobability
 
         if best == 'maxprob':
             maxprob = np.argmax(lnprob)
@@ -391,6 +421,8 @@ class MLFit(object):
             self.param_error = np.array([np.percentile(chain[:,i], [5., 95.]) for i in range(chain.shape[1])])
         elif error == 'std':
             self.param_error = np.std(chain, axis=0)
+
+        self.calculate_from_params(self.params, self.param_error)
 
     def nested_sample(self, params=None, prior_fn=None, log_dir=None, resume=True, frac_remain=None, step='adaptive', **kwargs):
         try:
