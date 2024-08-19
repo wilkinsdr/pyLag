@@ -272,18 +272,34 @@ class MLFit(object):
         self.fit_result = self._dofit(init_params, **kwargs)
         print(self.fit_result)
 
-        if True or self.fit_result.success and update_params:
-            for par, value in zip([p for p in init_params if init_params[p].vary], self.fit_result.x):
-                self.params[par].value = value
+        if update_params:
+            self.get_params_from_fit(self.fit_result, init_params)
 
-            hess = self.fit_result.hess_inv(self.fit_result.x) if callable(self.fit_result.hess_inv) else np.diag(self.fit_result.hess_inv)
+    def get_params_from_fit(self, fit_result=None, params=None):
+        """
+        Extract the parameter values and uncertainties from the minimizer result object returned by the fit
 
-            # make sure we only get the finite parameter errors
-            self.param_error = {}
-            for p, h in zip([p for p in self.params if self.params[p].vary], hess):
-                self.param_error[p] = h**0.5 if h > 0 else 0
+        :param fit_result: optional, default=None: the fit result object to extract parameters from. If None, use the
+        last fit result stored in the member variable fit_result.
+        :param params: optional, default=None: the initial set of parameters used for the fit, used to get the variable
+        parameters. If None, use the default parameters.
+        """
+        if fit_result is None:
+            fit_result = self.fit_result
+        if params is None:
+            params = self.params
 
-            self.calculate_from_params(self.params, self.param_error)
+        for par, value in zip([p for p in params if params[p].vary], fit_result.x):
+            self.params[par].value = value
+
+        hess = fit_result.hess_inv(fit_result.x) if callable(fit_result.hess_inv) else np.diag(fit_result.hess_inv)
+
+        # make sure we only get the finite parameter errors
+        self.param_error = {}
+        for p, h in zip([p for p in params if params[p].vary], hess):
+            self.param_error[p] = h**0.5 if h > 0 else 0
+
+        self.calculate_from_params(self.params, self.param_error)
 
     def calculate_from_params(self, params, param_error):
         """
@@ -293,12 +309,18 @@ class MLFit(object):
         """
         pass
 
-    def run_mcmc(self, burn=300, steps=1000, thin=1, walkers=50, chain_file=None, start_pos=None, init_params=None, scatter=None, continue_chain=False, parallel=0, bounds=True, **kwargs):
+    def run_mcmc(self, burn=300, steps=1000, thin=1, walkers=50, chain_file=None, proposal=None, init_params=None, scatter=None, parallel=0, bounds=True, **kwargs):
         """
         pylag.mlfit.MLFit.run_mcmc(init_params=None, burn=300, steps=1000, thin=1, walkers=50, **kwargs)
 
         Run MCMC to obtain the posterior distributions of the model parameters. MCMC calculation is run using the
-        Goodman-Weare algorithm, via emcee, called via lmfit's Minimzer class.
+        Goodman-Weare algorithm, via emcee.
+
+        By default, the starting positions of the walkers are drawn from Gaussian distributions, centred at the best-fitting
+        value of each parameter and with width corresponding to the estimated uncertainties (which are, by default, calculated
+        from the inverse of the Hessian/Fisher matrix). Alternatively, the start position of each walker can be specified
+        using the proposal argument, or the centroid/scatter of each can be specified using the init_params and scatter
+        arguments.
 
         :param init_params: Parameters, optional (default=None): location in parameter space about which to start the
         chains. If none, will use the params member variable, which will either contain the initial values or the results
@@ -324,6 +346,14 @@ class MLFit(object):
                 raise ImportError("Parallel processing requires package multiprocessing to be installed")
             pool = multiprocessing.Pool(processes=parallel)
 
+        # if no parameters are provided, assume we want to start at the current fit
+        if init_params is None:
+            init_params = self.params
+        npar = len([p for p in init_params if init_params[p].vary])
+
+        param_min = [init_params[p].min for p in init_params if init_params[p].vary]
+        param_max = [init_params[p].max for p in init_params if init_params[p].vary]
+
         def objective(par_arr):
             """
             wrapper around log_likelihood method to evaluate for an array of just the variable parameters,
@@ -345,15 +375,10 @@ class MLFit(object):
         if self.mcmc_sampler is None:
             self.mcmc_sampler = emcee.EnsembleSampler(walkers, npar, objective, pool=pool, backend=self.emcee_backend)
 
-        if self.mcmc_sanpler.iteration >= steps:
+        if self.mcmc_sampler.iteration >= steps:
             printmsg(1, "Chain has already run %d steps" % steps)
             self.get_params_from_chain()
             return
-
-        # if no parameters are provided, assume we want to start at the current fit
-        if init_params is None:
-            init_params = self.params
-        npar = len([p for p in init_params if init_params[p].vary])
 
         start_pos = None
         # note we only actually specify a start position if the chain has not yet been run
@@ -374,9 +399,6 @@ class MLFit(object):
                 start_pos = np.array([start_val] * walkers) + np.array([scatter] * walkers) * np.random.randn(walkers, npar)
         else:
             printmsg(1, "Chain has already run some steps, continuing")
-
-        param_min = [init_params[p].min for p in init_params if init_params[p].vary]
-        param_max = [init_params[p].max for p in init_params if init_params[p].vary]
 
         if burn > 0 and self.mcmc_sampler.iteration == 0:
             printmsg(1, "Burning chain in for %d steps..." % burn)
@@ -416,11 +438,15 @@ class MLFit(object):
             self.params[p].value = v
 
         if error == '1sigma':
-            self.param_error = np.array([np.percentile(chain[:,i], [15.9, 84.1]) for i in range(chain.shape[1])])
+            param_error_arr = np.array([np.percentile(chain[:,i], [15.9, 84.1]) for i in range(chain.shape[1])])
         if error == '90percent':
-            self.param_error = np.array([np.percentile(chain[:,i], [5., 95.]) for i in range(chain.shape[1])])
+            param_error_arr = np.array([np.percentile(chain[:,i], [5., 95.]) for i in range(chain.shape[1])])
         elif error == 'std':
-            self.param_error = np.std(chain, axis=0)
+            param_error_arr = np.std(chain, axis=0)
+
+        self.param_error = {}
+        for p, v, e in zip([p for p in self.params if self.params[p].vary], best_fit, param_error_arr):
+            self.param_error[p] = [v - e[0], e[1] - v] if isinstance(e, np.ndarray) else e
 
         self.calculate_from_params(self.params, self.param_error)
 
@@ -918,13 +944,13 @@ class MLCrossSpectrum(MLFit):
             param_error = self.param_error
 
         if self.cpsd_model is None:
-            cpsd = np.array([self.params['%sln_cpsd%01d' % (self.prefix, i)].value for i in range(len(self.fbins))])
+            cpsd = np.array([params['%sln_cpsd%01d' % (self.prefix, i)].value for i in range(len(self.fbins))])
             cpsd_error = np.array([param_error['%sln_cpsd%01d' % (self.prefix, i)] for i in range(len(self.fbins))]) if param_error is not None else None
         else:
             cpsd = np.log(self.cpsd_model(self.params, self.fbins.bin_cent))
             cpsd_error = None
 
-        return cpsd, cpsd_error
+        return cpsd, cpsd_error.T
 
     def get_lag(self, params=None, param_error=None, time_lag=True):
         """
@@ -956,9 +982,12 @@ class MLCrossSpectrum(MLFit):
 
         if time_lag:
             lag /= (2. * np.pi * self.fbins.bin_cent)
-            lag_error /= (2. * np.pi * self.fbins.bin_cent)
+            if lag_error.ndim == 1:
+                lag_error /= (2. * np.pi * self.fbins.bin_cent)
+            else:
+                lag_error /= (2. * np.pi * np.vstack([self.fbins.bin_cent, self.fbins.bin_cent]).T)
 
-        return lag, lag_error
+        return lag, lag_error.T
 
     def calculate_from_params(self, params=None, param_error=None):
         """
@@ -976,6 +1005,80 @@ class MLCrossSpectrum(MLFit):
         self.cpsd, self.cpsd_error = self.get_cpsd(params, param_error)
         self.lag, self.lag_error = self.get_lag(params, param_error, time_lag=True)
 
+    def chain_proposal_uniform_lag(self, walkers=50):
+        """
+        proposal = pylag.mlfit.MLCrossSpectrum.chain_proposal_uniform_lag(walkers)
+
+        Generate a proposal for the starting position of the chain in which the cross power spectra are drawn from
+        Gaussian distributions centred around the best fit, and phase lags are drawn from a uniform distribution,
+        such that the chain samples the full lag parameter space.
+
+        The output of this function should be passed to the proposal argument of MLFit.run_mcmc().
+
+        :param walkers: int: the number of walkers ot be used in the chain
+        :return: proposal: ndarray: array containing the starting position of each walker, which can be passed to
+        emcee.EnsembleSampler.run_mcmc().
+        """
+        if self.cpsd_model is not None or self.lag_model is not None:
+            raise ValueError("This chain proposal is for the binned cross spectrum only, and cpsd_model and/or lag_model are specified")
+
+        if self.param_error is None:
+            raise AssertionError("Fit has not been run. Please run fit to estimate uncertainty on cross spectrum.")
+
+        cpsd = np.array([self.params['%sln_cpsd%01d' % (self.prefix, i)].value for i in range(len(self.fbins))])
+        cpsd_error = np.array([self.param_error['%sln_cpsd%01d' % (self.prefix, i)] for i in range(len(self.fbins))])
+
+        proposal = np.vstack([np.concatenate([cpsd + cpsd_error*np.random.randn(len(cpsd)),
+                                              -np.pi + 2.*np.pi*np.random.rand(len(cpsd))])] * walkers)
+
+        return proposal
+
+    def save_fit(self, filename):
+        """
+        Save the fit parameters and errors to an npz file so that the state can be reloaded
+
+        :param filename: str: filename to write to
+        """
+        param_array = np.array([self.params[p].value for p in self.params])
+        param_error_array = np.array([self.param_error[p] for p in self.param_error])
+        mlpsd1_param_array = np.array([self.mlpsd1.params[p].value for p in self.mlpsd1.params])
+        mlpsd2_param_array = np.array([self.mlpsd2.params[p].value for p in self.mlpsd2.params])
+
+        np.savez(filename, params=param_array, param_error=param_error_array, mlpsd1_params=mlpsd1_param_array, mlpsd2_params=mlpsd2_param_array)
+
+    def load_fit(self, filename):
+        """
+        Load the fit parameters and errors to an npz file. Note that the object needs to be initialised with the same
+        light curves and model specification. In addition to loading the fit parameters, this function will load the
+        parameters for the individual power spectra and recalculate the autocovariance matrices.
+
+        :param filename: str: filename to write to
+        """
+        npz = np.load(filename)
+
+        if len(npz['params']) != len(self.params):
+            raise AssertionError("Number of parameters in file does not match number of free parameters in model. Was"
+                                 "this fit saved for the same fit configuration used here?!")
+
+        for p, v in zip(self.params, npz['params']):
+            self.params[p].value = v
+
+        try:
+            self.param_error = {}
+            for p, e in zip([par for par in self.params if self.params[par].vary], npz['param_error']):
+                self.param_error[p] = e
+        except:
+            self.param_error = None
+
+        for p, v in zip(self.mlpsd1.params, npz['mlpsd1_params']):
+            self.mlpsd1.params[p].value = v
+        self.ac1 = self.mlpsd1.cov_matrix(self.mlpsd1.params)
+
+        for p, v in zip(self.mlpsd2.params, npz['mlpsd2_params']):
+            self.mlpsd2.params[p].value = v
+        self.ac2 = self.mlpsd2.cov_matrix(self.mlpsd2.params)
+
+        self.calculate_from_params()
 
 class StackedMLPSD(MLPSD):
     """
@@ -1027,7 +1130,8 @@ class StackedMLPSD(MLPSD):
         self.psd = None
         self.psd_error = None
 
-        self.mcmc_minimizer = None
+        self.mcmc_sampler = None
+        self.emcee_backend = None
         self.mcmc_result = None
 
         self.prefix = component_name + "_" if component_name is not None else ''
@@ -1135,7 +1239,8 @@ class StackedMLCrossSpectrum(MLCrossSpectrum):
         self.psd = None
         self.psd_error = None
 
-        self.mcmc_minimizer = None
+        self.mcmc_sampler = None
+        self.emcee_backend = None
         self.mcmc_result = None
 
         self.prefix = component_name + "_" if component_name is not None else ''
@@ -1190,3 +1295,40 @@ class StackedMLCrossSpectrum(MLCrossSpectrum):
                 return (-1e6, np.zeros(len([p for p in params if params[p].vary])) - 1e6)
         else:
             return np.sum([c.log_likelihood(params, eval_gradient) for c in self.mlcross_spec])
+
+    def load_fit(self, filename):
+        """
+        Load the fit parameters and errors to an npz file. Note that the object needs to be initialised with the same
+        light curves and model specification. In addition to loading the fit parameters, this function will load the
+        parameters for the individual power spectra and recalculate the autocovariance matrices.
+
+        :param filename: str: filename to write to
+        """
+        npz = np.load(filename)
+
+        if len(npz['params']) != len(self.params):
+            raise AssertionError("Number of parameters in file does not match number of free parameters in model. Was"
+                                 "this fit saved for the same fit configuration used here?!")
+
+        for p, v in zip(self.params, npz['params']):
+            self.params[p].value = v
+
+        try:
+            self.param_error = {}
+            for p, e in zip([par for par in self.params if self.params[par].vary], npz['params']):
+                self.param_error[p] = e
+        except:
+            self.param_error = None
+
+        for p, v in zip(self.mlpsd1.params, npz['mlpsd1_params']):
+            self.mlpsd1.params[p].value = v
+
+        for p, v in zip(self.mlpsd2.params, npz['mlpsd2_params']):
+            self.mlpsd2.params[p].value = v
+
+        # we need to initialise the autocovariance matrix for each light curve
+        for c in self.mlcross_spec:
+            c.ac1 = c.mlpsd1.cov_matrix(self.mlpsd1.params)
+            c.ac2 = c.mlpsd2.cov_matrix(self.mlpsd2.params)
+
+        self.calculate_from_params()
