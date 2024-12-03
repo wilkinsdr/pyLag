@@ -71,14 +71,15 @@ def orbit_lightcurve(lc, error_mode='counts'):
     counts = lc.rate[0]
     for i in range(len(lc) - 1):
         if tdiff[i] > tbin:
-            orbit_time.append(np.mean(t_points))
-            orbit_time_err.append(np.max(t_points) - np.mean(t_points))
-            orbit_time_interval = np.max(t_points) - np.min(t_points) + tbin
-            orbit_rate.append(counts / orbit_time_interval)
-            if(error_mode == 'counts'):
-                orbit_rate_err.append(np.sqrt(counts) / orbit_time_interval)
-            elif(error_mode == 'std'):
-                orbit_rate_err.append(np.std(r_points))
+            if len(t_points) > 0:
+                orbit_time.append(np.mean(t_points))
+                orbit_time_err.append(np.max(t_points) - np.mean(t_points))
+                orbit_time_interval = np.max(t_points) - np.min(t_points) + tbin
+                orbit_rate.append(counts / orbit_time_interval)
+                if(error_mode == 'counts'):
+                    orbit_rate_err.append(np.sqrt(counts) / orbit_time_interval)
+                elif(error_mode == 'std'):
+                    orbit_rate_err.append(np.std(r_points))
             t_points = []
             r_points = []
             counts = 0
