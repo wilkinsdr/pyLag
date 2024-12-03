@@ -1774,9 +1774,9 @@ class EnergyLCList(object):
         """
         if lcfiles is None:
             lcfiles = sorted(glob.glob(searchstr))
-        enlist = list(set([re.search(r'(en[0-9]+\-[0-9]+)', lc).group(0) for lc in lcfiles]))
+        enlist = list(set([re.search(r'(en[0-9]+-[0-9]+)', lc).group(0) for lc in lcfiles]))
 
-        obsid_list = list(set([re.search(r'(.*?)_(tbin[0-9]+)_(en[0-9]+\-[0-9]+)', lc).group(1) for lc in lcfiles]))
+        obsid_list = list(set([re.search(r'(.*?)_(tbin[0-9]+)_(en[0-9]+-[0-9]+)', lc).group(1) for lc in lcfiles]))
         for o in obsid_list:
             if len([lc for lc in lcfiles if o in lc]) < len(enlist):
                 raise AssertionError('%s does not have a complete set of energy bands' % o)
