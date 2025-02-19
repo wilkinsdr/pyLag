@@ -727,7 +727,7 @@ class LightCurve(object):
 
         return self._return_lightcurve(t=time[:-1], r=rate, e=err)
 
-    def rebin(self, tbin=None, time=None):
+    def rebin(self, tbin=None, time=None, min_exp=0):
         """
         rebin_lc = pylag.LightCurve.rebin3(tbin)
 
@@ -768,7 +768,12 @@ class LightCurve(object):
         rate = counts / (self.dt*num_in_bin)
         err = rate * np.sqrt(counts) / counts
 
-        return self._return_lightcurve(t=time[:-1], r=rate, e=err)
+        if min_exp > 0:
+            fracexp = num_in_bin / (tbin / np.min(np.diff(self.time)))
+            rate[fracexp < min_exp] = np.nan
+            err[fracexp < min_exp] = np.nan
+
+        return self._return_lightcurve(t=time[:-1], r=rate, e=err, zero_nan=False)
 
     # TODO: Counts binning based on accumulated count over previous time window
 
@@ -1445,8 +1450,8 @@ class LightCurve(object):
                 unit = ' / MJD'
         return 'Time%s' % unit, 'linear', 'Count Rate / ct s$^{-1}$', 'linear'
 
-    def _return_lightcurve(self, t, r, e, b=[], be=[], time_format=None):
-        lc = LightCurve(t=t, r=r, e=e, b=b, be=be, time_format=time_format if time_format is not None else self.time_format)
+    def _return_lightcurve(self, t, r, e, b=[], be=[], time_format=None, **kwargs):
+        lc = LightCurve(t=t, r=r, e=e, b=b, be=be, time_format=time_format if time_format is not None else self.time_format, **kwargs)
         lc.__class__ = self.__class__
         lc.telescope = self.telescope
         lc.instrument = self.instrument
