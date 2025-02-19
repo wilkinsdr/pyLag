@@ -105,7 +105,7 @@ class LightCurve(object):
 
     """
 
-    def __init__(self, filename=None, t=[], r=[], e=[], b=[], be=[], interp_gaps=False, zero_nan=True, trim=False, max_gap=0, time_format=None, add_bkg=False, **kwargs):
+    def __init__(self, filename=None, t=[], r=[], e=[], b=[], be=[], interp_gaps=False, zero_nan=True, trim=False, max_gap=0, time_format=None, add_bkg=False, sub_tstart=False, **kwargs):
         self.time = np.array(t)
         if len(r) > 0:
             self.rate = np.array(r)
@@ -156,6 +156,8 @@ class LightCurve(object):
             self.trim()
         if add_bkg:
             self.add_bkg(to_self=True)
+        if sub_tstart:
+            self.time -= self.time.min()
 
         self.filename = filename
 
