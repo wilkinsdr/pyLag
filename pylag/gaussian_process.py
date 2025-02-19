@@ -81,7 +81,10 @@ class GPLightCurve(LightCurve):
         if noise_kernel or not use_errors:
             self.gp_regressor = GaussianProcessRegressor(kernel=self.kernel, n_restarts_optimizer=n_restarts_optimizer, normalize_y=normalise)
         else:
-            alpha = (self.error / self.rate)**2
+            if normalise:
+                alpha = (self.error / np.std(self.rate))**2
+            else:
+                alpha = (self.error)**2
             self.gp_regressor = GaussianProcessRegressor(kernel=self.kernel, n_restarts_optimizer=n_restarts_optimizer,
                                                          normalize_y=normalise, alpha=alpha)
 
