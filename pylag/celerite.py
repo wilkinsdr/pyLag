@@ -20,8 +20,8 @@ from scipy.optimize import minimize
 import emcee
 
 
-class GPLightCurve_Celerite(GPLightCurve):
-    def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, num_terms=1, kernel=None, run_fit=True, use_errors=True, noise_kernel=False, lognorm=False, remove_gaps=True, remove_nan=False, zero_time=True):
+class CeleriteLightCurve(GPLightCurve):
+    def __init__(self, filename=None, t=[], r=[], e=[], lc=None, zero_nan=True, num_terms=1, kernel=None, run_fit=True, use_errors=True, noise_kernel=False, fit_noise=True, fit_mean=False, norm=True, lognorm=False, remove_gaps=True, remove_nan=False, zero_time=True, **kwargs):
         if lc is not None:
             if isinstance(lc, list):
                 # if we're passed a list, concatenate them into a single LightCurve
@@ -36,6 +36,7 @@ class GPLightCurve_Celerite(GPLightCurve):
 
         if zero_time:
             t = np.array(t)
+            self.tstart = t.min()
             t -= t.min()
 
         LightCurve.__init__(self, filename, t, r, e, interp_gaps=False, zero_nan=zero_nan, trim=False)
@@ -48,39 +49,43 @@ class GPLightCurve_Celerite(GPLightCurve):
         elif remove_nan:
             self.remove_nan(to_self=True)
 
-        self.mean_rate = self.mean()
+        self.mean_rate = np.mean(self.rate)
+        self.std_rate = np.std(self.rate)
         self.var = np.var(self.rate)
 
         self.sampler = None
-
-        if kernel is not None:
-            self.kernel = kernel
-        else:
-            #bounds = dict(log_a=(-15, 15), log_b=(-15, 15), log_c=(-15, 15), log_d=(-15,15))
-            #bounds = dict(log_a=(-15, 15), log_c=(-15, 15))
-            self.kernel = terms.ComplexTerm(log_a=-1, log_b=-100, log_c=-10, log_d=-100)
-            #self.kernel = terms.RealTerm(log_a=np.log(self.var), log_c=-10)
-            for i in range(num_terms - 1):
-                self.kernel += terms.ComplexTerm(log_a=-1, log_b=-1, log_c=-1, log_d=-1)
-                #self.kernel += terms.RealTerm(log_a=np.log(self.var), log_c=-10)
-            if noise_kernel:
-                noise_level = np.sqrt(self.mean_rate * self.dt) / (self.mean_rate * self.dt)
-                noise_bounds = dict(log_sigma=(-10, np.log(2*noise_level)))
-                self.kernel += terms.JitterTerm(log_sigma=np.log(noise_level), bounds=noise_bounds)
-
-        self.gp = celerite.GP(self.kernel, mean=self.mean_rate, fit_mean=True)
-        if use_errors:
-            self.gp.compute(self.time, self.error)
-        else:
-            self.gp.compute(self.time)
 
         self.lognorm = lognorm
         if self.lognorm:
             self.error = self.error / self.rate
             self.rate = np.log(self.rate)
 
+        self.norm = norm
+        if self.norm:
+            self.rate = (self.rate - self.rate.mean()) / self.rate.std()
+            self.error = self.error / self.rate.std()  # assuming no uncertainty in mean
+
+        self.use_errors = use_errors
+
+        if kernel is not None:
+            self.kernel = kernel
+        else:
+            self.kernel = terms.RealTerm(1, -10)
+            for i in range(num_terms - 1):
+                self.kernel += terms.RealTerm(1, -10)
+            if noise_kernel:
+                self.kernel += terms.JitterTerm(np.log10(np.mean(self.error)))
+
+        self.gp = celerite.GP(kernel, mean=np.mean(self.rate), fit_mean=fit_mean, fit_white_noise=fit_noise)
+
         if run_fit:
             self.fit()
+
+    def _compute(self):
+        if self.use_errors:
+            self.gp.compute(self.time, self.error)
+        else:
+            self.gp.compute(self.time)
 
     def fit(self, restarts=0):
         initial_params = self.gp.get_parameter_vector()
@@ -101,8 +106,9 @@ class GPLightCurve_Celerite(GPLightCurve):
             for par in r.x:
                 new_start.append(par + 0.1*par*scipy.randn())
             r = minimize(gp_minus_log_likelihood, new_start, jac=gp_grad_minus_log_likelihood, method="L-BFGS-B", bounds=bounds, args=(self.rate, self.gp))
-        self.gp.set_parameter_vector(r.x)
         print(r)
+        self.gp.set_parameter_vector(r.x)
+        self._compute()
         return r
 
     def run_mcmc(self, nsteps=2000, nburn=500):
@@ -171,7 +177,7 @@ class GPLightCurve_Celerite(GPLightCurve):
         if t is None:
             t = np.arange(self.time.min(), self.time.max(), np.min(np.diff(self.time)))
         r = self.gp.sample_conditional(self.rate, t, n_samples)
-        e = np.zeros(t.shape)
+        e = np.zeros_like(t)
         if n_samples == 1:
             if self.lognorm:
                 return LightCurve(t=t, r=np.exp(r[0]), e=e)
@@ -189,7 +195,7 @@ class GPLightCurve_Celerite(GPLightCurve):
 
         if t is None:
             t = np.arange(self.time.min(), self.time.max(), np.min(np.diff(self.time)))
-        e = np.zeros(t.shape)
+        e = np.zeros_like(t)
 
         samples = self.sampler.flatchain
 
