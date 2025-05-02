@@ -119,7 +119,7 @@ class WaveletCoherence(object):
 
         return coh, plag, coi, freq, W1, W2, W12, S1, S2, S12
 
-    def timeavg_coherence(self, coi=True):
+    def get_timeavg_coherence(self, coi=True):
         if coi:
             ti, fi = np.meshgrid(self.t, self.freq)
             coi_mask = np.ones_like(fi)
@@ -141,29 +141,27 @@ class WaveletCoherence(object):
 
         return avgcoh
 
-    def plot(self, levels=5):
-        # Prepare the figure
-        figprops = dict(figsize=(12, 6), dpi=72)
-        fig = plt.figure(**figprops)
+    def timeavg_coherence(self, **kwargs):
+        avgcoh = self.get_timeavg_coherence(**kwargs)
+        return DataSeries(self.freq, avgcoh, xlabel='Frequency (Hz)', ylabel='Coherence', xscale='log', yscale='linear')
 
-        # First sub-plot, the original time series anomaly and inverse wavelet
-        # transform.
+    def plot(self, levels=5, cmap='gray_r', figsize=(12, 6), dpi=72):
+        fig = plt.figure(figsize=figsize, dpi=dpi)
+
+        # First sub-plot, the original time series
         ax = plt.axes([0.1, 0.65, 0.65, 0.3])
         # ax.plot(t, iwave, '-', linewidth=1, color=[0.5, 0.5, 0.5])
         ax.plot(self.t, self.y1, 'C0', linewidth=1.5)
         ax.plot(self.t, self.y2, 'C1', linewidth=1.5)
         ax.set_ylabel(r'{} [{}]'.format('Count Rate', 'ct/s'))
 
-        # Second sub-plot, the normalized wavelet power spectrum and significance
-        # level contour lines and cone of influece hatched area. Note that period
-        # scale is logarithmic.
+        # Second sub-plot, the wavelet coherence spectrum
         bx = plt.axes([0.1, 0.1, 0.65, 0.45], sharex=ax)
         if isinstance(levels, int):
             levels = np.linspace(0, 1, 10)
-        bx.contourf(self.t, np.log2(self.freq), self.coh, levels, extend='both', cmap='gray_r')
+        bx.contourf(self.t, np.log2(self.freq), self.coh, levels, extend='both', cmap=cmap)
         extent = [self.t.min(), self.t.max(), min(self.freq), max(self.freq)]
-        # bx.contour(t, np.log2(freqs), sig95, [-99, 1], colors='w', linewidths=2,
-        #           extent=extent)
+        # shade the cone of influence
         bx.fill(np.concatenate([self.t, self.t[-1:] + self.dt, self.t[-1:] + self.dt,
                                 self.t[:1] - self.dt, self.t[:1] - self.dt]),
                 np.concatenate([np.log2(1. / self.coi), [1e-9], np.log2(self.freq[-1:]),
@@ -177,31 +175,17 @@ class WaveletCoherence(object):
         bx.set_yticks(np.log2(Yticks))
         bx.set_yticklabels(['%0.1E' % tick for tick in Yticks])
 
-        # Third sub-plot, the global wavelet and Fourier power spectra and theoretical
-        # noise spectra. Note that period scale is logarithmic.
-        avgcoh = self.timeavg_coherence(coi=True)
+        # Third sub-plot, the average coherence over all time bins
+        avgcoh = self.get_timeavg_coherence(coi=True)
 
         cx = plt.axes([0.77, 0.1, 0.2, 0.45], sharey=bx)
-        # cx.plot(glbl_signif, np.log2(freqs), 'k--')
-        # cx.plot(var * fft_theor, np.log2(freqs), '--', color='#cccccc')
-        # cx.plot(var * fft_power, np.log2(fftfreqs), '-', color='#cccccc',
-        #        linewidth=1.)
         cx.plot(avgcoh, np.log2(self.freq), 'k-', linewidth=1.5)
-        cx.set_xlabel(r'Coherence'.format('ct/s'))
+        cx.set_xlabel(r'Coherence')
         cx.set_xlim([0, 1])
         cx.set_ylim(np.log2([self.freq.min(), self.freq.max()]))
         cx.set_yticks(np.log2(Yticks))
         cx.set_yticklabels(['%0.1E' % tick for tick in Yticks])
         plt.setp(cx.get_yticklabels(), visible=False)
-
-        # Fourth sub-plot, the scale averaged wavelet spectrum.
-        # dx = pyplot.axes([0.1, 0.07, 0.65, 0.2], sharex=ax)
-        # dx.axhline(scale_avg_signif, color='k', linestyle='--', linewidth=1.)
-        # dx.plot(t, scale_avg, 'k-', linewidth=1.5)
-        # dx.set_title('d) {}--{} year scale-averaged power'.format(2, 8))
-        # dx.set_xlabel('Time (year)')
-        # dx.set_ylabel(r'Average variance [{}]'.format(units))
-        # ax.set_xlim([t.min(), t.max()])
 
         plt.show()
 
