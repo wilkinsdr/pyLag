@@ -766,7 +766,8 @@ class LightCurve(object):
         num_in_bin = np.array([np.sum(binid == (i + 1)) for i in range(len(time) - 1)])
 
         rate = counts / (self.dt*num_in_bin)
-        err = rate * np.sqrt(counts) / counts
+        err = np.zeros_like(rate)
+        err[rate>0] = rate[rate>0] * np.sqrt(counts[rate>0]) / counts[rate>0]
 
         if min_exp > 0:
             fracexp = num_in_bin / (tbin / np.min(np.diff(self.time)))
