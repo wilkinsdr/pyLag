@@ -158,7 +158,7 @@ class WaveletCoherence(object):
         # Second sub-plot, the wavelet coherence spectrum
         bx = plt.axes([0.1, 0.1, 0.65, 0.45], sharex=ax)
         if isinstance(levels, int):
-            levels = np.linspace(0, 1, 10)
+            levels = np.linspace(0, 1, levels)
         bx.contourf(self.t, np.log2(self.freq), self.coh, levels, extend='both', cmap=cmap)
         extent = [self.t.min(), self.t.max(), min(self.freq), max(self.freq)]
         # shade the cone of influence
