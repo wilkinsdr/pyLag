@@ -57,7 +57,7 @@ def get_nustar_lclist(src_files_fpma='nu*A01_sr.lc', bkg_files_fpma='nu*A01_bk.l
 
 
 def orbit_lightcurve(lc, error_mode='counts'):
-    from .lightcurve import VariableBinLightCurve
+    from .lightcurve import LightCurve
     orbit_time = []
     orbit_time_err = []
     orbit_rate = []
@@ -87,7 +87,7 @@ def orbit_lightcurve(lc, error_mode='counts'):
             t_points.append(lc.time[i + 1])
             counts += lc.rate[i + 1] * tbin
 
-    orbit_lc = VariableBinLightCurve(t=orbit_time, te=orbit_time_err, r=orbit_rate, e=orbit_rate_err)
+    orbit_lc = LightCurve(t=orbit_time, te=orbit_time_err, r=orbit_rate, e=orbit_rate_err, time_format=lc.time_format)
     return orbit_lc
 
 
