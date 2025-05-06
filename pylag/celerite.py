@@ -10,7 +10,7 @@ Classes
 v1.0 09/03/2017 - D.R. Wilkins
 """
 import numpy as np
-
+from celerite.solver import LinAlgError
 
 from .lightcurve import *
 from .gaussian_process import *
@@ -62,8 +62,8 @@ class CeleriteLightCurve(GPLightCurve):
 
         self.norm = norm
         if self.norm:
-            self.rate = (self.rate - self.rate.mean()) / self.rate.std()
-            self.error = self.error / self.rate.std()  # assuming no uncertainty in mean
+            self.rate = (self.rate - self.rate.mean()) / self.std_rate
+            self.error = self.error / self.std_rate  # assuming no uncertainty in mean
 
         self.use_errors = use_errors
 
@@ -76,8 +76,9 @@ class CeleriteLightCurve(GPLightCurve):
             if noise_kernel:
                 self.kernel += terms.JitterTerm(np.log10(np.mean(self.error)))
 
-        self.gp = celerite.GP(kernel, mean=np.mean(self.rate), fit_mean=fit_mean, fit_white_noise=fit_noise)
+        self.gp = celerite.GP(self.kernel, mean=np.mean(self.rate), fit_mean=fit_mean, fit_white_noise=fit_noise)
 
+        self._compute()
         if run_fit:
             self.fit()
 
@@ -87,8 +88,9 @@ class CeleriteLightCurve(GPLightCurve):
         else:
             self.gp.compute(self.time)
 
-    def fit(self, restarts=0):
-        initial_params = self.gp.get_parameter_vector()
+    def fit(self, initial_params=None, restarts=0):
+        if initial_params is None:
+            initial_params = self.gp.get_parameter_vector()
         bounds = self.gp.get_parameter_bounds()
 
         def gp_minus_log_likelihood(params, y, gp):
@@ -117,7 +119,12 @@ class CeleriteLightCurve(GPLightCurve):
             lp = gp.log_prior()
             if not np.isfinite(lp):
                 return -np.inf
-            return gp.log_likelihood(y) + lp
+            try:
+                lnprob = gp.log_likelihood(y)
+            except LinAlgError:
+                return -np.inf
+
+            return lnprob + lp
 
         r = self.fit()
         initial = np.array(r.x)
