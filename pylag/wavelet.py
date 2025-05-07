@@ -231,8 +231,8 @@ class WaveletCoherence(object):
 
         Returns
         -------
-        WCT : magnitude of coherence
-        aWCT : phase angle of coherence
+        coh : magnitude of coherence
+        plag : phase angle of coherence
         coi (array like):
             Cone of influence, which is a vector of N points containing
             the maximum Fourier period of useful information at that
@@ -242,10 +242,12 @@ class WaveletCoherence(object):
             Vector of Fourier equivalent frequencies (in 1 / time units)    coi :
         sig :  Significance levels as a function of scale
            if sig=True when called, otherwise zero.
-
-        See also
-        --------
-        cwt, xwt
+        W1: unsmoothed wavelet transform of y1
+        W2: unsmoothed wavelet transform of y2
+        W12: unsmoothed complex wavelet cross spectrum
+        S1: smoothed wavelet transform of y1
+        S2: smoothed wavelet transform of y2
+        S12: smoothed complex wavelet cross spectrum
 
         """
         # Calculates the CWT of the time-series making sure the same parameters
