@@ -268,9 +268,14 @@ class LightCurve(object):
                     The name of the table extension to be created in the FITS file. This extension will be created
                     alongside an empty primary HDU.
         """
-        time_arr = self.time.byteswap().newbyteorder('>') if byte_swap else self.time
-        rate_arr = self.rate.byteswap().newbyteorder('>') if byte_swap else self.rate
-        error_arr = self.error.byteswap().newbyteorder('>') if byte_swap else self.error
+        # deprecated code for numpy < 2, new code for numpy 2 below
+        # time_arr = self.time.byteswap().newbyteorder('>') if byte_swap else self.time
+        # rate_arr = self.rate.byteswap().newbyteorder('>') if byte_swap else self.rate
+        # error_arr = self.error.byteswap().newbyteorder('>') if byte_swap else self.error
+
+        time_arr = self.time.view(self.time.dtype.newbyteorder()).byteswap(inplace=False) if byte_swap else self.time
+        rate_arr = self.rate.view(self.rate.dtype.newbyteorder()).byteswap(inplace=False) if byte_swap else self.rate
+        error_arr = self.error.view(self.error.dtype.newbyteorder()).byteswap(inplace=False) if byte_swap else self.error
 
         time_c = pyfits.Column(name=time_col, array=time_arr, format='D')
         rate_c = pyfits.Column(name=rate_col, array=rate_arr, format='E')
@@ -302,9 +307,14 @@ class LightCurve(object):
         want to use the FFT functions in scipy.fftpack since these only supported
         little endian (and pyfits preserves the endianness read from the file)
         """
-        self.time = self.time.byteswap().newbyteorder('<')
-        self.rate = self.rate.byteswap().newbyteorder('<')
-        self.error = self.error.byteswap().newbyteorder('<')
+        # deprecated code for numpy < 2, new code for numpy 2 below
+        # self.time = self.time.byteswap().dtype.newbyteorder('<')
+        # self.rate = self.rate.byteswap().dtype.newbyteorder('<')
+        # self.error = self.error.byteswap().dtype.newbyteorder('<')
+
+        self.time = self.time.view(self.time.dtype.newbyteorder()).byteswap(inplace=False)
+        self.rate = self.rate.view(self.rate.dtype.newbyteorder()).byteswap(inplace=False)
+        self.error = self.error.view(self.error.dtype.newbyteorder()).byteswap(inplace=False)
 
     def trim(self):
         """
