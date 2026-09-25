@@ -181,7 +181,7 @@ class Plot(object):
         if colours is not None:
             self._colour_series = colours
         else:
-            self._colour_series = ['k', 'tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple']
+            self._colour_series = [plt.rcParams['text.color'], 'tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple']
 
         if markers is not None:
             self._marker_series = markers
